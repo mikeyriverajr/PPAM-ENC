@@ -417,6 +417,12 @@ function fetchData() {
     })
     .catch(error => {
       console.error('Error fetching data:', error);
-      container.innerHTML = `<p>Error al cargar los datos. Por favor verifica tu conexión o la configuración.</p><pre>${error.message}</pre>`;
+      container.innerHTML = `
+        <div style="color: red; padding: 20px; text-align: center; border: 2px solid red; border-radius: 10px; background: #fff0f0;">
+          <h3>Error al cargar los datos</h3>
+          <p>Es posible que la restricción de seguridad de Google esté bloqueando el acceso en este dispositivo.</p>
+          <p style="font-family: monospace; background: #eee; padding: 10px; border-radius: 5px;">${error.message}</p>
+        </div>
+      `;
     });
 }

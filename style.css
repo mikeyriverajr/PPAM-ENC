@@ -1,0 +1,33 @@
+:root {
+  --primary: rgb(93, 122, 169);
+  --primary-dark: rgb(68, 97, 144);
+  --primary-light: rgb(123, 152, 199);
+  --secondary: #f1f1f4;
+  --card: #ffffff;
+  --text-main: #2b2b2b;
+  --text-muted: #666;
+  --highlight: rgb(123, 152, 199);
+}
+body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background: var(--secondary); color: var(--text-main); }
+.container { max-width: 1000px; margin: auto; padding: 16px; padding-bottom: 50px; }
+header { background: var(--primary); color: #fff; padding: 22px; border-radius: 16px; margin-bottom: 16px; text-align: center; }
+header h1 { margin: 0; font-size: 1.5em; }
+.search-box { display: flex; gap: 10px; margin: 18px 0; position: sticky; top: 10px; z-index: 100; }
+.search-box input { flex: 1; padding: 12px 14px; font-size: 1em; border-radius: 10px; border: 1px solid #ccc; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+.search-box button { padding: 12px 16px; font-size: 0.95em; border-radius: 10px; border: none; background: var(--primary); color: #fff; cursor: pointer; }
+.day { background: var(--card); border-radius: 16px; padding: 18px; margin-bottom: 22px; box-shadow: 0 8px 20px rgba(0,0,0,0.06); border: 2px solid transparent; transition: all 0.5s ease; }
+.day h2 { margin-top: 0; color: var(--primary); font-size: 1.4em; display: flex; justify-content: space-between; align-items: center; }
+.day.today { border-color: var(--highlight); background-color: #fff9c4; }
+.day.today h2::after { content: "HOY"; font-size: 0.6em; background: var(--highlight); color: #333; padding: 4px 8px; border-radius: 12px; }
+.encargado { background: #f7f6fa; border-left: 4px solid var(--primary); padding: 12px; border-radius: 10px; margin-bottom: 16px; font-size: 0.95em; line-height: 1.6; }
+.encargado a { color: var(--primary); text-decoration: none; font-weight: 700; }
+.schedule { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.slot { background: #f9f9fb; border-radius: 12px; padding: 14px; display: flex; flex-direction: column; }
+.slot h3 { margin: 0; font-size: 1.05em; color: #444; }
+.time { font-size: 0.9em; color: var(--text-muted); margin-bottom: 8px; }
+ul { margin: 0; padding-left: 18px; flex-grow: 1; }
+li { margin-bottom: 4px; }
+.calendar-actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+.calendar-link { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; font-size: 0.8em; text-decoration: none; background: var(--primary-light); color: #1f2a44; border: 1px solid var(--primary); cursor: pointer; }
+.calendar-link.ics { background: #fff; }
+.calendar-icon { width: 14px; height: 14px; fill: currentColor; }

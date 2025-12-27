@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Programa PPEAM – Enero 2026</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Predicación Pública en Áreas Metropolitanas</h1>
+    </header>
+
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="Buscar nombre..." onkeyup="searchName()">
+      <button onclick="clearSearch()">Limpiar</button>
+    </div>
+    
+    <div id="schedule-container">Loading schedule...</div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

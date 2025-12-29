@@ -9,6 +9,13 @@ let scheduleData = [];
 let savedNames = [];
 let currentView = 'all'; // 'all' or 'mine'
 
+// Register Service Worker for PWA
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./service-worker.js')
+    .then(() => console.log('Service Worker Registered'))
+    .catch((err) => console.error('Service Worker Failed', err));
+}
+
 document.addEventListener("DOMContentLoaded", function () {
   loadFavorites();
   fetchData();
@@ -37,7 +44,8 @@ function toggleFavorite(name) {
     savedNames.push(name);
   }
   saveFavorites();
-  renderSchedule(); // Re-render to update UI
+  renderSchedule();
+  applyDateFilter(); // Ensure dates are filtered again
 }
 
 function switchTab(tab) {
@@ -60,6 +68,7 @@ function switchTab(tab) {
   }
 
   renderSchedule();
+  applyDateFilter(); // Ensure dates are filtered again
 }
 
 function parseData(rows) {
@@ -231,8 +240,16 @@ function renderSchedule() {
   const container = document.getElementById('schedule-container');
   container.innerHTML = "";
   
+  const counterEl = document.getElementById('shift-counter');
   let myShiftCount = 0;
   let hasVisibleShifts = false;
+  
+  // Calculate today string for filtering count
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const todayStr = `${year}-${month}-${d}`;
 
   scheduleData.forEach(day => {
     let visibleSlots = day.slots;
@@ -242,22 +259,45 @@ function renderSchedule() {
          visibleSlots = [];
       } else {
          visibleSlots = day.slots.filter(slot => {
-           return slot.names.some(n => savedNames.includes(n));
+           // 1. Is this person a participant in the slot?
+           const isParticipant = slot.names.some(n => savedNames.includes(n));
+           if (isParticipant) return true;
+
+           // 2. Is this person a Manager for the day?
+           const starredManagers = Array.from(day.managers.values()).filter(m => savedNames.includes(m.name));
+           if (starredManagers.length > 0) {
+             const location = slot.loc.toLowerCase();
+             return starredManagers.some(mgr => {
+               const role = mgr.role.toLowerCase();
+               const isCostaneraMgr = role.includes('costanera');
+               const isCostaneraSlot = location.includes('costanera');
+               if (isCostaneraMgr && isCostaneraSlot) return true;
+               if (!isCostaneraMgr && !isCostaneraSlot) return true;
+               return false;
+             });
+           }
+           return false;
          });
       }
     }
 
-    // Count shifts for the user
-    if (currentView === 'mine') {
-        visibleSlots.forEach(slot => {
-            // Count 1 for every slot I am in
-            // If I am in the slot, increment count
-            // Note: visibleSlots is already filtered to only contain slots I am in (if logic above works)
-            // But let's be precise: logic above filters slots that contain ANY favorite.
-            // If I have 2 favorites (Me + Wife), and we share a slot, it counts as 1 slot.
-            // That seems correct. "You have 5 shifts" (meaning 5 slots to attend).
-            myShiftCount++;
-        });
+    // Count shifts for the user (only for future/today)
+    if (currentView === 'mine' && day.date >= todayStr) {
+        // Check if I am a Manager for this day
+        // We use the same filtering logic: did we "match" this day because of a manager role?
+        const amIManager = Array.from(day.managers.values()).some(m => savedNames.includes(m.name));
+        
+        if (amIManager) {
+            // If I am a manager, count the DAY as 1 shift (regardless of how many slots)
+            if (visibleSlots.length > 0) { // Only count if there are actual slots to manage
+                myShiftCount++;
+            }
+        } else {
+            // If I am just a participant, count every slot
+            visibleSlots.forEach(slot => {
+                myShiftCount++;
+            });
+        }
     }
 
     if (currentView === 'mine' && visibleSlots.length === 0) {
@@ -276,7 +316,15 @@ function renderSchedule() {
         const content = mgr.link 
           ? `<a href="${mgr.link}" target="_blank">${mgr.name}</a>` 
           : mgr.name;
-        html += `<div><strong>${mgr.role}:</strong> ${content}</div>`;
+          
+        const isFav = savedNames.includes(mgr.name);
+        const starClass = isFav ? "star-btn active" : "star-btn";
+        const starIcon = isFav ? "★" : "☆";
+        const safeName = mgr.name.replace(/'/g, "\\'");
+        
+        html += `<div><strong>${mgr.role}:</strong> ${content} 
+                 <button class="${starClass}" onclick="toggleFavorite('${safeName}')" title="${isFav ? 'Quitar de mis turnos' : 'Agregar a mis turnos'}">${starIcon}</button>
+                 </div>`;
       });
       html += `</div>`;
     }

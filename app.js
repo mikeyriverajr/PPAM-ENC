@@ -6,13 +6,64 @@ const RANGE = 'A:F';
 
 // Will hold the final structured data
 let scheduleData = [];
+let savedNames = [];
+let currentView = 'all'; // 'all' or 'mine'
 
 document.addEventListener("DOMContentLoaded", function () {
+  loadFavorites();
   fetchData();
 });
 
+function loadFavorites() {
+  const stored = localStorage.getItem('ppam_favorites');
+  if (stored) {
+    try {
+      savedNames = JSON.parse(stored);
+    } catch (e) {
+      console.error("Error loading favorites", e);
+      savedNames = [];
+    }
+  }
+}
+
+function saveFavorites() {
+  localStorage.setItem('ppam_favorites', JSON.stringify(savedNames));
+}
+
+function toggleFavorite(name) {
+  if (savedNames.includes(name)) {
+    savedNames = savedNames.filter(n => n !== name);
+  } else {
+    savedNames.push(name);
+  }
+  saveFavorites();
+  renderSchedule(); // Re-render to update UI
+}
+
+function switchTab(tab) {
+  currentView = tab;
+  
+  // Update Tab UI
+  document.getElementById('tab-all').className = tab === 'all' ? 'tab active' : 'tab';
+  document.getElementById('tab-mine').className = tab === 'mine' ? 'tab active' : 'tab';
+  
+  // Toggle Search & Instructions visibility
+  const searchContainer = document.getElementById('search-container');
+  const instructions = document.getElementById('all-view-instructions');
+  
+  if (tab === 'mine') {
+    searchContainer.style.display = 'none';
+    instructions.style.display = 'none';
+  } else {
+    searchContainer.style.display = 'flex';
+    instructions.style.display = 'block';
+  }
+
+  renderSchedule();
+}
+
 function parseData(rows) {
-  // rows is an array of rowData objects: { values: [ { formattedValue: "...", hyperlink: "..." }, ... ] }
+  // rows is an array of rowData objects
   
   // Helper to safely get value from row/col
   const getVal = (r, c) => {
@@ -30,8 +81,6 @@ function parseData(rows) {
   for (let i = 0; i < rows.length; i++) {
     const val0 = getVal(rows[i], 0);
     const val1 = getVal(rows[i], 1);
-    
-    // Check for "Fecha" in column 0, and "Ubicación" in column 1
     if (val0.toLowerCase().includes("fecha") && val1.toLowerCase().includes("ubicación")) {
       headerIndex = i;
       break;
@@ -43,15 +92,14 @@ function parseData(rows) {
     headerIndex = 0;
   }
 
-  const daysMap = new Map(); // Key: Date String, Value: Day Object
+  const daysMap = new Map(); 
   let lastDateStr = "";
 
   for (let i = headerIndex + 1; i < rows.length; i++) {
     const row = rows[i];
     
-    // Handle merged cells / fill-down logic for Date
+    // Fill-down logic for Date
     let dateStr = getVal(row, 0).trim();
-    
     if (dateStr) {
       lastDateStr = dateStr;
     } else if (lastDateStr) {
@@ -63,9 +111,9 @@ function parseData(rows) {
     const location = getVal(row, 1).trim();
     if (!location) continue;
 
-    const slot1Names = getVal(row, 2).trim(); // 8 a 10
-    const slot2Names = getVal(row, 3).trim(); // 10 a 12
-    const slot3Names = getVal(row, 4).trim(); // 18:30 a 20:30
+    const slot1Names = getVal(row, 2).trim(); 
+    const slot2Names = getVal(row, 3).trim(); 
+    const slot3Names = getVal(row, 4).trim(); 
     
     const managerName = getVal(row, 5).trim();
     const managerLink = getLink(row, 5);
@@ -74,16 +122,14 @@ function parseData(rows) {
       daysMap.set(dateStr, {
         date: parseSpanishDate(dateStr),
         dayLabel: dateStr,
-        managers: new Map(), // Key: Name, Value: { role, name, link } (Map prevents duplicates)
+        managers: new Map(), 
         slotsMap: new Map() 
       });
     }
 
     const dayObj = daysMap.get(dateStr);
 
-    // Add manager if present
     if (managerName) {
-      // Determine role based on location
       let role = "Encargado";
       if (location.toLowerCase().includes("costanera")) {
         role = "Encargado Costanera";
@@ -91,21 +137,13 @@ function parseData(rows) {
         role = "Encargado del día";
       }
       
-      // We key by name to avoid duplicates if same manager is listed for multiple rows of same day
       if (!dayObj.managers.has(managerName)) {
         dayObj.managers.set(managerName, { role: role, name: managerName, link: managerLink });
-      } else {
-        // Optional: Update role if hierarchy? 
-        // If we already have them as "Encargado del día", keep it.
-        // But if they appear again, it's fine.
       }
     }
 
-    // Helper to add names to a slot
     const addSlot = (timeLabel, namesStr) => {
       if (!namesStr || !location) return;
-      
-      // Filter out "No hay turno"
       if (namesStr.toLowerCase().includes("no hay turno")) return;
 
       const key = location + "|" + timeLabel;
@@ -119,7 +157,6 @@ function parseData(rows) {
       
       const namesList = namesStr.split(/[\n,]+/).map(n => n.trim()).filter(n => n.length > 0);
       namesList.forEach(name => {
-        // Double check against "No hay turno" if it was part of a list?
         if (name.toLowerCase().includes("no hay turno")) return;
         dayObj.slotsMap.get(key).names.push(name);
       });
@@ -133,21 +170,15 @@ function parseData(rows) {
   // Convert Map to Array
   const result = [];
   daysMap.forEach((dayObj, dateStr) => {
-    // Convert managers Map to Array
     const managersArray = Array.from(dayObj.managers.values());
-
-    // Convert slotsMap to Array
-    const slotsArray = Array.from(dayObj.slotsMap.values());
+    const slotsArray = Array.from(dayObj.slotsMap.values()).filter(s => s.names.length > 0);
     
-    // Sort slots by time.
-    // We assume time format "H:MM" or "HH:MM".
-    // "8:00" should come before "10:00". localeCompare sorts "10" before "8".
-    // So we pad with leading zero if needed for comparison.
+    // Sort slots
     slotsArray.sort((a, b) => {
       const pad = (s) => {
         const match = s.match(/\d{1,2}:\d{2}/);
         if (!match) return s;
-        return match[0].padStart(5, '0'); // "8:00" -> "08:00"
+        return match[0].padStart(5, '0'); 
       };
       return pad(a.time).localeCompare(pad(b.time));
     });
@@ -164,8 +195,6 @@ function parseData(rows) {
 }
 
 function parseSpanishDate(dateStr) {
-  // Expected format: "viernes 2 enero" or "viernes 2 de enero"
-  // Returns YYYY-MM-DD
   const months = {
     "enero": "01", "febrero": "02", "marzo": "03", "abril": "04", 
     "mayo": "05", "junio": "06", "julio": "07", "agosto": "08", 
@@ -175,19 +204,16 @@ function parseSpanishDate(dateStr) {
   const lower = dateStr.toLowerCase();
   let day = "01";
   let month = "01";
-  let year = 2026; // Default to 2026 (Jan/Feb/etc)
+  let year = 2026; 
 
-  // Extract number
   const dayMatch = lower.match(/\d{1,2}/);
   if (dayMatch) {
     day = dayMatch[0].padStart(2, '0');
   }
   
-  // Extract month
   for (const [name, code] of Object.entries(months)) {
     if (lower.includes(name)) {
       month = code;
-      // Hardcoded logic for this specific schedule transition
       if (name === "diciembre") {
         year = 2025;
       } else {
@@ -205,16 +231,45 @@ function renderSchedule() {
   const container = document.getElementById('schedule-container');
   container.innerHTML = "";
   
+  let myShiftCount = 0;
+  let hasVisibleShifts = false;
+
   scheduleData.forEach(day => {
+    let visibleSlots = day.slots;
+    
+    if (currentView === 'mine') {
+      if (savedNames.length === 0) {
+         visibleSlots = [];
+      } else {
+         visibleSlots = day.slots.filter(slot => {
+           return slot.names.some(n => savedNames.includes(n));
+         });
+      }
+    }
+
+    // Count shifts for the user
+    if (currentView === 'mine') {
+        visibleSlots.forEach(slot => {
+            // Count 1 for every slot I am in
+            // If I am in the slot, increment count
+            // Note: visibleSlots is already filtered to only contain slots I am in (if logic above works)
+            // But let's be precise: logic above filters slots that contain ANY favorite.
+            // If I have 2 favorites (Me + Wife), and we share a slot, it counts as 1 slot.
+            // That seems correct. "You have 5 shifts" (meaning 5 slots to attend).
+            myShiftCount++;
+        });
+    }
+
+    if (currentView === 'mine' && visibleSlots.length === 0) {
+        return; // Don't render empty days in Mine view
+    }
+    
     const dayDiv = document.createElement('div');
     dayDiv.className = 'day';
-    // Store raw date for filtering
     dayDiv.setAttribute('data-date', day.date);
     
-    // Header del día
     let html = `<h2>${day.dayLabel}</h2>`;
     
-    // Encargados
     if (day.managers && day.managers.length > 0) {
       html += `<div class="encargado">`;
       day.managers.forEach(mgr => {
@@ -226,22 +281,29 @@ function renderSchedule() {
       html += `</div>`;
     }
 
-    // Grilla de Turnos
     html += `<div class="schedule">`;
     
-    day.slots.forEach(slot => {
+    visibleSlots.forEach(slot => {
       let icon = "🕘";
       if (slot.time.includes("8:00")) icon = "🕗";
       if (slot.time.includes("10:00")) icon = "🕙";
       if (slot.time.includes("18:30")) icon = "🕡";
 
       let listHtml = "";
-      slot.names.forEach(n => listHtml += `<li>${n}</li>`);
+      slot.names.forEach(n => {
+        const isFav = savedNames.includes(n);
+        const starClass = isFav ? "star-btn active" : "star-btn";
+        const starIcon = isFav ? "★" : "☆";
+        const safeName = n.replace(/'/g, "\\'");
+        
+        listHtml += `<li>
+          ${n} 
+          <button class="${starClass}" onclick="toggleFavorite('${safeName}')" title="${isFav ? 'Quitar de mis turnos' : 'Agregar a mis turnos'}">${starIcon}</button>
+        </li>`;
+      });
 
       // Calendar Buttons
-      // Google Calendar Link
       const dateStr = day.date.replace(/-/g, '');
-      // slot.time is like "8:00 – 10:00"
       const times = slot.time.match(/(\d{1,2}:\d{2})\s*[–—-]\s*(\d{1,2}:\d{2})/);
       let calendarActions = "";
       
@@ -254,10 +316,6 @@ function renderSchedule() {
         
         const googleUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dateStr}T${start}/${dateStr}T${end}&details=${encodeURIComponent(details)}&location=${encodeURIComponent(locationStr)}&ctz=America/Asuncion`;
         
-        // ICS Generation
-        // We will store the data in data attributes to generate on click to avoid heavy DOM on load if not needed? 
-        // Or just generate the blob link now. 
-        // Let's make a function to generate ICS content.
         const icsContent = generateICS(title, day.date, times[1], times[2], locationStr, details);
         const icsBlob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
         const icsUrl = URL.createObjectURL(icsBlob);
@@ -286,21 +344,23 @@ function renderSchedule() {
       `;
     });
 
-    html += `</div>`; // cierre .schedule
+    html += `</div>`; 
     dayDiv.innerHTML = html;
     container.appendChild(dayDiv);
+    hasVisibleShifts = true;
   });
+
+  if (currentView === 'mine' && !hasVisibleShifts && savedNames.length > 0) {
+      container.innerHTML = "<p style='text-align:center; padding:20px;'>No se encontraron turnos para tus nombres guardados.</p>";
+  }
+  
+  // Call updateCounter at the end of rendering
+  updateCounter(myShiftCount);
 }
 
 function generateICS(title, date, startTime, endTime, location, description) {
-  // date is YYYY-MM-DD
-  // time is HH:MM
   const formatTime = (t) => {
-    // Ensure we have HHMMSS format (6 digits)
     const raw = t.replace(':', ''); 
-    // If raw is "800", we need "0800". If "1000", we need "1000".
-    // Then add "00" for seconds.
-    // Actually, safest is to parse strictly.
     const parts = t.split(':');
     const h = parts[0].padStart(2, '0');
     const m = parts[1].padStart(2, '0');
@@ -327,7 +387,6 @@ END:VCALENDAR`;
 
 function applyDateFilter() {
   const now = new Date();
-  // Construct YYYY-MM-DD using local time
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const d = String(now.getDate()).padStart(2, '0');
@@ -337,19 +396,12 @@ function applyDateFilter() {
     const dateAttr = day.getAttribute('data-date');
     if (!dateAttr) return;
     
-    // Parse the attribute date
-    // Note: data-date is YYYY-MM-DD
-    const dayDate = new Date(dateAttr + "T00:00:00");
-    
-    // Style "Today"
     if (dateAttr === todayStr) {
       day.classList.add("today");
     } else {
       day.classList.remove("today");
     }
 
-    // Hide past days logic
-    // We compare strings or timestamps. 
     if (dateAttr < todayStr) {
       day.style.display = "none";
     } else {
@@ -359,15 +411,15 @@ function applyDateFilter() {
 }
 
 function searchName() {
+  if (currentView !== 'all') return;
+  
   const q = document.getElementById("searchInput").value.toLowerCase().trim();
   
-  // If search is empty, re-apply the date filter (hide past)
   if (q === "") {
     applyDateFilter();
     return;
   }
 
-  // If searching, show all matching days, even past ones
   document.querySelectorAll(".day").forEach(day => {
     const text = day.textContent.toLowerCase();
     if (text.includes(q)) {
@@ -378,14 +430,28 @@ function searchName() {
   });
 }
 
+function updateCounter(count) {
+    const el = document.getElementById('shift-counter');
+    if (currentView === 'mine') {
+        el.style.display = 'block';
+        if (savedNames.length === 0) {
+            el.innerHTML = "No tienes nombres guardados. Ve a 'Todos los Turnos', busca tu nombre y marca la estrella ★.";
+        } else if (count === 0) {
+             el.innerHTML = "No tienes turnos programados en el futuro.";
+        } else {
+             el.innerHTML = `Tienes ${count} turno(s) programado(s).`;
+        }
+    } else {
+        el.style.display = 'none';
+    }
+}
+
 function clearSearch() {
   document.getElementById("searchInput").value = "";
   searchName();
 }
 
 function fetchData() {
-  // We use spreadsheets.get with includeGridData to get hyperlinks
-  // We restrict fields to minimize data transfer, getting formattedValue and hyperlink
   const fields = "sheets(data(rowData(values(formattedValue,hyperlink))))";
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?includeGridData=true&ranges=Programa!${RANGE}&fields=${fields}&key=${API_KEY}`;
   
@@ -400,7 +466,6 @@ function fetchData() {
       return response.json();
     })
     .then(data => {
-      // Navigate the nested structure: sheets[0].data[0].rowData
       if (!data.sheets || !data.sheets[0] || !data.sheets[0].data || !data.sheets[0].data[0].rowData) {
          container.innerHTML = "No se encontraron datos en la planilla.";
          return;
@@ -408,11 +473,9 @@ function fetchData() {
 
       const rows = data.sheets[0].data[0].rowData;
       
-      // Parse the data
       scheduleData = parseData(rows);
       renderSchedule();
       
-      // Initial filter (hide past days)
       applyDateFilter();
     })
     .catch(error => {

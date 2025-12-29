@@ -5,8 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <!-- Ensure Referrer is sent for Google API Restrictions -->
   <meta name="referrer" content="no-referrer-when-downgrade">
+  <meta name="theme-color" content="#5d7aa9">
   <title>Programa PPEAM – Enero 2026</title>
   <link rel="stylesheet" href="style.css">
+  
+  <!-- Favicon (Emoji Calendar) -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📅</text></svg>">
+  
+  <!-- Manifest for PWA -->
+  <link rel="manifest" href="manifest.json">
 </head>
 <body>
   <div class="container">
@@ -14,7 +21,18 @@
       <h1>Predicación Pública en Áreas Metropolitanas</h1>
     </header>
 
-    <div class="search-box">
+    <div class="view-tabs">
+      <button id="tab-all" class="tab active" onclick="switchTab('all')">Todos los Turnos</button>
+      <button id="tab-mine" class="tab" onclick="switchTab('mine')">Mis Turnos</button>
+    </div>
+
+    <div id="shift-counter" class="shift-counter" style="display: none;"></div>
+    
+    <div id="all-view-instructions" class="info-box">
+      <p><strong>Tip:</strong> Toca la estrella <span style="color:#ccc; font-size:1.2em">☆</span> junto a tu nombre para guardar tus turnos en la pestaña <strong>"Mis Turnos"</strong>.</p>
+    </div>
+
+    <div class="search-box" id="search-container">
       <input type="text" id="searchInput" placeholder="Buscar nombre..." onkeyup="searchName()">
       <button onclick="clearSearch()">Limpiar</button>
     </div>

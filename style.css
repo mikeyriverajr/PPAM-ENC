@@ -12,9 +12,29 @@ body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Ro
 .container { max-width: 1000px; margin: auto; padding: 16px; padding-bottom: 50px; }
 header { background: var(--primary); color: #fff; padding: 22px; border-radius: 16px; margin-bottom: 16px; text-align: center; }
 header h1 { margin: 0; font-size: 1.5em; }
+
+/* Tabs */
+.view-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.tab { flex: 1; padding: 12px; border: none; background: #e0e0e6; border-radius: 10px; font-weight: 600; color: #555; cursor: pointer; transition: all 0.2s; }
+.tab.active { background: var(--primary); color: #fff; box-shadow: 0 4px 6px rgba(93, 122, 169, 0.3); }
+
+/* Shift Counter */
+.shift-counter { background: #fff9c4; color: #8a6d0b; padding: 12px; border-radius: 10px; margin-bottom: 16px; text-align: center; font-weight: bold; border: 1px solid #ffeeba; }
+
+/* Info Box */
+.info-box { background: #e3f2fd; color: #0d47a1; padding: 12px; border-radius: 10px; margin-bottom: 16px; font-size: 0.95em; border: 1px solid #bbdefb; }
+.info-box p { margin: 0; }
+
+/* Search Box */
 .search-box { display: flex; gap: 10px; margin: 18px 0; position: sticky; top: 10px; z-index: 100; }
 .search-box input { flex: 1; padding: 12px 14px; font-size: 1em; border-radius: 10px; border: 1px solid #ccc; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
 .search-box button { padding: 12px 16px; font-size: 0.95em; border-radius: 10px; border: none; background: var(--primary); color: #fff; cursor: pointer; }
+
+/* Stars */
+.star-btn { cursor: pointer; font-size: 1.2em; color: #ccc; margin-left: 6px; line-height: 1; vertical-align: middle; background: none; border: none; padding: 0; }
+.star-btn.active { color: #fbc02d; }
+.star-btn:hover { transform: scale(1.2); }
+
 .day { background: var(--card); border-radius: 16px; padding: 18px; margin-bottom: 22px; box-shadow: 0 8px 20px rgba(0,0,0,0.06); border: 2px solid transparent; transition: all 0.5s ease; }
 .day h2 { margin-top: 0; color: var(--primary); font-size: 1.4em; display: flex; justify-content: space-between; align-items: center; }
 .day.today { border-color: var(--highlight); background-color: #fff9c4; }

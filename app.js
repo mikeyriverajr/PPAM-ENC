@@ -2,12 +2,14 @@
 const SHEET_ID = '1SuiFgX2XiBeVec6bCeJFRhXPuTUEdYe7IIa105NI8jY';
 const API_KEY = 'AIzaSyDfsWBhEVTd8Ogv2CxBqWKxBDVCQBshAfA';
 const RANGE = 'A:F';
+const ADMIN_PHONE = '595983281197';
+
 // Year logic will be handled inside parseSpanishDate
 
 // Will hold the final structured data
 let scheduleData = [];
 let savedNames = [];
-let currentView = 'all'; // 'all' or 'mine'
+let currentView = 'all'; // 'all', 'mine', or 'available'
 
 // Register Service Worker for PWA
 if ('serviceWorker' in navigator) {
@@ -18,6 +20,15 @@ if ('serviceWorker' in navigator) {
 
 document.addEventListener("DOMContentLoaded", function () {
   loadFavorites();
+  
+  if (savedNames.length > 0) {
+    currentView = 'mine';
+  } else {
+    currentView = 'all';
+  }
+  
+  switchTab(currentView);
+  
   fetchData();
 });
 
@@ -54,12 +65,13 @@ function switchTab(tab) {
   // Update Tab UI
   document.getElementById('tab-all').className = tab === 'all' ? 'tab active' : 'tab';
   document.getElementById('tab-mine').className = tab === 'mine' ? 'tab active' : 'tab';
+  document.getElementById('tab-available').className = tab === 'available' ? 'tab active' : 'tab';
   
   // Toggle Search & Instructions visibility
   const searchContainer = document.getElementById('search-container');
   const instructions = document.getElementById('all-view-instructions');
   
-  if (tab === 'mine') {
+  if (tab === 'mine' || tab === 'available') {
     searchContainer.style.display = 'none';
     instructions.style.display = 'none';
   } else {
@@ -253,7 +265,9 @@ function renderSchedule() {
 
   scheduleData.forEach(day => {
     let visibleSlots = day.slots;
-    
+    let hasAvailableInDay = false; // Flag to check if day has openings
+
+    // Filter Logic
     if (currentView === 'mine') {
       if (savedNames.length === 0) {
          visibleSlots = [];
@@ -279,6 +293,10 @@ function renderSchedule() {
            return false;
          });
       }
+    } else if (currentView === 'available') {
+      visibleSlots = day.slots.filter(slot => {
+        return slot.names.some(n => n.toLowerCase().includes("disponible"));
+      });
     }
 
     // Count shifts for the user (only for future/today)
@@ -300,8 +318,8 @@ function renderSchedule() {
         }
     }
 
-    if (currentView === 'mine' && visibleSlots.length === 0) {
-        return; // Don't render empty days in Mine view
+    if ((currentView === 'mine' || currentView === 'available') && visibleSlots.length === 0) {
+        return; // Don't render empty days in Mine/Available view
     }
     
     const dayDiv = document.createElement('div');
@@ -309,6 +327,9 @@ function renderSchedule() {
     dayDiv.setAttribute('data-date', day.date);
     
     let html = `<h2>${day.dayLabel}</h2>`;
+    
+    // Only show managers if NOT in "Available" view (usually they don't care who the manager is when looking for open slots, or maybe they do? Let's keep it clean for now, or show it. User didn't specify. Standard 'All' view shows it. Let's hide it for 'Available' to focus on the task.)
+    // Update: User might want to know who is managing. Let's keep it but maybe it's less critical. Let's keep it for context.
     
     if (day.managers && day.managers.length > 0) {
       html += `<div class="encargado">`;
@@ -339,15 +360,26 @@ function renderSchedule() {
 
       let listHtml = "";
       slot.names.forEach(n => {
-        const isFav = savedNames.includes(n);
-        const starClass = isFav ? "star-btn active" : "star-btn";
-        const starIcon = isFav ? "★" : "☆";
-        const safeName = n.replace(/'/g, "\\'");
+        const isDisponible = n.toLowerCase().includes("disponible");
         
-        listHtml += `<li>
-          ${n} 
-          <button class="${starClass}" onclick="toggleFavorite('${safeName}')" title="${isFav ? 'Quitar de mis turnos' : 'Agregar a mis turnos'}">${starIcon}</button>
-        </li>`;
+        if (isDisponible) {
+           const message = `Hola, quisiera cubrir el turno disponible del ${day.dayLabel} a las ${slot.time} en ${slot.loc}.`;
+           const whatsappUrl = `https://wa.me/${ADMIN_PHONE}?text=${encodeURIComponent(message)}`;
+           
+           listHtml += `<li>
+             <a href="${whatsappUrl}" target="_blank" class="cubrir-btn">Cubrir el turno</a>
+           </li>`;
+        } else {
+            const isFav = savedNames.includes(n);
+            const starClass = isFav ? "star-btn active" : "star-btn";
+            const starIcon = isFav ? "★" : "☆";
+            const safeName = n.replace(/'/g, "\\'");
+            
+            listHtml += `<li>
+              ${n} 
+              <button class="${starClass}" onclick="toggleFavorite('${safeName}')" title="${isFav ? 'Quitar de mis turnos' : 'Agregar a mis turnos'}">${starIcon}</button>
+            </li>`;
+        }
       });
 
       // Calendar Buttons
@@ -402,6 +434,10 @@ function renderSchedule() {
       container.innerHTML = "<p style='text-align:center; padding:20px;'>No se encontraron turnos para tus nombres guardados.</p>";
   }
   
+  if (currentView === 'available' && !hasVisibleShifts) {
+      container.innerHTML = "<p style='text-align:center; padding:20px;'>No hay turnos disponibles por el momento.</p>";
+  }
+
   // Call updateCounter at the end of rendering
   updateCounter(myShiftCount);
 }

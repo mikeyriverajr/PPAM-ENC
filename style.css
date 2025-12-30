@@ -51,3 +51,28 @@ li { margin-bottom: 4px; }
 .calendar-link { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; font-size: 0.8em; text-decoration: none; background: var(--primary-light); color: #1f2a44; border: 1px solid var(--primary); cursor: pointer; }
 .calendar-link.ics { background: #fff; }
 .calendar-icon { width: 14px; height: 14px; fill: currentColor; }
+
+/* Cubrir Button */
+.cubrir-btn {
+  display: inline-block;
+  background-color: #4CAF50;
+  color: white;
+  padding: 8px 16px;
+  text-align: center;
+  text-decoration: none;
+  font-size: 0.9em;
+  font-weight: bold;
+  border-radius: 20px;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  transition: background-color 0.3s, transform 0.2s;
+  margin-top: 4px;
+}
+.cubrir-btn:hover {
+  background-color: #45a049;
+  transform: translateY(-1px);
+}
+.cubrir-btn:active {
+  transform: translateY(1px);
+}

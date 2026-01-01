@@ -258,8 +258,11 @@ function handleAuth() {
     return;
   }
 
-  // Fake Email Strategy: username + dummy domain
-  const email = username + "@ppam.placeholder.com";
+  // Email Strategy: Check if it looks like an email, otherwise make it a dummy one
+  let email = username;
+  if (!username.includes('@')) {
+    email = username + "@ppam.placeholder.com";
+  }
 
   if (isSignUp) {
     auth.createUserWithEmailAndPassword(email, pass)

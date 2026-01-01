@@ -156,19 +156,37 @@ function parseData(rows) {
   }
   
   // Dynamic Column Mapping
-  let managerColIndex = 5; // Default fallback
-  let linkColIndex = -1;   // Default: not found
+  let managerColIndex = -1; 
+  let linkColIndex = -1;
+  const slotColumns = []; // [{ index: 2, label: "8 a 10" }, ...]
 
   const headerRow = rows[headerIndex];
   for (let c = 0; c < headerRow.length; c++) {
-      const headerVal = headerRow[c].toLowerCase();
+      const headerVal = headerRow[c].toLowerCase().trim();
+      
+      // Reserved Columns
+      if (headerVal.includes("fecha") || headerVal.includes("ubicación") || headerVal.includes("ubicacion")) {
+          continue; // standard columns 0 and 1
+      }
+      
       if (headerVal.includes("encargado")) {
           managerColIndex = c;
+          continue;
       }
+      
       if (headerVal.includes("enlace") || headerVal.includes("link")) {
           linkColIndex = c;
+          continue;
+      }
+      
+      // If it's not a reserved column, assume it's a Time Slot
+      if (headerVal.length > 0) {
+          slotColumns.push({ index: c, label: headerRow[c].trim() });
       }
   }
+  
+  // Fallback if no specific manager column found (backward compatibility)
+  if (managerColIndex === -1 && rows[0].length > 5) managerColIndex = 5;
 
   const daysMap = new Map(); 
   let lastDateStr = "";
@@ -189,11 +207,7 @@ function parseData(rows) {
     const location = getVal(row, 1);
     if (!location) continue;
 
-    const slot1Names = getVal(row, 2); 
-    const slot2Names = getVal(row, 3); 
-    const slot3Names = getVal(row, 4); 
-    
-    const managerName = getVal(row, managerColIndex);
+    const managerName = (managerColIndex !== -1) ? getVal(row, managerColIndex) : "";
     const managerLink = (linkColIndex !== -1) ? getVal(row, linkColIndex) : null;
 
     if (!daysMap.has(dateStr)) {
@@ -240,9 +254,11 @@ function parseData(rows) {
       });
     };
 
-    addSlot("8:00 – 10:00", slot1Names);
-    addSlot("10:00 – 12:00", slot2Names);
-    addSlot("18:30 – 20:30", slot3Names);
+    // Dynamically process all identified slot columns
+    slotColumns.forEach(col => {
+        const names = getVal(row, col.index);
+        addSlot(col.label, names);
+    });
   }
 
   // Convert Map to Array
@@ -254,9 +270,15 @@ function parseData(rows) {
     // Sort slots
     slotsArray.sort((a, b) => {
       const pad = (s) => {
-        const match = s.match(/\d{1,2}:\d{2}/);
-        if (!match) return s;
-        return match[0].padStart(5, '0'); 
+        // Try to find a time pattern like "8:00", "08", "15" in the label
+        const match = s.match(/(\d{1,2})[:\s]?(?:\d{2})?\s*(?:a|–|-|—)/); 
+        if (!match) {
+            // Fallback for simple numbers at start
+            const simple = s.match(/^\d{1,2}/);
+            if(simple) return simple[0].padStart(5, '0');
+            return s; 
+        }
+        return match[1].padStart(5, '0'); 
       };
       return pad(a.time).localeCompare(pad(b.time));
     });

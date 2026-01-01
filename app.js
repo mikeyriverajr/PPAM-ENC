@@ -154,6 +154,21 @@ function parseData(rows) {
     console.warn("Could not find header row. Assuming row 0 is header.");
     headerIndex = 0;
   }
+  
+  // Dynamic Column Mapping
+  let managerColIndex = 5; // Default fallback
+  let linkColIndex = -1;   // Default: not found
+
+  const headerRow = rows[headerIndex];
+  for (let c = 0; c < headerRow.length; c++) {
+      const headerVal = headerRow[c].toLowerCase();
+      if (headerVal.includes("encargado")) {
+          managerColIndex = c;
+      }
+      if (headerVal.includes("enlace") || headerVal.includes("link")) {
+          linkColIndex = c;
+      }
+  }
 
   const daysMap = new Map(); 
   let lastDateStr = "";
@@ -178,8 +193,8 @@ function parseData(rows) {
     const slot2Names = getVal(row, 3); 
     const slot3Names = getVal(row, 4); 
     
-    const managerName = getVal(row, 5);
-    // const managerLink = getLink(row, 5); // Unsupported in CSV
+    const managerName = getVal(row, managerColIndex);
+    const managerLink = (linkColIndex !== -1) ? getVal(row, linkColIndex) : null;
 
     if (!daysMap.has(dateStr)) {
       daysMap.set(dateStr, {
@@ -201,8 +216,7 @@ function parseData(rows) {
       }
       
       if (!dayObj.managers.has(managerName)) {
-        // Link is now null as it's lost in CSV conversion
-        dayObj.managers.set(managerName, { role: role, name: managerName, link: null });
+        dayObj.managers.set(managerName, { role: role, name: managerName, link: managerLink });
       }
     }
 

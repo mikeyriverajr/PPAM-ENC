@@ -3,14 +3,15 @@ const SHEET_ID = '1SuiFgX2XiBeVec6bCeJFRhXPuTUEdYe7IIa105NI8jY';
 // API_KEY is no longer needed for public CSV access
 const ADMIN_PHONE = '595983281197';
 
-// Firebase Configuration (Placeholders - User must replace these)
+// Firebase Configuration
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyC5HPI4WY19Om_HmQgJJl6IvXr0XrMmflQ",
+  authDomain: "ppam-beta.firebaseapp.com",
+  projectId: "ppam-beta",
+  storageBucket: "ppam-beta.firebasestorage.app",
+  messagingSenderId: "879252975424",
+  appId: "1:879252975424:web:6e62c58c4b4ba8689d94a5",
+  measurementId: "G-BXVKGLHV9L"
 };
 
 // Initialize Firebase

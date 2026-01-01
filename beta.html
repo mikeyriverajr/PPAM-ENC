@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Ensure Referrer is sent for Google API Restrictions -->
+  <meta name="referrer" content="no-referrer-when-downgrade">
+  <meta name="theme-color" content="#5d7aa9">
+  <title>Programa PPEAM – Enero 2026</title>
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="icon.png">
+
+  <!-- Manifest for PWA -->
+  <link rel="manifest" href="manifest.json">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Predicación Pública en Áreas Metropolitanas</h1>
+      <div id="auth-status" style="text-align: right; font-size: 0.9em; margin-top: 10px;">
+        <span id="user-display-name">Invitado</span>
+        <button id="auth-btn" onclick="openAuthModal()">Ingresar</button>
+      </div>
+    </header>
+
+    <!-- Auth Modal -->
+    <div id="auth-modal" class="modal" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; overflow:auto; background-color:rgba(0,0,0,0.4);">
+      <div class="modal-content" style="background-color:#fefefe; margin:15% auto; padding:20px; border:1px solid #888; width:80%; max-width:400px; border-radius:10px;">
+        <span class="close" onclick="closeAuthModal()" style="color:#aaa; float:right; font-size:28px; font-weight:bold; cursor:pointer;">&times;</span>
+        <h2 id="auth-title">Ingresar</h2>
+        <input type="text" id="auth-username" placeholder="Usuario" style="width:100%; padding:10px; margin:10px 0; box-sizing:border-box;">
+        <input type="password" id="auth-password" placeholder="Contraseña" style="width:100%; padding:10px; margin:10px 0; box-sizing:border-box;">
+        <div id="auth-error" style="color:red; margin-bottom:10px;"></div>
+        <button id="auth-action-btn" onclick="handleAuth()" style="width:100%; padding:10px; background-color:#5d7aa9; color:white; border:none; border-radius:5px; cursor:pointer;">Ingresar</button>
+        <p style="text-align:center; margin-top:15px;">
+          <a href="#" onclick="toggleAuthMode()" id="auth-toggle-link">¿No tienes cuenta? Regístrate</a>
+        </p>
+      </div>
+    </div>
+
+    <!-- Claim Name Modal -->
+    <div id="claim-modal" class="modal" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; overflow:auto; background-color:rgba(0,0,0,0.4);">
+      <div class="modal-content" style="background-color:#fefefe; margin:15% auto; padding:20px; border:1px solid #888; width:80%; max-width:400px; border-radius:10px;">
+        <h2>Vincula tu Nombre</h2>
+        <p>Para gestionar tus turnos, selecciona tu nombre de la lista:</p>
+        <select id="claim-name-select" style="width:100%; padding:10px; margin:10px 0;">
+          <option value="">Cargando nombres...</option>
+        </select>
+        <button onclick="claimName()" style="width:100%; padding:10px; background-color:#28a745; color:white; border:none; border-radius:5px; cursor:pointer;">Confirmar</button>
+      </div>
+    </div>
+
+    <div class="view-tabs">
+      <button id="tab-all" class="tab active" onclick="switchTab('all')">Todos los Turnos</button>
+      <button id="tab-mine" class="tab" onclick="switchTab('mine')">Mis Turnos</button>
+      <button id="tab-available" class="tab" onclick="switchTab('available')">Turnos Disponibles</button>
+    </div>
+
+    <div id="shift-counter" class="shift-counter" style="display: none;"></div>
+
+    <div id="all-view-instructions" class="info-box">
+      <p><strong>Tip:</strong> Toca la estrella <span style="color:#ccc; font-size:1.2em">☆</span> junto a tu nombre para guardar tus turnos en la pestaña <strong>"Mis Turnos"</strong>.</p>
+    </div>
+
+    <div class="search-box" id="search-container">
+      <input type="text" id="searchInput" placeholder="Buscar nombre..." onkeyup="searchName()">
+      <button onclick="clearSearch()">Limpiar</button>
+    </div>
+
+    <div id="schedule-container">Loading schedule...</div>
+  </div>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <script src="app-beta.js"></script>
+</body>
+</html>

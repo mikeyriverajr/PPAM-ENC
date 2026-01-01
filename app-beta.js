@@ -206,23 +206,48 @@ function handleAuth() {
 
 function updateAuthUI() {
   const nameEl = document.getElementById('user-display-name');
-  const btn = document.getElementById('auth-btn');
+  const overlay = document.getElementById('login-overlay');
+  const appContent = document.getElementById('app-content');
 
   if (currentUser) {
     nameEl.innerText = linkedName || currentUser.email.split('@')[0];
-    btn.innerText = "Salir";
-    btn.onclick = () => {
-       auth.signOut();
-       linkedName = null;
-       savedNames = []; // Clear current session
-       loadFavorites(); // Restore local favorites if any? Or just clear.
-       window.location.reload();
-    };
+    overlay.style.display = 'none';
+    appContent.style.display = 'block';
   } else {
     nameEl.innerText = "Invitado";
-    btn.innerText = "Ingresar";
-    btn.onclick = openAuthModal;
+    overlay.style.display = 'flex';
+    appContent.style.display = 'none';
   }
+}
+
+function handleGatekeeperLogin() {
+    const user = document.getElementById('gate-username').value.trim();
+    const pass = document.getElementById('gate-password').value;
+    const err = document.getElementById('gate-error');
+
+    if (!user || !pass) {
+        err.innerText = "Ingresa usuario y contraseña.";
+        return;
+    }
+
+    let email = user;
+    if (!user.includes('@')) {
+        email = user + "@ppam.placeholder.com";
+    }
+
+    auth.signInWithEmailAndPassword(email, pass)
+        .catch(error => {
+            err.innerText = "Credenciales incorrectas.";
+            console.error(error);
+        });
+}
+
+function logout() {
+    auth.signOut().then(() => {
+        linkedName = null;
+        savedNames = [];
+        window.location.reload();
+    });
 }
 
 function loadFavorites() {

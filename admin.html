@@ -32,27 +32,49 @@
     <button onclick="logout()" style="width:auto; background:#ccc; color:#333; padding:5px 10px;">Salir</button>
   </div>
 
-  <p style="color:#666; font-size:0.9em;">Crea una cuenta para un publicador y asignale su nombre en el calendario.</p>
+  <div style="margin-top:20px; border-top:1px solid #eee; padding-top:20px;">
+    <h3>1. Nuevo Usuario</h3>
+    <p style="color:#666; font-size:0.9em;">Selecciona un nombre del calendario que aún no tenga cuenta.</p>
 
-  <label>Nombre de Usuario (Login)</label>
-  <input type="text" id="new-username" placeholder="ej. juanperez">
+    <label>Nombre en el Calendario (Sin Cuenta)</label>
+    <select id="new-displayname-select">
+        <option value="">Cargando nombres...</option>
+    </select>
 
-  <label>Contraseña</label>
-  <input type="text" id="new-password" placeholder="ej. 123456">
+    <label>Nombre de Usuario (Login)</label>
+    <input type="text" id="new-username" placeholder="ej. juanperez">
 
-  <label>Nombre en el Calendario</label>
-  <input type="text" id="new-displayname" placeholder="ej. Juan Perez">
+    <label>Contraseña</label>
+    <input type="text" id="new-password" placeholder="ej. 123456">
 
-  <label>Rol</label>
-  <select id="new-role">
-      <option value="user">Usuario Normal</option>
-      <option value="admin">Administrador</option>
-  </select>
+    <label>Rol</label>
+    <select id="new-role">
+        <option value="user">Usuario Normal</option>
+        <option value="admin">Administrador</option>
+    </select>
 
-  <button onclick="createUser()">Crear Usuario</button>
+    <button onclick="createUser()">Crear Usuario y Vincular</button>
 
-  <p class="success" id="create-msg"></p>
-  <p class="error" id="create-error"></p>
+    <p class="success" id="create-msg"></p>
+    <p class="error" id="create-error"></p>
+  </div>
+
+  <div style="margin-top:40px; border-top:2px solid #ddd; padding-top:20px;">
+      <h3>2. Usuarios Existentes</h3>
+      <table border="1" style="width:100%; border-collapse:collapse; text-align:left; font-size:0.9em;">
+          <thead>
+              <tr style="background:#eee;">
+                  <th style="padding:8px;">Usuario</th>
+                  <th style="padding:8px;">Nombre Vinculado</th>
+                  <th style="padding:8px;">Rol</th>
+                  <th style="padding:8px;">Acción</th>
+              </tr>
+          </thead>
+          <tbody id="users-table-body">
+              <tr><td colspan="4" style="padding:8px; text-align:center;">Cargando...</td></tr>
+          </tbody>
+      </table>
+  </div>
 </div>
 
 <!-- Firebase SDKs -->

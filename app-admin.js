@@ -28,6 +28,7 @@ mainAuth.onAuthStateChanged(user => {
         db.collection('users').doc(user.uid).get().then(doc => {
             if (doc.exists && doc.data().role === 'admin') {
                 showDashboard();
+                loadDashboardData();
             } else {
                 alert("No tienes permisos de administrador.");
                 mainAuth.signOut();
@@ -49,6 +50,68 @@ function showLogin() {
 function showDashboard() {
     loginSection.style.display = 'none';
     dashboardSection.style.display = 'block';
+}
+
+function loadDashboardData() {
+    // 1. Load Existing Users to Table
+    db.collection('users').orderBy('createdAt', 'desc').onSnapshot(snap => {
+        const tbody = document.getElementById('users-table-body');
+        let html = "";
+        const linkedNames = new Set();
+
+        snap.forEach(doc => {
+            const data = doc.data();
+            const uid = doc.id;
+            if (data.linkedName) linkedNames.add(data.linkedName);
+
+            html += `<tr>
+                <td style="padding:8px;">${data.username}</td>
+                <td style="padding:8px;">${data.linkedName || "-"}</td>
+                <td style="padding:8px;">${data.role}</td>
+                <td style="padding:8px;">
+                    <button onclick="deleteUser('${uid}')" style="background:#d9534f; padding:5px; font-size:0.8em; width:auto;">Borrar</button>
+                </td>
+            </tr>`;
+        });
+
+        if (html === "") html = '<tr><td colspan="4" style="text-align:center; padding:10px;">No hay usuarios.</td></tr>';
+        tbody.innerHTML = html;
+
+        // 2. Load Unassigned Participants to Dropdown
+        loadUnassignedParticipants(linkedNames);
+    });
+}
+
+function loadUnassignedParticipants(linkedNamesSet) {
+    const select = document.getElementById('new-displayname-select');
+
+    db.collection('participants').orderBy('name').get().then(snap => {
+        let html = '<option value="">-- Selecciona un nombre --</option>';
+        let count = 0;
+
+        snap.forEach(doc => {
+            const name = doc.id;
+            if (!linkedNamesSet.has(name)) {
+                html += `<option value="${name}">${name}</option>`;
+                count++;
+            }
+        });
+
+        if (count === 0) {
+            html = '<option value="">Todos los nombres tienen cuenta</option>';
+        }
+        select.innerHTML = html;
+    });
+}
+
+function deleteUser(uid) {
+    if (!confirm("¿Seguro que deseas eliminar este usuario? (La autenticación debe borrarse manualmente en Firebase Console por seguridad, esto solo borra el perfil)")) return;
+
+    // Note: Deleting auth user from client SDK is restricted.
+    // We can only delete the Firestore doc here. Admin must clean up Auth console.
+    db.collection('users').doc(uid).delete().then(() => {
+        alert("Perfil de usuario eliminado. Recuerda borrar también el usuario en 'Authentication' del panel de Firebase.");
+    }).catch(err => alert("Error: " + err.message));
 }
 
 function adminLogin() {
@@ -73,7 +136,7 @@ function logout() {
 function createUser() {
     const username = document.getElementById('new-username').value.trim();
     const pass = document.getElementById('new-password').value;
-    const name = document.getElementById('new-displayname').value.trim();
+    const name = document.getElementById('new-displayname-select').value; // Changed to SELECT
     const role = document.getElementById('new-role').value;
 
     const msg = document.getElementById('create-msg');
@@ -113,7 +176,7 @@ function createUser() {
             // Clear inputs
             document.getElementById('new-username').value = "";
             document.getElementById('new-password').value = "";
-            document.getElementById('new-displayname').value = "";
+            document.getElementById('new-displayname-select').value = "";
 
             // Sign out the secondary auth so it doesn't interfere (optional but good practice)
             secondaryAuth.signOut();

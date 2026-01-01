@@ -186,3 +186,180 @@ function createUser() {
             err.innerText = "Error: " + error.message;
         });
 }
+
+// --- Schedule Generator Logic ---
+
+let currentDraft = null; // Stores the generated schedule in memory
+let availabilityData = {}; // Stores loaded availability
+
+function switchAdminTab(tab) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+
+    document.getElementById(`tab-${tab}`).classList.add('active');
+    document.getElementById(`tab-btn-${tab}`).classList.add('active');
+}
+
+async function generateSchedulePreview() {
+    const monthKey = document.getElementById('gen-month').value; // "2026-02"
+    const [year, month] = monthKey.split('-').map(Number);
+
+    const btn = document.querySelector('button[onclick="generateSchedulePreview()"]');
+    const originalText = btn.innerText;
+    btn.innerText = "Generando...";
+    btn.disabled = true;
+
+    try {
+        // 1. Fetch Availability for this month
+        availabilityData = {};
+        const snapshot = await db.collection("availability").where("month", "==", monthKey).get();
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            // data.slots is array of "YYYY-MM-DD_Time"
+            data.slots.forEach(slotKey => {
+                if (!availabilityData[slotKey]) availabilityData[slotKey] = [];
+                availabilityData[slotKey].push(data.linkedName);
+            });
+        });
+
+        // 2. Define Structure (Simplified for Beta)
+        // In real app, this should be configurable
+        const locations = ["Costanera", "Liberty"];
+        const shifts = ["08:00 a 10:00", "10:00 a 12:00"];
+        // Note: Weekend afternoons? Omitted for simplicity in beta unless requested.
+
+        const daysInMonth = new Date(year, month, 0).getDate();
+        currentDraft = [];
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateObj = new Date(year, month - 1, d);
+            const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const dayOfWeek = dateObj.getDay(); // 0 = Sun, 6 = Sat
+
+            // Skip if logic requires (e.g. no Mondays?) - assuming all days active
+
+            locations.forEach(loc => {
+                shifts.forEach(time => {
+                    const slotKey = `${dateStr}_${time}`;
+                    const candidates = availabilityData[slotKey] || [];
+
+                    // Algorithm: Pick up to 2 random candidates
+                    // Improvement: Track usage count to balance load
+                    const assigned = pickCandidates(candidates, 2);
+
+                    // Fill remaining spots with "Disponible"
+                    while (assigned.length < 2) {
+                        assigned.push("Disponible");
+                    }
+
+                    currentDraft.push({
+                        date: dateStr,
+                        dayLabel: dateObj.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
+                        location: loc,
+                        time: time,
+                        participants: assigned
+                    });
+                });
+            });
+        }
+
+        renderDraftTable();
+        document.getElementById('schedule-preview-container').style.display = 'block';
+
+    } catch (err) {
+        console.error("Error generating schedule:", err);
+        alert("Error: " + err.message);
+    } finally {
+        btn.innerText = originalText;
+        btn.disabled = false;
+    }
+}
+
+function pickCandidates(candidates, count) {
+    // Simple shuffle and slice
+    const shuffled = [...candidates].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, count);
+}
+
+function renderDraftTable() {
+    const thead = document.getElementById('preview-head');
+    const tbody = document.getElementById('preview-body');
+
+    thead.innerHTML = `
+        <tr>
+            <th>Fecha</th>
+            <th>Ubicación</th>
+            <th>Hora</th>
+            <th>Asignados (Sugerencia)</th>
+        </tr>
+    `;
+
+    tbody.innerHTML = currentDraft.map(slot => `
+        <tr>
+            <td>${slot.date}</td>
+            <td>${slot.location}</td>
+            <td>${slot.time}</td>
+            <td>${slot.participants.join(', ')}</td>
+        </tr>
+    `).join('');
+}
+
+async function publishSchedule() {
+    if (!currentDraft) return;
+    if (!confirm("¿Estás seguro de publicar este programa? Esto creará los turnos en la base de datos visible para todos.")) return;
+
+    const btn = document.querySelector('button[onclick="publishSchedule()"]');
+    btn.innerText = "Publicando...";
+    btn.disabled = true;
+
+    const batch = db.batch();
+    let count = 0;
+
+    // Track unique days to create Day objects
+    const daysMap = new Map();
+
+    currentDraft.forEach(slot => {
+        // Prepare Day Data
+        if (!daysMap.has(slot.date)) {
+            daysMap.set(slot.date, {
+                date: slot.date,
+                dayLabel: slot.dayLabel, // "lunes, 2 de febrero"
+                managers: [] // Managers logic not implemented in generator yet
+            });
+        }
+
+        // Create Shift Doc
+        // ID: Date_Loc_Time (sanitized)
+        const id = `${slot.date}_${slot.location.replace(/\s/g,'')}_${slot.time.replace(/[^0-9]/g,'')}`;
+        const shiftRef = db.collection("shifts").doc(id);
+
+        const isOpen = slot.participants.some(p => p === "Disponible");
+
+        batch.set(shiftRef, {
+            date: slot.date,
+            location: slot.location,
+            time: slot.time,
+            participants: slot.participants,
+            status: isOpen ? 'open' : 'full'
+        });
+        count++;
+    });
+
+    // Create Day Docs
+    daysMap.forEach((val, key) => {
+        const dayRef = db.collection("days").doc(key);
+        batch.set(dayRef, val);
+    });
+
+    try {
+        await batch.commit();
+        alert(`Programa publicado con éxito! ${count} turnos creados.`);
+        document.getElementById('schedule-preview-container').style.display = 'none';
+    } catch (err) {
+        console.error("Error publishing:", err);
+        alert("Error publicando: " + err.message);
+    } finally {
+        btn.innerText = "Publicar Programa";
+        btn.disabled = false;
+    }
+}

@@ -47,6 +47,7 @@
           <button id="tab-all" class="tab active" onclick="switchTab('all')">Todos los Turnos</button>
           <button id="tab-mine" class="tab" onclick="switchTab('mine')">Mis Turnos</button>
           <button id="tab-available" class="tab" onclick="switchTab('available')">Turnos Disponibles</button>
+          <button id="tab-availability-input" class="tab" onclick="switchTab('availability-input')">Mi Disponibilidad</button>
         </div>
 
         <div id="shift-counter" class="shift-counter" style="display: none;"></div>
@@ -55,12 +56,17 @@
           <p><strong>Tip:</strong> Toca la estrella <span style="color:#ccc; font-size:1.2em">☆</span> junto a tu nombre para guardar tus turnos en la pestaña <strong>"Mis Turnos"</strong>.</p>
         </div>
 
+        <div id="availability-instructions" class="info-box" style="display:none;">
+           <p>Selecciona los días y horarios en los que puedes predicar el próximo mes. Esto ayudará al administrador a armar el programa.</p>
+        </div>
+
         <div class="search-box" id="search-container">
           <input type="text" id="searchInput" placeholder="Buscar nombre..." onkeyup="searchName()">
           <button onclick="clearSearch()">Limpiar</button>
         </div>
 
         <div id="schedule-container">Loading schedule...</div>
+        <div id="availability-container" style="display:none;"></div>
     </div>
   </div>
 

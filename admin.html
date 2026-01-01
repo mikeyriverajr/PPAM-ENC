@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - PPAM</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+      body { background-color: #f0f2f5; }
+      .admin-container { max-width: 500px; margin: 50px auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+      input, select, button { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+      button { background-color: #5d7aa9; color: white; border: none; font-weight: bold; cursor: pointer; }
+      button:hover { background-color: #4a638b; }
+      .success { color: green; margin-top: 10px; text-align: center; }
+      .error { color: red; margin-top: 10px; text-align: center; }
+      label { font-weight: bold; display: block; margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+<div class="admin-container" id="login-section">
+  <h2>Admin Login</h2>
+  <input type="text" id="admin-user" placeholder="Usuario o Correo">
+  <input type="password" id="admin-pass" placeholder="Contraseña">
+  <button onclick="adminLogin()">Ingresar</button>
+  <p class="error" id="login-error"></p>
+</div>
+
+<div class="admin-container" id="dashboard-section" style="display: none;">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <h2>Crear Usuario</h2>
+    <button onclick="logout()" style="width:auto; background:#ccc; color:#333; padding:5px 10px;">Salir</button>
+  </div>
+
+  <p style="color:#666; font-size:0.9em;">Crea una cuenta para un publicador y asignale su nombre en el calendario.</p>
+
+  <label>Nombre de Usuario (Login)</label>
+  <input type="text" id="new-username" placeholder="ej. juanperez">
+
+  <label>Contraseña</label>
+  <input type="text" id="new-password" placeholder="ej. 123456">
+
+  <label>Nombre en el Calendario</label>
+  <input type="text" id="new-displayname" placeholder="ej. Juan Perez">
+
+  <label>Rol</label>
+  <select id="new-role">
+      <option value="user">Usuario Normal</option>
+      <option value="admin">Administrador</option>
+  </select>
+
+  <button onclick="createUser()">Crear Usuario</button>
+
+  <p class="success" id="create-msg"></p>
+  <p class="error" id="create-error"></p>
+</div>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<script src="app-admin.js"></script>
+</body>
+</html>

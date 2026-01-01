@@ -26,7 +26,6 @@ if (typeof firebase !== 'undefined') {
 // Current User State
 let currentUser = null;
 let linkedName = null;
-let isSignUp = false; // Toggle between login and signup
 
 // Year logic will be handled inside parseSpanishDate
 
@@ -57,9 +56,6 @@ document.addEventListener("DOMContentLoaded", function () {
             savedNames = [linkedName]; // Override local favorites with cloud identity
             updateAuthUI(); // Update display name
             renderSchedule();
-          } else {
-             // If no linked name, they need to claim one
-             openClaimModal();
           }
         });
       }
@@ -172,64 +168,6 @@ async function migrateData() {
 // Make it available globally for manual trigger in console
 window.migrateData = migrateData;
 
-// --- Claim Name Logic ---
-
-function openClaimModal() {
-  const modal = document.getElementById('claim-modal');
-  const select = document.getElementById('claim-name-select');
-  modal.style.display = 'block';
-
-  // Populate Select from Firestore "participants" collection
-  select.innerHTML = '<option value="">Cargando...</option>';
-
-  db.collection("participants").orderBy("name").get().then(snap => {
-    let html = '<option value="">-- Selecciona tu nombre --</option>';
-    snap.forEach(doc => {
-      const name = doc.id;
-      html += `<option value="${name}">${name}</option>`;
-    });
-    // Also allow "New User" option? For now, assume strict mapping.
-    select.innerHTML = html;
-  });
-}
-
-function claimName() {
-  const select = document.getElementById('claim-name-select');
-  const name = select.value;
-
-  if (!name) {
-    alert("Por favor selecciona un nombre.");
-    return;
-  }
-
-  if (!currentUser) return;
-
-  // Check if this name is already claimed?
-  // Ideally yes, but let's assume trust for now or that we are the first.
-  // Or better, check if another user has this linkedName.
-
-  db.collection("users").where("linkedName", "==", name).get().then(snap => {
-      if (!snap.empty) {
-          alert("Este nombre ya está vinculado a otra cuenta.");
-          return;
-      }
-
-      // Link it
-      db.collection("users").doc(currentUser.uid).update({
-          linkedName: name
-      }).then(() => {
-          linkedName = name;
-          document.getElementById('claim-modal').style.display = 'none';
-          // Also set local favorite
-          savedNames = [name];
-          saveFavorites();
-          updateAuthUI();
-          renderSchedule();
-      });
-  });
-}
-
-
 // --- Auth Functions ---
 
 function openAuthModal() {
@@ -239,13 +177,6 @@ function openAuthModal() {
 
 function closeAuthModal() {
   document.getElementById('auth-modal').style.display = 'none';
-}
-
-function toggleAuthMode() {
-  isSignUp = !isSignUp;
-  document.getElementById('auth-title').innerText = isSignUp ? "Registrarse" : "Ingresar";
-  document.getElementById('auth-action-btn').innerText = isSignUp ? "Registrarse" : "Ingresar";
-  document.getElementById('auth-toggle-link').innerText = isSignUp ? "¿Ya tienes cuenta? Ingresa" : "¿No tienes cuenta? Regístrate";
 }
 
 function handleAuth() {
@@ -264,28 +195,13 @@ function handleAuth() {
     email = username + "@ppam.placeholder.com";
   }
 
-  if (isSignUp) {
-    auth.createUserWithEmailAndPassword(email, pass)
-      .then((userCredential) => {
-        // Create user profile doc
-        db.collection("users").doc(userCredential.user.uid).set({
-          username: username,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        closeAuthModal();
-      })
-      .catch((error) => {
-        errorEl.innerText = error.message;
-      });
-  } else {
-    auth.signInWithEmailAndPassword(email, pass)
-      .then(() => {
-        closeAuthModal();
-      })
-      .catch((error) => {
-        errorEl.innerText = "Error: " + error.message;
-      });
-  }
+  auth.signInWithEmailAndPassword(email, pass)
+    .then(() => {
+      closeAuthModal();
+    })
+    .catch((error) => {
+      errorEl.innerText = "Error: " + error.message;
+    });
 }
 
 function updateAuthUI() {

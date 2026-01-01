@@ -34,21 +34,6 @@
         <input type="password" id="auth-password" placeholder="Contraseña" style="width:100%; padding:10px; margin:10px 0; box-sizing:border-box;">
         <div id="auth-error" style="color:red; margin-bottom:10px;"></div>
         <button id="auth-action-btn" onclick="handleAuth()" style="width:100%; padding:10px; background-color:#5d7aa9; color:white; border:none; border-radius:5px; cursor:pointer;">Ingresar</button>
-        <p style="text-align:center; margin-top:15px;">
-          <a href="#" onclick="toggleAuthMode()" id="auth-toggle-link">¿No tienes cuenta? Regístrate</a>
-        </p>
-      </div>
-    </div>
-
-    <!-- Claim Name Modal -->
-    <div id="claim-modal" class="modal" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; overflow:auto; background-color:rgba(0,0,0,0.4);">
-      <div class="modal-content" style="background-color:#fefefe; margin:15% auto; padding:20px; border:1px solid #888; width:80%; max-width:400px; border-radius:10px;">
-        <h2>Vincula tu Nombre</h2>
-        <p>Para gestionar tus turnos, selecciona tu nombre de la lista:</p>
-        <select id="claim-name-select" style="width:100%; padding:10px; margin:10px 0;">
-          <option value="">Cargando nombres...</option>
-        </select>
-        <button onclick="claimName()" style="width:100%; padding:10px; background-color:#28a745; color:white; border:none; border-radius:5px; cursor:pointer;">Confirmar</button>
       </div>
     </div>
 

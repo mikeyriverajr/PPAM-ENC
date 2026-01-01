@@ -1,7 +1,6 @@
 // Global variables
 const SHEET_ID = '1SuiFgX2XiBeVec6bCeJFRhXPuTUEdYe7IIa105NI8jY';
-const API_KEY = 'AIzaSyDfsWBhEVTd8Ogv2CxBqWKxBDVCQBshAfA';
-const RANGE = 'A:F';
+// API_KEY is no longer needed for public CSV access
 const ADMIN_PHONE = '595983281197';
 
 // Year logic will be handled inside parseSpanishDate
@@ -83,19 +82,62 @@ function switchTab(tab) {
   applyDateFilter(); // Ensure dates are filtered again
 }
 
+// CSV Parser Helper
+function parseCSV(text) {
+  const result = [];
+  let row = [];
+  let inQuote = false;
+  let token = "";
+  
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+    const nextChar = text[i + 1];
+    
+    if (inQuote) {
+      if (char === '"') {
+        if (nextChar === '"') {
+          token += '"';
+          i++; // skip escaped quote
+        } else {
+          inQuote = false;
+        }
+      } else {
+        token += char;
+      }
+    } else {
+      if (char === '"') {
+        inQuote = true;
+      } else if (char === ',') {
+        row.push(token);
+        token = "";
+      } else if (char === '\n' || char === '\r') {
+        row.push(token);
+        token = "";
+        if (row.length > 0) result.push(row);
+        row = [];
+        if (char === '\r' && nextChar === '\n') i++; // skip \n
+      } else {
+        token += char;
+      }
+    }
+  }
+  if (token || row.length > 0) {
+    row.push(token);
+    result.push(row);
+  }
+  return result;
+}
+
 function parseData(rows) {
-  // rows is an array of rowData objects
+  // rows is an array of arrays (from CSV)
   
   // Helper to safely get value from row/col
   const getVal = (r, c) => {
-    if (!r.values || !r.values[c]) return "";
-    return r.values[c].formattedValue || "";
+    if (!r || !r[c]) return "";
+    return r[c].trim();
   };
   
-  const getLink = (r, c) => {
-    if (!r.values || !r.values[c]) return null;
-    return r.values[c].hyperlink || null;
-  };
+  // Note: CSV does not support hyperlinks, so getLink is removed.
 
   // Find header row index
   let headerIndex = -1;
@@ -120,7 +162,7 @@ function parseData(rows) {
     const row = rows[i];
     
     // Fill-down logic for Date
-    let dateStr = getVal(row, 0).trim();
+    let dateStr = getVal(row, 0);
     if (dateStr) {
       lastDateStr = dateStr;
     } else if (lastDateStr) {
@@ -129,15 +171,15 @@ function parseData(rows) {
       continue;
     }
 
-    const location = getVal(row, 1).trim();
+    const location = getVal(row, 1);
     if (!location) continue;
 
-    const slot1Names = getVal(row, 2).trim(); 
-    const slot2Names = getVal(row, 3).trim(); 
-    const slot3Names = getVal(row, 4).trim(); 
+    const slot1Names = getVal(row, 2); 
+    const slot2Names = getVal(row, 3); 
+    const slot3Names = getVal(row, 4); 
     
-    const managerName = getVal(row, 5).trim();
-    const managerLink = getLink(row, 5);
+    const managerName = getVal(row, 5);
+    // const managerLink = getLink(row, 5); // Unsupported in CSV
 
     if (!daysMap.has(dateStr)) {
       daysMap.set(dateStr, {
@@ -159,7 +201,8 @@ function parseData(rows) {
       }
       
       if (!dayObj.managers.has(managerName)) {
-        dayObj.managers.set(managerName, { role: role, name: managerName, link: managerLink });
+        // Link is now null as it's lost in CSV conversion
+        dayObj.managers.set(managerName, { role: role, name: managerName, link: null });
       }
     }
 
@@ -536,8 +579,8 @@ function clearSearch() {
 }
 
 function fetchData() {
-  const fields = "sheets(data(rowData(values(formattedValue,hyperlink))))";
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?includeGridData=true&ranges=Programa!${RANGE}&fields=${fields}&key=${API_KEY}`;
+  // NEW: Fetch using CSV export URL
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Programa`;
   
   const container = document.getElementById('schedule-container');
   container.innerHTML = "Cargando datos...";
@@ -547,15 +590,15 @@ function fetchData() {
       if (!response.ok) {
         throw new Error('Network response was not ok: ' + response.statusText);
       }
-      return response.json();
+      return response.text(); // fetch text for CSV
     })
-    .then(data => {
-      if (!data.sheets || !data.sheets[0] || !data.sheets[0].data || !data.sheets[0].data[0].rowData) {
+    .then(csvText => {
+      if (!csvText || csvText.length === 0) {
          container.innerHTML = "No se encontraron datos en la planilla.";
          return;
       }
-
-      const rows = data.sheets[0].data[0].rowData;
+      
+      const rows = parseCSV(csvText);
       
       scheduleData = parseData(rows);
       renderSchedule();
@@ -567,7 +610,7 @@ function fetchData() {
       container.innerHTML = `
         <div style="color: red; padding: 20px; text-align: center; border: 2px solid red; border-radius: 10px; background: #fff0f0;">
           <h3>Error al cargar los datos</h3>
-          <p>Es posible que la restricción de seguridad de Google esté bloqueando el acceso en este dispositivo.</p>
+          <p>Por favor revisa tu conexión a internet.</p>
           <p style="font-family: monospace; background: #eee; padding: 10px; border-radius: 5px;">${error.message}</p>
         </div>
       `;

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ppam-schedule-v2';
+const CACHE_NAME = 'ppam-schedule-v3';
 const ASSETS = [
   './',
   './index.html',

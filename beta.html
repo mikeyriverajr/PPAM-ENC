@@ -18,8 +18,21 @@
 <body>
   <div class="container">
     <header>
-      <h1>Predicación Pública en Áreas Metropolitanas</h1>
-      <div id="auth-status" style="text-align: right; font-size: 0.9em; margin-top: 10px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h1>Predicación Pública</h1>
+          <div style="position:relative;">
+              <button onclick="toggleNotifications()" style="background:none; border:none; cursor:pointer; font-size:1.5em; position:relative;">
+                  🔔
+                  <span id="notif-badge" style="display:none; position:absolute; top:0; right:0; background:red; color:white; border-radius:50%; font-size:0.5em; padding:2px 5px;">0</span>
+              </button>
+              <div id="notif-dropdown" style="display:none; position:absolute; right:0; top:40px; background:white; border:1px solid #ddd; width:300px; box-shadow:0 4px 10px rgba(0,0,0,0.2); z-index:1000; border-radius:8px; max-height:400px; overflow-y:auto;">
+                  <div id="notif-list">
+                      <p style="padding:15px; text-align:center; color:#666;">Cargando notificaciones...</p>
+                  </div>
+              </div>
+          </div>
+      </div>
+      <div id="auth-status" style="text-align: right; font-size: 0.9em; margin-top: 5px;">
         <span id="user-display-name">Invitado</span>
         <button id="auth-btn" onclick="logout()">Salir</button>
       </div>

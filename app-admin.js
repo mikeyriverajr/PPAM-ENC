@@ -52,34 +52,55 @@ function showDashboard() {
     dashboardSection.style.display = 'block';
 }
 
+let allUsers = []; // Store for client-side filtering
+
 function loadDashboardData() {
     // 1. Load Existing Users to Table
     db.collection('users').orderBy('createdAt', 'desc').onSnapshot(snap => {
-        const tbody = document.getElementById('users-table-body');
-        let html = "";
+        allUsers = [];
         const linkedNames = new Set();
 
         snap.forEach(doc => {
             const data = doc.data();
-            const uid = doc.id;
+            data.uid = doc.id;
+            allUsers.push(data);
             if (data.linkedName) linkedNames.add(data.linkedName);
-
-            html += `<tr>
-                <td style="padding:8px;">${data.username}</td>
-                <td style="padding:8px;">${data.linkedName || "-"}</td>
-                <td style="padding:8px;">${data.role}</td>
-                <td style="padding:8px;">
-                    <button onclick="deleteUser('${uid}')" style="background:#d9534f; padding:5px; font-size:0.8em; width:auto;">Borrar</button>
-                </td>
-            </tr>`;
         });
 
-        if (html === "") html = '<tr><td colspan="4" style="text-align:center; padding:10px;">No hay usuarios.</td></tr>';
-        tbody.innerHTML = html;
+        renderUsersTable(allUsers);
 
         // 2. Load Unassigned Participants to Dropdown
         loadUnassignedParticipants(linkedNames);
     });
+}
+
+function renderUsersTable(users) {
+    const tbody = document.getElementById('users-table-body');
+    let html = "";
+
+    users.forEach(user => {
+        html += `<tr>
+            <td style="padding:8px;">${user.username}</td>
+            <td style="padding:8px;">${user.linkedName || "-"}</td>
+            <td style="padding:8px;">${user.role}</td>
+            <td style="padding:8px;">
+                <button onclick="openEditModal('${user.uid}', '${user.username}', '${user.role}')" class="btn-warning" style="padding:5px; font-size:0.8em; width:auto; margin-right:5px;">Editar</button>
+                <button onclick="deleteUser('${user.uid}')" style="background:#d9534f; padding:5px; font-size:0.8em; width:auto;">Borrar</button>
+            </td>
+        </tr>`;
+    });
+
+    if (html === "") html = '<tr><td colspan="4" style="text-align:center; padding:10px;">No hay usuarios.</td></tr>';
+    tbody.innerHTML = html;
+}
+
+function filterUsers() {
+    const query = document.getElementById('user-search').value.toLowerCase();
+    const filtered = allUsers.filter(u =>
+        u.username.toLowerCase().includes(query) ||
+        (u.linkedName && u.linkedName.toLowerCase().includes(query))
+    );
+    renderUsersTable(filtered);
 }
 
 function loadUnassignedParticipants(linkedNamesSet) {
@@ -185,6 +206,65 @@ function createUser() {
             console.error("Error creating user:", error);
             err.innerText = "Error: " + error.message;
         });
+}
+
+// --- Edit User Logic ---
+
+function openEditModal(uid, username, role) {
+    document.getElementById('edit-uid').value = uid;
+    document.getElementById('edit-username-display').innerText = username;
+    document.getElementById('edit-role').value = role;
+    document.getElementById('edit-new-password').value = "";
+    document.getElementById('edit-msg').innerText = "";
+    document.getElementById('edit-error').innerText = "";
+
+    document.getElementById('edit-user-modal').style.display = "block";
+}
+
+function closeEditModal() {
+    document.getElementById('edit-user-modal').style.display = "none";
+}
+
+async function saveUserChanges() {
+    const uid = document.getElementById('edit-uid').value;
+    const role = document.getElementById('edit-role').value;
+    const newPass = document.getElementById('edit-new-password').value.trim();
+
+    const msg = document.getElementById('edit-msg');
+    const err = document.getElementById('edit-error');
+
+    msg.innerText = "Guardando...";
+    err.innerText = "";
+
+    try {
+        // 1. Update Firestore Role
+        await db.collection('users').doc(uid).update({ role: role });
+
+        // 2. Update Password (via Cloud Function)
+        if (newPass) {
+             msg.innerText = "Actualizando contraseña en servidor...";
+             // Call the new Cloud Function
+             const resetUserPassword = firebase.functions().httpsCallable('resetUserPassword');
+
+             await resetUserPassword({ uid: uid, newPassword: newPass });
+             console.log("Password reset successful via function");
+        }
+
+        msg.innerText = "Cambios guardados correctamente.";
+        setTimeout(closeEditModal, 1500);
+
+    } catch (e) {
+        console.error(e);
+        err.innerText = "Error: " + e.message;
+    }
+}
+
+// Close modal if clicking outside
+window.onclick = function(event) {
+  const modal = document.getElementById('edit-user-modal');
+  if (event.target == modal) {
+    closeEditModal();
+  }
 }
 
 // --- Schedule Generator Logic ---

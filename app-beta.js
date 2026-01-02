@@ -56,6 +56,9 @@ document.addEventListener("DOMContentLoaded", function () {
             savedNames = [linkedName]; // Override local favorites with cloud identity
             updateAuthUI(); // Update display name
             renderSchedule();
+
+            // Listen to notifications
+            listenToNotifications(user.uid);
           }
         });
       }
@@ -248,6 +251,61 @@ function logout() {
         linkedName = null;
         savedNames = [];
         window.location.reload();
+    });
+}
+
+// --- Notification Logic ---
+
+function listenToNotifications(uid) {
+    db.collection('users').doc(uid).collection('notifications')
+      .where('read', '==', false)
+      .orderBy('createdAt', 'desc')
+      .onSnapshot(snap => {
+          const badge = document.getElementById('notif-badge');
+          const list = document.getElementById('notif-list');
+
+          const count = snap.size;
+          if (count > 0) {
+              badge.style.display = 'block';
+              badge.innerText = count;
+          } else {
+              badge.style.display = 'none';
+          }
+
+          let html = "";
+          snap.forEach(doc => {
+              const n = doc.data();
+              const dateStr = n.createdAt ? n.createdAt.toDate().toLocaleString() : "";
+              html += `
+                  <div style="padding:10px; border-bottom:1px solid #eee; background:#fff9fa;">
+                      <strong>${n.title}</strong><br>
+                      <span style="font-size:0.9em; color:#333;">${n.body}</span><br>
+                      <span style="font-size:0.7em; color:#999;">${dateStr}</span>
+                      <div style="text-align:right; margin-top:5px;">
+                          <button onclick="markAsRead('${doc.id}')" style="font-size:0.8em; padding:2px 5px;">Marcar leido</button>
+                      </div>
+                  </div>
+              `;
+          });
+
+          if (html === "") html = '<p style="padding:15px; text-align:center; color:#666;">No hay notificaciones nuevas.</p>';
+          list.innerHTML = html;
+      });
+}
+
+function toggleNotifications() {
+    const dropdown = document.getElementById('notif-dropdown');
+    if (dropdown.style.display === 'none') {
+        dropdown.style.display = 'block';
+    } else {
+        dropdown.style.display = 'none';
+    }
+}
+
+function markAsRead(notifId) {
+    if (!currentUser) return;
+    db.collection('users').doc(currentUser.uid).collection('notifications').doc(notifId).update({
+        read: true
     });
 }
 

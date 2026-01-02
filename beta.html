@@ -21,55 +21,53 @@
       <h1>Predicación Pública en Áreas Metropolitanas</h1>
       <div id="auth-status" style="text-align: right; font-size: 0.9em; margin-top: 10px;">
         <span id="user-display-name">Invitado</span>
-        <button id="auth-btn" onclick="openAuthModal()">Ingresar</button>
+        <button id="auth-btn" onclick="logout()">Salir</button>
       </div>
     </header>
 
-    <!-- Auth Modal -->
-    <div id="auth-modal" class="modal" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; overflow:auto; background-color:rgba(0,0,0,0.4);">
-      <div class="modal-content" style="background-color:#fefefe; margin:15% auto; padding:20px; border:1px solid #888; width:80%; max-width:400px; border-radius:10px;">
-        <span class="close" onclick="closeAuthModal()" style="color:#aaa; float:right; font-size:28px; font-weight:bold; cursor:pointer;">&times;</span>
-        <h2 id="auth-title">Ingresar</h2>
-        <input type="text" id="auth-username" placeholder="Usuario" style="width:100%; padding:10px; margin:10px 0; box-sizing:border-box;">
-        <input type="password" id="auth-password" placeholder="Contraseña" style="width:100%; padding:10px; margin:10px 0; box-sizing:border-box;">
-        <div id="auth-error" style="color:red; margin-bottom:10px;"></div>
-        <button id="auth-action-btn" onclick="handleAuth()" style="width:100%; padding:10px; background-color:#5d7aa9; color:white; border:none; border-radius:5px; cursor:pointer;">Ingresar</button>
-        <p style="text-align:center; margin-top:15px;">
-          <a href="#" onclick="toggleAuthMode()" id="auth-toggle-link">¿No tienes cuenta? Regístrate</a>
-        </p>
+    <!-- Login Gatekeeper (Always visible if not logged in) -->
+    <div id="login-overlay" style="position:fixed; z-index:2000; left:0; top:0; width:100%; height:100%; background-color:#5d7aa9; display:flex; justify-content:center; align-items:center; flex-direction:column;">
+      <div style="background:white; padding:30px; border-radius:10px; box-shadow:0 4px 15px rgba(0,0,0,0.2); width:90%; max-width:350px; text-align:center;">
+        <img src="icon.png" alt="Logo" style="width:64px; height:64px; margin-bottom:20px;">
+        <h2 style="margin-top:0; color:#333;">Bienvenido</h2>
+        <p style="color:#666; margin-bottom:20px;">Ingresa tus credenciales para ver el calendario.</p>
+
+        <input type="text" id="gate-username" placeholder="Usuario" style="width:100%; padding:12px; margin:8px 0; border:1px solid #ddd; border-radius:5px; box-sizing:border-box;">
+        <input type="password" id="gate-password" placeholder="Contraseña" style="width:100%; padding:12px; margin:8px 0; border:1px solid #ddd; border-radius:5px; box-sizing:border-box;">
+
+        <div id="gate-error" style="color:red; margin:10px 0; font-size:0.9em; min-height:1.2em;"></div>
+
+        <button onclick="handleGatekeeperLogin()" style="width:100%; padding:12px; background-color:#5d7aa9; color:white; border:none; border-radius:5px; font-weight:bold; cursor:pointer; font-size:1em;">Ingresar</button>
       </div>
     </div>
 
-    <!-- Claim Name Modal -->
-    <div id="claim-modal" class="modal" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; overflow:auto; background-color:rgba(0,0,0,0.4);">
-      <div class="modal-content" style="background-color:#fefefe; margin:15% auto; padding:20px; border:1px solid #888; width:80%; max-width:400px; border-radius:10px;">
-        <h2>Vincula tu Nombre</h2>
-        <p>Para gestionar tus turnos, selecciona tu nombre de la lista:</p>
-        <select id="claim-name-select" style="width:100%; padding:10px; margin:10px 0;">
-          <option value="">Cargando nombres...</option>
-        </select>
-        <button onclick="claimName()" style="width:100%; padding:10px; background-color:#28a745; color:white; border:none; border-radius:5px; cursor:pointer;">Confirmar</button>
-      </div>
+    <!-- Main App Content (Hidden until login) -->
+    <div id="app-content" style="display:none;">
+        <div class="view-tabs">
+          <button id="tab-all" class="tab active" onclick="switchTab('all')">Todos los Turnos</button>
+          <button id="tab-mine" class="tab" onclick="switchTab('mine')">Mis Turnos</button>
+          <button id="tab-available" class="tab" onclick="switchTab('available')">Turnos Disponibles</button>
+          <button id="tab-availability-input" class="tab" onclick="switchTab('availability-input')">Mi Disponibilidad</button>
+        </div>
+
+        <div id="shift-counter" class="shift-counter" style="display: none;"></div>
+
+        <div id="all-view-instructions" class="info-box">
+          <p><strong>Tip:</strong> Toca la estrella <span style="color:#ccc; font-size:1.2em">☆</span> junto a tu nombre para guardar tus turnos en la pestaña <strong>"Mis Turnos"</strong>.</p>
+        </div>
+
+        <div id="availability-instructions" class="info-box" style="display:none;">
+           <p>Selecciona los días y horarios en los que puedes predicar el próximo mes. Esto ayudará al administrador a armar el programa.</p>
+        </div>
+
+        <div class="search-box" id="search-container">
+          <input type="text" id="searchInput" placeholder="Buscar nombre..." onkeyup="searchName()">
+          <button onclick="clearSearch()">Limpiar</button>
+        </div>
+
+        <div id="schedule-container">Loading schedule...</div>
+        <div id="availability-container" style="display:none;"></div>
     </div>
-
-    <div class="view-tabs">
-      <button id="tab-all" class="tab active" onclick="switchTab('all')">Todos los Turnos</button>
-      <button id="tab-mine" class="tab" onclick="switchTab('mine')">Mis Turnos</button>
-      <button id="tab-available" class="tab" onclick="switchTab('available')">Turnos Disponibles</button>
-    </div>
-
-    <div id="shift-counter" class="shift-counter" style="display: none;"></div>
-
-    <div id="all-view-instructions" class="info-box">
-      <p><strong>Tip:</strong> Toca la estrella <span style="color:#ccc; font-size:1.2em">☆</span> junto a tu nombre para guardar tus turnos en la pestaña <strong>"Mis Turnos"</strong>.</p>
-    </div>
-
-    <div class="search-box" id="search-container">
-      <input type="text" id="searchInput" placeholder="Buscar nombre..." onkeyup="searchName()">
-      <button onclick="clearSearch()">Limpiar</button>
-    </div>
-
-    <div id="schedule-container">Loading schedule...</div>
   </div>
 
   <!-- Firebase SDKs -->

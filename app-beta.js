@@ -26,7 +26,6 @@ if (typeof firebase !== 'undefined') {
 // Current User State
 let currentUser = null;
 let linkedName = null;
-let isSignUp = false; // Toggle between login and signup
 
 // Year logic will be handled inside parseSpanishDate
 
@@ -57,9 +56,6 @@ document.addEventListener("DOMContentLoaded", function () {
             savedNames = [linkedName]; // Override local favorites with cloud identity
             updateAuthUI(); // Update display name
             renderSchedule();
-          } else {
-             // If no linked name, they need to claim one
-             openClaimModal();
           }
         });
       }
@@ -142,11 +138,12 @@ async function migrateData() {
        const slotId = day.date + "_" + slot.loc.replace(/[^a-zA-Z0-9]/g, '') + "_" + slot.time.replace(/[^a-zA-Z0-9]/g, '');
        const slotRef = db.collection("shifts").doc(slotId);
 
+       // Fix: Keep "Disponible" placeholders to preserve slot capacity logic
        batch.set(slotRef, {
          date: day.date,
          location: slot.loc,
          time: slot.time,
-         participants: slot.names.filter(n => !n.toLowerCase().includes("disponible")),
+         participants: slot.names,
          status: slot.names.some(n => n.toLowerCase().includes("disponible")) ? "open" : "full"
        });
 
@@ -172,64 +169,6 @@ async function migrateData() {
 // Make it available globally for manual trigger in console
 window.migrateData = migrateData;
 
-// --- Claim Name Logic ---
-
-function openClaimModal() {
-  const modal = document.getElementById('claim-modal');
-  const select = document.getElementById('claim-name-select');
-  modal.style.display = 'block';
-
-  // Populate Select from Firestore "participants" collection
-  select.innerHTML = '<option value="">Cargando...</option>';
-
-  db.collection("participants").orderBy("name").get().then(snap => {
-    let html = '<option value="">-- Selecciona tu nombre --</option>';
-    snap.forEach(doc => {
-      const name = doc.id;
-      html += `<option value="${name}">${name}</option>`;
-    });
-    // Also allow "New User" option? For now, assume strict mapping.
-    select.innerHTML = html;
-  });
-}
-
-function claimName() {
-  const select = document.getElementById('claim-name-select');
-  const name = select.value;
-
-  if (!name) {
-    alert("Por favor selecciona un nombre.");
-    return;
-  }
-
-  if (!currentUser) return;
-
-  // Check if this name is already claimed?
-  // Ideally yes, but let's assume trust for now or that we are the first.
-  // Or better, check if another user has this linkedName.
-
-  db.collection("users").where("linkedName", "==", name).get().then(snap => {
-      if (!snap.empty) {
-          alert("Este nombre ya está vinculado a otra cuenta.");
-          return;
-      }
-
-      // Link it
-      db.collection("users").doc(currentUser.uid).update({
-          linkedName: name
-      }).then(() => {
-          linkedName = name;
-          document.getElementById('claim-modal').style.display = 'none';
-          // Also set local favorite
-          savedNames = [name];
-          saveFavorites();
-          updateAuthUI();
-          renderSchedule();
-      });
-  });
-}
-
-
 // --- Auth Functions ---
 
 function openAuthModal() {
@@ -239,13 +178,6 @@ function openAuthModal() {
 
 function closeAuthModal() {
   document.getElementById('auth-modal').style.display = 'none';
-}
-
-function toggleAuthMode() {
-  isSignUp = !isSignUp;
-  document.getElementById('auth-title').innerText = isSignUp ? "Registrarse" : "Ingresar";
-  document.getElementById('auth-action-btn').innerText = isSignUp ? "Registrarse" : "Ingresar";
-  document.getElementById('auth-toggle-link').innerText = isSignUp ? "¿Ya tienes cuenta? Ingresa" : "¿No tienes cuenta? Regístrate";
 }
 
 function handleAuth() {
@@ -258,52 +190,65 @@ function handleAuth() {
     return;
   }
 
-  // Fake Email Strategy: username + dummy domain
-  const email = username + "@ppam.placeholder.com";
-
-  if (isSignUp) {
-    auth.createUserWithEmailAndPassword(email, pass)
-      .then((userCredential) => {
-        // Create user profile doc
-        db.collection("users").doc(userCredential.user.uid).set({
-          username: username,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        closeAuthModal();
-      })
-      .catch((error) => {
-        errorEl.innerText = error.message;
-      });
-  } else {
-    auth.signInWithEmailAndPassword(email, pass)
-      .then(() => {
-        closeAuthModal();
-      })
-      .catch((error) => {
-        errorEl.innerText = "Error: " + error.message;
-      });
+  // Email Strategy: Check if it looks like an email, otherwise make it a dummy one
+  let email = username;
+  if (!username.includes('@')) {
+    email = username + "@ppam.placeholder.com";
   }
+
+  auth.signInWithEmailAndPassword(email, pass)
+    .then(() => {
+      closeAuthModal();
+    })
+    .catch((error) => {
+      errorEl.innerText = "Error: " + error.message;
+    });
 }
 
 function updateAuthUI() {
   const nameEl = document.getElementById('user-display-name');
-  const btn = document.getElementById('auth-btn');
+  const overlay = document.getElementById('login-overlay');
+  const appContent = document.getElementById('app-content');
 
   if (currentUser) {
     nameEl.innerText = linkedName || currentUser.email.split('@')[0];
-    btn.innerText = "Salir";
-    btn.onclick = () => {
-       auth.signOut();
-       linkedName = null;
-       savedNames = []; // Clear current session
-       loadFavorites(); // Restore local favorites if any? Or just clear.
-       window.location.reload();
-    };
+    overlay.style.display = 'none';
+    appContent.style.display = 'block';
   } else {
     nameEl.innerText = "Invitado";
-    btn.innerText = "Ingresar";
-    btn.onclick = openAuthModal;
+    overlay.style.display = 'flex';
+    appContent.style.display = 'none';
   }
+}
+
+function handleGatekeeperLogin() {
+    const user = document.getElementById('gate-username').value.trim();
+    const pass = document.getElementById('gate-password').value;
+    const err = document.getElementById('gate-error');
+
+    if (!user || !pass) {
+        err.innerText = "Ingresa usuario y contraseña.";
+        return;
+    }
+
+    let email = user;
+    if (!user.includes('@')) {
+        email = user + "@ppam.placeholder.com";
+    }
+
+    auth.signInWithEmailAndPassword(email, pass)
+        .catch(error => {
+            err.innerText = "Credenciales incorrectas.";
+            console.error(error);
+        });
+}
+
+function logout() {
+    auth.signOut().then(() => {
+        linkedName = null;
+        savedNames = [];
+        window.location.reload();
+    });
 }
 
 function loadFavorites() {
@@ -340,21 +285,161 @@ function switchTab(tab) {
   document.getElementById('tab-all').className = tab === 'all' ? 'tab active' : 'tab';
   document.getElementById('tab-mine').className = tab === 'mine' ? 'tab active' : 'tab';
   document.getElementById('tab-available').className = tab === 'available' ? 'tab active' : 'tab';
+  document.getElementById('tab-availability-input').className = tab === 'availability-input' ? 'tab active' : 'tab';
 
   // Toggle Search & Instructions visibility
   const searchContainer = document.getElementById('search-container');
-  const instructions = document.getElementById('all-view-instructions');
+  const allInstructions = document.getElementById('all-view-instructions');
+  const availInstructions = document.getElementById('availability-instructions');
+  const scheduleContainer = document.getElementById('schedule-container');
+  const availabilityContainer = document.getElementById('availability-container');
 
-  if (tab === 'mine' || tab === 'available') {
-    searchContainer.style.display = 'none';
-    instructions.style.display = 'none';
-  } else {
+  // Defaults
+  searchContainer.style.display = 'none';
+  allInstructions.style.display = 'none';
+  availInstructions.style.display = 'none';
+  scheduleContainer.style.display = 'none';
+  availabilityContainer.style.display = 'none';
+
+  if (tab === 'all') {
     searchContainer.style.display = 'flex';
-    instructions.style.display = 'block';
+    allInstructions.style.display = 'block';
+    scheduleContainer.style.display = 'block';
+    renderSchedule();
+    applyDateFilter();
+  } else if (tab === 'mine' || tab === 'available') {
+    scheduleContainer.style.display = 'block';
+    renderSchedule();
+    applyDateFilter();
+  } else if (tab === 'availability-input') {
+    availInstructions.style.display = 'block';
+    availabilityContainer.style.display = 'block';
+    renderAvailabilityInput();
+  }
+}
+
+async function renderAvailabilityInput() {
+  const container = document.getElementById('availability-container');
+  container.innerHTML = "Cargando formulario...";
+
+  if (!currentUser) {
+    container.innerHTML = "<p style='text-align:center; padding:20px;'>Debes iniciar sesión para indicar tu disponibilidad.</p>";
+    return;
   }
 
-  renderSchedule();
-  applyDateFilter(); // Ensure dates are filtered again
+  // 1. Determine Target Month (Next Month)
+  // For beta purposes, let's hardcode to February 2026 since the CSV is Jan 2026.
+  // In real app, this would be dynamic: new Date().getMonth() + 1
+  const targetYear = 2026;
+  const targetMonth = 1; // 0-indexed, so 1 is February
+  const daysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+  const monthLabel = "Febrero 2026";
+  const monthKey = "2026-02";
+
+  // 2. Fetch Existing Availability
+  let existingSlots = [];
+  try {
+    const doc = await db.collection("availability").doc(`${monthKey}_${currentUser.uid}`).get();
+    if (doc.exists) {
+      existingSlots = doc.data().slots || []; // Array of strings "YYYY-MM-DD_Time"
+    }
+  } catch (e) {
+    console.error("Error loading availability", e);
+  }
+
+  // 3. Identify Standard Time Slots from current scheduleData
+  // We collect all unique time strings found in the current schedule to populate the form
+  const uniqueTimes = new Set();
+  scheduleData.forEach(d => {
+    d.slots.forEach(s => uniqueTimes.add(s.time));
+  });
+  const timeOptions = Array.from(uniqueTimes).sort();
+  // If empty (no data loaded yet), provide defaults
+  if (timeOptions.length === 0) {
+      timeOptions.push("08:00 a 10:00", "10:00 a 12:00", "14:00 a 16:00", "16:00 a 18:00");
+  }
+
+  // 4. Build UI
+  let html = `
+    <div style="background:white; padding:15px; border-radius:8px; margin-bottom:20px;">
+      <h3>Disponibilidad para ${monthLabel}</h3>
+      <p>Marca las casillas de los horarios en los que podrías servir.</p>
+    </div>
+    <form id="availability-form">
+  `;
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateObj = new Date(targetYear, targetMonth, d);
+    const dayName = dateObj.toLocaleDateString('es-ES', { weekday: 'long' });
+    const dayStr = d.toString().padStart(2,'0');
+    const fullDate = `${targetYear}-${(targetMonth+1).toString().padStart(2,'0')}-${dayStr}`;
+
+    // Capitalize day name
+    const dayLabel = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+
+    html += `
+      <div class="day-avail-row" style="background:white; margin-bottom:10px; padding:10px; border-radius:8px;">
+        <div style="font-weight:bold; margin-bottom:8px; border-bottom:1px solid #eee; padding-bottom:5px;">
+           ${dayLabel} ${dayStr}
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:10px;">
+    `;
+
+    timeOptions.forEach(time => {
+       const slotKey = `${fullDate}_${time}`;
+       const isChecked = existingSlots.includes(slotKey) ? "checked" : "";
+
+       html += `
+         <label style="display:flex; align-items:center; background:#f0f4f8; padding:5px 10px; border-radius:15px; font-size:0.9em; cursor:pointer;">
+           <input type="checkbox" name="avail_slot" value="${slotKey}" ${isChecked} style="margin-right:5px;">
+           ${time}
+         </label>
+       `;
+    });
+
+    html += `</div></div>`;
+  }
+
+  html += `
+    <div style="position:sticky; bottom:20px; text-align:center; padding:10px;">
+      <button type="button" onclick="saveAvailability('${monthKey}')" style="background:#28a745; color:white; border:none; padding:15px 30px; border-radius:25px; font-size:1.1em; box-shadow:0 4px 10px rgba(0,0,0,0.2); cursor:pointer;">
+        Guardar Disponibilidad
+      </button>
+    </div>
+    </form>
+  `;
+
+  container.innerHTML = html;
+}
+
+function saveAvailability(monthKey) {
+  if (!currentUser) return;
+
+  const checkboxes = document.querySelectorAll('input[name="avail_slot"]:checked');
+  const selectedSlots = Array.from(checkboxes).map(cb => cb.value);
+
+  const docId = `${monthKey}_${currentUser.uid}`;
+  const btn = document.querySelector('button[onclick^="saveAvailability"]');
+  const originalText = btn.innerText;
+  btn.innerText = "Guardando...";
+  btn.disabled = true;
+
+  db.collection("availability").doc(docId).set({
+    uid: currentUser.uid,
+    linkedName: linkedName || "Unknown", // Assuming linkedName is global
+    month: monthKey,
+    slots: selectedSlots,
+    updatedAt: new Date()
+  }).then(() => {
+    alert("¡Disponibilidad guardada correctamente!");
+    btn.innerText = originalText;
+    btn.disabled = false;
+  }).catch(err => {
+    console.error("Error saving availability", err);
+    alert("Hubo un error al guardar. Intenta de nuevo.");
+    btn.innerText = originalText;
+    btn.disabled = false;
+  });
 }
 
 // CSV Parser Helper

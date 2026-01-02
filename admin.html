@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - PPAM</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+      body { background-color: #f0f2f5; font-family: sans-serif; }
+      .admin-container { max-width: 900px; margin: 30px auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+      input, select, button { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+      button { background-color: #5d7aa9; color: white; border: none; font-weight: bold; cursor: pointer; }
+      button:hover { background-color: #4a638b; }
+      .success { color: green; margin-top: 10px; text-align: center; }
+      .error { color: red; margin-top: 10px; text-align: center; }
+      label { font-weight: bold; display: block; margin-top: 10px; }
+
+      /* Tabs */
+      .tabs { display: flex; border-bottom: 2px solid #ddd; margin-bottom: 20px; }
+      .tab { padding: 10px 20px; cursor: pointer; color: #666; font-weight: bold; }
+      .tab.active { border-bottom: 3px solid #5d7aa9; color: #5d7aa9; }
+
+      .tab-content { display: none; }
+      .tab-content.active { display: block; }
+
+      table { width:100%; border-collapse:collapse; text-align:left; font-size:0.9em; }
+      th, td { padding: 8px; border: 1px solid #ddd; }
+      th { background: #eee; }
+  </style>
+</head>
+<body>
+
+<div class="admin-container" id="login-section">
+  <h2>Admin Login</h2>
+  <input type="text" id="admin-user" placeholder="Usuario o Correo">
+  <input type="password" id="admin-pass" placeholder="Contraseña">
+  <button onclick="adminLogin()">Ingresar</button>
+  <p class="error" id="login-error"></p>
+</div>
+
+<div class="admin-container" id="dashboard-section" style="display: none;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+    <h2>Panel de Administrador</h2>
+    <button onclick="logout()" style="width:auto; background:#ccc; color:#333; padding:5px 15px;">Salir</button>
+  </div>
+
+  <div class="tabs">
+      <div class="tab active" onclick="switchAdminTab('users')" id="tab-btn-users">Usuarios</div>
+      <div class="tab" onclick="switchAdminTab('schedule')" id="tab-btn-schedule">Generador de Horarios</div>
+  </div>
+
+  <!-- Tab: Users -->
+  <div id="tab-users" class="tab-content active">
+      <div style="border-bottom:1px solid #eee; padding-bottom:20px; margin-bottom:20px;">
+        <h3>Crear Usuario</h3>
+        <p style="color:#666; font-size:0.9em;">Selecciona un nombre del calendario que aún no tenga cuenta.</p>
+
+        <label>Nombre en el Calendario (Sin Cuenta)</label>
+        <select id="new-displayname-select">
+            <option value="">Cargando nombres...</option>
+        </select>
+
+        <label>Nombre de Usuario (Login)</label>
+        <input type="text" id="new-username" placeholder="ej. juanperez">
+
+        <label>Contraseña</label>
+        <input type="text" id="new-password" placeholder="ej. 123456">
+
+        <label>Rol</label>
+        <select id="new-role">
+            <option value="user">Usuario Normal</option>
+            <option value="admin">Administrador</option>
+        </select>
+
+        <button onclick="createUser()">Crear Usuario y Vincular</button>
+
+        <p class="success" id="create-msg"></p>
+        <p class="error" id="create-error"></p>
+      </div>
+
+      <div>
+          <h3>Usuarios Existentes</h3>
+          <table border="1">
+              <thead>
+                  <tr>
+                      <th>Usuario</th>
+                      <th>Nombre Vinculado</th>
+                      <th>Rol</th>
+                      <th>Acción</th>
+                  </tr>
+              </thead>
+              <tbody id="users-table-body">
+                  <tr><td colspan="4" style="text-align:center;">Cargando...</td></tr>
+              </tbody>
+          </table>
+      </div>
+  </div>
+
+  <!-- Tab: Schedule Generator -->
+  <div id="tab-schedule" class="tab-content">
+      <div style="background:#f9f9f9; padding:15px; border-radius:8px;">
+          <h3>Generar Programa Mensual</h3>
+          <p>Esta herramienta asigna turnos automáticamente basándose en la disponibilidad que los usuarios cargaron.</p>
+
+          <label>Mes Objetivo</label>
+          <select id="gen-month">
+              <option value="2026-02">Febrero 2026</option>
+              <option value="2026-03">Marzo 2026</option>
+          </select>
+
+          <button onclick="generateSchedulePreview()" style="margin-top:20px;">Generar Propuesta (Borrador)</button>
+      </div>
+
+      <div id="schedule-preview-container" style="display:none; margin-top:20px;">
+          <h3>Vista Previa del Programa</h3>
+          <div style="overflow-x:auto;">
+              <table id="preview-table">
+                  <!-- Header generated by JS -->
+                  <thead id="preview-head"></thead>
+                  <tbody id="preview-body"></tbody>
+              </table>
+          </div>
+
+          <div style="margin-top:20px; text-align:right;">
+             <button onclick="publishSchedule()" style="background:#28a745; width:auto; padding:10px 30px;">Publicar Programa</button>
+          </div>
+      </div>
+  </div>
+</div>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<script src="app-admin.js"></script>
+</body>
+</html>

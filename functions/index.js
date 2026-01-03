@@ -1,32 +1,33 @@
-const functions = require("firebase-functions");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onDocumentUpdated, onDocumentCreated } = require("firebase-functions/v2/firestore");
 const admin = require("firebase-admin");
 
 admin.initializeApp();
 const db = admin.firestore();
 
-// --- 1. Admin Tools ---
+// --- 1. Admin Tools (2nd Gen) ---
 
 /**
  * resetUserPassword
  * Allows an admin to reset the password for any user.
  * Input: { uid: string, newPassword: string }
  */
-exports.resetUserPassword = functions.https.onCall(async (data, context) => {
+exports.resetUserPassword = onCall(async (request) => {
     // 1. Security Check: Caller must be an Admin
-    if (!context.auth) {
-        throw new functions.https.HttpsError('unauthenticated', 'Debes iniciar sesión.');
+    if (!request.auth) {
+        throw new HttpsError('unauthenticated', 'Debes iniciar sesión.');
     }
 
-    const callerUid = context.auth.uid;
+    const callerUid = request.auth.uid;
     const callerDoc = await db.collection('users').doc(callerUid).get();
 
     if (!callerDoc.exists || callerDoc.data().role !== 'admin') {
-        throw new functions.https.HttpsError('permission-denied', 'No tienes permisos de administrador.');
+        throw new HttpsError('permission-denied', 'No tienes permisos de administrador.');
     }
 
-    const { uid, newPassword } = data;
+    const { uid, newPassword } = request.data;
     if (!uid || !newPassword) {
-        throw new functions.https.HttpsError('invalid-argument', 'Faltan datos (uid o contraseña).');
+        throw new HttpsError('invalid-argument', 'Faltan datos (uid o contraseña).');
     }
 
     try {
@@ -36,23 +37,23 @@ exports.resetUserPassword = functions.https.onCall(async (data, context) => {
         return { success: true, message: "Contraseña actualizada correctamente." };
     } catch (error) {
         console.error("Error resetting password:", error);
-        throw new functions.https.HttpsError('internal', error.message);
+        throw new HttpsError('internal', error.message);
     }
 });
 
 
-// --- 2. Notification Logic ---
+// --- 2. Notification Logic (2nd Gen) ---
 
 /**
  * onShiftChange
  * Triggers when a shift document is written (created or updated).
  * Detects if a user took a shift or cancelled, and sends notifications.
  */
-exports.onShiftChange = functions.firestore
-    .document('shifts/{shiftId}')
-    .onUpdate(async (change, context) => {
-        const newData = change.after.data();
-        const oldData = change.before.data();
+exports.onShiftChange = onDocumentUpdated('shifts/{shiftId}', async (event) => {
+        const newData = event.data.after.data();
+        const oldData = event.data.before.data();
+
+        if (!newData || !oldData) return; // Safety check
 
         const newParticipants = newData.participants || [];
         const oldParticipants = oldData.participants || [];
@@ -63,14 +64,9 @@ exports.onShiftChange = functions.firestore
         // 2. Detect Cancellations (someone removed)
         const removedUsers = oldParticipants.filter(p => !newParticipants.includes(p));
 
-        // Note: 'participants' array stores NAMES (linkedName), not UIDs.
-        // We need to find the UID associated with that name to notify them.
-
-        if (addedUsers.length === 0 && removedUsers.length === 0) return null;
+        if (addedUsers.length === 0 && removedUsers.length === 0) return;
 
         // Helper to find UID by linkedName
-        // This is not efficient for large scale, but fine for this scale.
-        // Better: Store {uid, name} in participants array in the future.
         const allUserDocs = await db.collection('users').get();
         const nameToUidMap = {};
         allUserDocs.forEach(doc => {
@@ -82,7 +78,6 @@ exports.onShiftChange = functions.firestore
 
         // Notify Added Users
         addedUsers.forEach(name => {
-            // Ignore "Disponible"
             if (name.toLowerCase().includes('disponible')) return;
 
             const uid = nameToUidMap[name];
@@ -94,12 +89,12 @@ exports.onShiftChange = functions.firestore
                     read: false,
                     createdAt: admin.firestore.FieldValue.serverTimestamp(),
                     type: 'assignment',
-                    shiftId: context.params.shiftId
+                    shiftId: event.params.shiftId
                 });
             }
         });
 
-        // Notify Removed Users (Cancellations)
+        // Notify Removed Users
         removedUsers.forEach(name => {
              if (name.toLowerCase().includes('disponible')) return;
 
@@ -112,7 +107,7 @@ exports.onShiftChange = functions.firestore
                     read: false,
                     createdAt: admin.firestore.FieldValue.serverTimestamp(),
                     type: 'cancellation',
-                    shiftId: context.params.shiftId
+                    shiftId: event.params.shiftId
                 });
              }
         });
@@ -122,12 +117,9 @@ exports.onShiftChange = functions.firestore
 
 /**
  * onSchedulePublished
- * Triggered when a new Day is created (indicating a new schedule upload).
- * Just a placeholder for now.
+ * Triggered when a new Day is created.
  */
-exports.onSchedulePublished = functions.firestore
-    .document('days/{dayId}')
-    .onCreate((snap, context) => {
-        // Logic to notify everyone "New Schedule is Out!" could go here.
-        return null;
-    });
+exports.onSchedulePublished = onDocumentCreated('days/{dayId}', (event) => {
+    // Logic to notify everyone can go here
+    return null;
+});

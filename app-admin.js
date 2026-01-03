@@ -201,6 +201,14 @@ function createUser() {
 // --- Edit User Logic ---
 
 function openEditModal(uid, username, role) {
+    console.log("Opening edit modal for:", uid, username); // DEBUG
+
+    const modal = document.getElementById('edit-user-modal');
+    if (!modal) {
+        console.error("Modal element not found!");
+        return;
+    }
+
     document.getElementById('edit-uid').value = uid;
     document.getElementById('edit-username-display').innerText = username;
     document.getElementById('edit-role').value = role;
@@ -208,7 +216,9 @@ function openEditModal(uid, username, role) {
     document.getElementById('edit-msg').innerText = "";
     document.getElementById('edit-error').innerText = "";
 
-    document.getElementById('edit-user-modal').style.display = "block";
+    modal.style.display = "block";
+    // Ensure high z-index and center just in case style.css overrides
+    modal.style.zIndex = "10000";
 }
 
 function closeEditModal() {

@@ -1,6 +1,6 @@
 // Firebase Configuration
 const firebaseConfig = {
-  apiKey: "",
+  apiKey: "AIzaSyC5HPI4WY19Om_HmQgJJl6IvXr0XrMmflQ",
   authDomain: "ppam-beta.firebaseapp.com",
   projectId: "ppam-beta",
   storageBucket: "ppam-beta.firebasestorage.app",

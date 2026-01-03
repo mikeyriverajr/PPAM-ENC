@@ -41,6 +41,15 @@
     <div id="schedule-container">Loading schedule...</div>
   </div>
 
-  <script src="app.v7.js"></script>
+  <footer id="admin-footer">
+    <button id="admin-lock-btn" onclick="toggleAdminPanel()">🔒</button>
+    <div id="admin-panel" style="display: none;">
+      <h3>Panel de Administración</h3>
+      <button onclick="generateWeeklyReport()">Generar Resumen Semanal (WhatsApp)</button>
+      <div id="admin-output" style="margin-top: 10px;"></div>
+    </div>
+  </footer>
+
+  <script src="app.v8.js"></script>
 </body>
 </html>

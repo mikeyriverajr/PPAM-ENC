@@ -77,25 +77,30 @@ li { margin-bottom: 4px; }
   transform: translateY(1px);
 }
 
-/* Admin Footer */
-#admin-footer {
-  text-align: center;
-  margin-top: 40px;
-  padding: 20px;
-  opacity: 0.3;
-  transition: opacity 0.3s;
+/* Admin Styles */
+header {
+  position: relative; 
+  /* keep existing styles */
+  background: var(--primary); color: #fff; padding: 22px; border-radius: 16px; margin-bottom: 16px; text-align: center;
 }
-#admin-footer:hover {
-  opacity: 1;
-}
+
 #admin-lock-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
   background: none;
   border: none;
   font-size: 1.2em;
   cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.3s;
 }
+#admin-lock-btn:hover {
+  opacity: 1;
+}
+
 #admin-panel {
-  margin-top: 10px;
+  margin-bottom: 16px;
   background: #fff;
   padding: 15px;
   border: 1px solid #ccc;

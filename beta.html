@@ -88,8 +88,18 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
-  <!-- Shared Config -->
-  <script src="firebase-config.js"></script>
+  <!-- Firebase Config (Inline to avoid 404s) -->
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyC5HPI4WY19Om_HmQgJJl6IvXr0XrMmflQ",
+      authDomain: "ppam-beta.firebaseapp.com",
+      projectId: "ppam-beta",
+      storageBucket: "ppam-beta.firebasestorage.app",
+      messagingSenderId: "879252975424",
+      appId: "1:879252975424:web:6e62c58c4b4ba8689d94a5",
+      measurementId: "G-BXVKGLHV9L"
+    };
+  </script>
 
   <script src="app-beta.js"></script>
 </body>

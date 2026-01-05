@@ -3,169 +3,92 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Admin - PPAM</title>
+  <!-- Ensure Referrer is sent for Google API Restrictions -->
+  <meta name="referrer" content="no-referrer-when-downgrade">
+  <meta name="theme-color" content="#5d7aa9">
+  <title>Programa PPEAM – Enero 2026</title>
   <link rel="stylesheet" href="style.css">
-  <style>
-      body { background-color: #f0f2f5; font-family: sans-serif; }
-      .admin-container { max-width: 900px; margin: 30px auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-      input, select, button { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
-      button { background-color: #5d7aa9; color: white; border: none; font-weight: bold; cursor: pointer; }
-      button:hover { background-color: #4a638b; }
-      .success { color: green; margin-top: 10px; text-align: center; }
-      .error { color: red; margin-top: 10px; text-align: center; }
-      label { font-weight: bold; display: block; margin-top: 10px; }
-      
-      /* Modal */
-      .modal { display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
-      .modal-content { background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 10px; }
-      .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
-      .close:hover, .close:focus { color: black; text-decoration: none; cursor: pointer; }
 
-      /* Tabs */
-      .tabs { display: flex; border-bottom: 2px solid #ddd; margin-bottom: 20px; }
-      .tab { padding: 10px 20px; cursor: pointer; color: #666; font-weight: bold; }
-      .tab.active { border-bottom: 3px solid #5d7aa9; color: #5d7aa9; }
-      
-      .tab-content { display: none; }
-      .tab-content.active { display: block; }
-      
-      table { width:100%; border-collapse:collapse; text-align:left; font-size:0.9em; }
-      th, td { padding: 8px; border: 1px solid #ddd; }
-      th { background: #eee; }
-  </style>
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="icon.png">
+
+  <!-- Manifest for PWA -->
+  <link rel="manifest" href="manifest.json">
 </head>
 <body>
-
-<div class="admin-container" id="login-section">
-  <h2>Admin Login</h2>
-  <input type="text" id="admin-user" placeholder="Usuario o Correo">
-  <input type="password" id="admin-pass" placeholder="Contraseña">
-  <button onclick="adminLogin()">Ingresar</button>
-  <p class="error" id="login-error"></p>
-</div>
-
-<div class="admin-container" id="dashboard-section" style="display: none;">
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-    <h2>Panel de Administrador</h2>
-    <button onclick="logout()" style="width:auto; background:#ccc; color:#333; padding:5px 15px;">Salir</button>
-  </div>
-  
-  <div class="tabs">
-      <div class="tab active" onclick="switchAdminTab('users')" id="tab-btn-users">Usuarios</div>
-      <div class="tab" onclick="switchAdminTab('schedule')" id="tab-btn-schedule">Generador de Horarios</div>
-  </div>
-  
-  <!-- Tab: Users -->
-  <div id="tab-users" class="tab-content active">
-      <div style="border-bottom:1px solid #eee; padding-bottom:20px; margin-bottom:20px;">
-        <h3>Crear Usuario</h3>
-        <p style="color:#666; font-size:0.9em;">Selecciona un nombre del calendario que aún no tenga cuenta.</p>
-        
-        <label>Nombre en el Calendario (Sin Cuenta)</label>
-        <select id="new-displayname-select">
-            <option value="">Cargando nombres...</option>
-        </select>
-    
-        <label>Nombre de Usuario (Login)</label>
-        <input type="text" id="new-username" placeholder="ej. juanperez">
-        
-        <label>Contraseña</label>
-        <input type="text" id="new-password" placeholder="ej. 123456">
-        
-        <label>Rol</label>
-        <select id="new-role">
-            <option value="user">Usuario Normal</option>
-            <option value="admin">Administrador</option>
-        </select>
-    
-        <button onclick="createUser()">Crear Usuario y Vincular</button>
-        
-        <p class="success" id="create-msg"></p>
-        <p class="error" id="create-error"></p>
+  <div class="container">
+    <header>
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h1>Predicación Pública</h1>
+          <div style="position:relative;">
+              <button onclick="toggleNotifications()" style="background:none; border:none; cursor:pointer; font-size:1.5em; position:relative;">
+                  🔔
+                  <span id="notif-badge" style="display:none; position:absolute; top:0; right:0; background:red; color:white; border-radius:50%; font-size:0.5em; padding:2px 5px;">0</span>
+              </button>
+              <div id="notif-dropdown" style="display:none; position:absolute; right:0; top:40px; background:white; border:1px solid #ddd; width:300px; box-shadow:0 4px 10px rgba(0,0,0,0.2); z-index:1000; border-radius:8px; max-height:400px; overflow-y:auto;">
+                  <div id="notif-list">
+                      <p style="padding:15px; text-align:center; color:#666;">Cargando notificaciones...</p>
+                  </div>
+              </div>
+          </div>
       </div>
-    
-      <div>
-          <h3>Usuarios Existentes</h3>
-          <input type="text" id="user-search" placeholder="Buscar usuario..." onkeyup="filterUsers()" style="margin-bottom:10px;">
-          <table border="1">
-              <thead>
-                  <tr>
-                      <th>Usuario</th>
-                      <th>Nombre Vinculado</th>
-                      <th>Rol</th>
-                      <th>Acción</th>
-                  </tr>
-              </thead>
-              <tbody id="users-table-body">
-                  <tr><td colspan="4" style="text-align:center;">Cargando...</td></tr>
-              </tbody>
-          </table>
+      <div id="auth-status" style="text-align: right; font-size: 0.9em; margin-top: 5px;">
+        <span id="user-display-name">Invitado</span>
+        <button id="auth-btn" onclick="logout()">Salir</button>
       </div>
-  </div>
+    </header>
 
-  <!-- Edit User Modal -->
-  <div id="edit-user-modal" class="modal">
-    <div class="modal-content">
-      <span class="close" onclick="closeEditModal()">&times;</span>
-      <h3>Editar Usuario</h3>
-      <input type="hidden" id="edit-uid">
-      
-      <p><strong>Usuario:</strong> <span id="edit-username-display"></span></p>
-      
-      <label>Rol</label>
-      <select id="edit-role">
-          <option value="user">Usuario Normal</option>
-          <option value="admin">Administrador</option>
-      </select>
+    <!-- Login Gatekeeper (Always visible if not logged in) -->
+    <div id="login-overlay" style="position:fixed; z-index:2000; left:0; top:0; width:100%; height:100%; background-color:#5d7aa9; display:flex; justify-content:center; align-items:center; flex-direction:column;">
+      <div style="background:white; padding:30px; border-radius:10px; box-shadow:0 4px 15px rgba(0,0,0,0.2); width:90%; max-width:350px; text-align:center;">
+        <img src="icon.png" alt="Logo" style="width:64px; height:64px; margin-bottom:20px;">
+        <h2 style="margin-top:0; color:#333;">Bienvenido</h2>
+        <p style="color:#666; margin-bottom:20px;">Ingresa tus credenciales para ver el calendario.</p>
 
-      <label>Restablecer Contraseña (Opcional)</label>
-      <input type="text" id="edit-new-password" placeholder="Nueva contraseña (dejar vacío si no cambia)">
-      
-      <button onclick="saveUserChanges()" style="background-color:#ffc107; color:black; width:100%; margin-top:20px;">Guardar Cambios</button>
-      <p id="edit-msg" class="success"></p>
-      <p id="edit-error" class="error"></p>
+        <input type="text" id="gate-username" placeholder="Usuario" style="width:100%; padding:12px; margin:8px 0; border:1px solid #ddd; border-radius:5px; box-sizing:border-box;">
+        <input type="password" id="gate-password" placeholder="Contraseña" style="width:100%; padding:12px; margin:8px 0; border:1px solid #ddd; border-radius:5px; box-sizing:border-box;">
+
+        <div id="gate-error" style="color:red; margin:10px 0; font-size:0.9em; min-height:1.2em;"></div>
+
+        <button onclick="handleGatekeeperLogin()" style="width:100%; padding:12px; background-color:#5d7aa9; color:white; border:none; border-radius:5px; font-weight:bold; cursor:pointer; font-size:1em;">Ingresar</button>
+      </div>
+    </div>
+
+    <!-- Main App Content (Hidden until login) -->
+    <div id="app-content" style="display:none;">
+        <div class="view-tabs">
+          <button id="tab-all" class="tab active" onclick="switchTab('all')">Todos los Turnos</button>
+          <button id="tab-mine" class="tab" onclick="switchTab('mine')">Mis Turnos</button>
+          <button id="tab-available" class="tab" onclick="switchTab('available')">Turnos Disponibles</button>
+          <button id="tab-availability-input" class="tab" onclick="switchTab('availability-input')">Mi Disponibilidad</button>
+        </div>
+
+        <div id="shift-counter" class="shift-counter" style="display: none;"></div>
+
+        <div id="all-view-instructions" class="info-box">
+          <p><strong>Tip:</strong> Toca la estrella <span style="color:#ccc; font-size:1.2em">☆</span> junto a tu nombre para guardar tus turnos en la pestaña <strong>"Mis Turnos"</strong>.</p>
+        </div>
+
+        <div id="availability-instructions" class="info-box" style="display:none;">
+           <p>Selecciona los días y horarios en los que puedes predicar el próximo mes. Esto ayudará al administrador a armar el programa.</p>
+        </div>
+
+        <div class="search-box" id="search-container">
+          <input type="text" id="searchInput" placeholder="Buscar nombre..." onkeyup="searchName()">
+          <button onclick="clearSearch()">Limpiar</button>
+        </div>
+
+        <div id="schedule-container">Loading schedule...</div>
+        <div id="availability-container" style="display:none;"></div>
     </div>
   </div>
-  
-  <!-- Tab: Schedule Generator -->
-  <div id="tab-schedule" class="tab-content">
-      <div style="background:#f9f9f9; padding:15px; border-radius:8px;">
-          <h3>Generar Programa Mensual</h3>
-          <p>Esta herramienta asigna turnos automáticamente basándose en la disponibilidad que los usuarios cargaron.</p>
-          
-          <label>Mes Objetivo</label>
-          <select id="gen-month">
-              <option value="2026-02">Febrero 2026</option>
-              <option value="2026-03">Marzo 2026</option>
-          </select>
-          
-          <button onclick="generateSchedulePreview()" style="margin-top:20px;">Generar Propuesta (Borrador)</button>
-      </div>
-      
-      <div id="schedule-preview-container" style="display:none; margin-top:20px;">
-          <h3>Vista Previa del Programa</h3>
-          <div style="overflow-x:auto;">
-              <table id="preview-table">
-                  <!-- Header generated by JS -->
-                  <thead id="preview-head"></thead>
-                  <tbody id="preview-body"></tbody>
-              </table>
-          </div>
-          
-          <div style="margin-top:20px; text-align:right;">
-             <button onclick="publishSchedule()" style="background:#28a745; width:auto; padding:10px 30px;">Publicar Programa</button>
-          </div>
-      </div>
-  </div>
-</div>
 
-<!-- Firebase SDKs -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
-<!-- App Script (Config is internal) -->
-<script src="app-admin.js"></script>
+  <!-- App Script (Config is internal) -->
+  <script src="app-beta.js"></script>
 </body>
 </html>

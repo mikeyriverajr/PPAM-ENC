@@ -52,6 +52,7 @@
 
   <div class="tabs">
       <div class="tab active" onclick="switchAdminTab('users')" id="tab-btn-users">Usuarios</div>
+      <div class="tab" onclick="switchAdminTab('locations')" id="tab-btn-locations">Ubicaciones</div>
       <div class="tab" onclick="switchAdminTab('schedule')" id="tab-btn-schedule">Generador de Horarios</div>
   </div>
 
@@ -125,6 +126,51 @@
       <p id="edit-msg" class="success"></p>
       <p id="edit-error" class="error"></p>
     </div>
+  </div>
+
+  <!-- Tab: Locations -->
+  <div id="tab-locations" class="tab-content">
+      <div style="margin-bottom:20px; text-align:right;">
+          <button onclick="openLocationModal()" style="width:auto; background:#28a745;">+ Nueva Ubicación</button>
+      </div>
+      <div id="locations-list">
+          <p>Cargando ubicaciones...</p>
+      </div>
+  </div>
+
+  <!-- Location Modal -->
+  <div id="location-modal" class="modal">
+      <div class="modal-content" style="max-width:800px;">
+          <span class="close" onclick="closeLocationModal()">&times;</span>
+          <h3 id="loc-modal-title">Nueva Ubicación</h3>
+          <input type="hidden" id="loc-id">
+
+          <div style="display:flex; gap:20px;">
+              <div style="flex:1;">
+                  <label>Nombre</label>
+                  <input type="text" id="loc-name" placeholder="Ej. Costanera">
+
+                  <label>Enlace Mapa (Opcional)</label>
+                  <input type="text" id="loc-link" placeholder="https://maps.google.com/...">
+
+                  <label>Capacidad (personas por turno)</label>
+                  <input type="number" id="loc-capacity" value="2" min="1">
+              </div>
+              <div style="flex:1; border-left:1px solid #eee; padding-left:20px;">
+                  <h4>Horarios Semanales</h4>
+                  <div id="loc-schedule-editor" style="max-height:300px; overflow-y:auto;">
+                      <!-- Generated via JS -->
+                  </div>
+              </div>
+          </div>
+
+          <div style="margin-top:20px; text-align:right;">
+              <button onclick="saveLocation()" style="width:auto; background:#28a745;">Guardar Ubicación</button>
+              <button id="btn-delete-loc" onclick="deleteLocation()" style="width:auto; background:#d9534f; display:none; margin-left:10px;">Eliminar</button>
+          </div>
+          <p id="loc-msg" class="success"></p>
+          <p id="loc-error" class="error"></p>
+      </div>
   </div>
 
   <!-- Tab: Schedule Generator -->

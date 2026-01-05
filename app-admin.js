@@ -288,6 +288,233 @@ function switchAdminTab(tab) {
 
     document.getElementById(`tab-${tab}`).classList.add('active');
     document.getElementById(`tab-btn-${tab}`).classList.add('active');
+
+    if (tab === 'locations') {
+        loadLocations();
+    }
+}
+
+// --- Locations Module ---
+
+let allLocations = [];
+const DAYS_OF_WEEK = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+
+function loadLocations() {
+    const div = document.getElementById('locations-list');
+    div.innerHTML = "Cargando...";
+
+    db.collection('locations').orderBy('name').onSnapshot(snap => {
+        allLocations = [];
+        let html = "";
+
+        snap.forEach(doc => {
+            const d = doc.data();
+            d.id = doc.id;
+            allLocations.push(d);
+
+            // Format schedule summary
+            let scheduleSummary = "";
+            DAYS_OF_WEEK.forEach(day => {
+                if(d.weeklySchedule && d.weeklySchedule[day] && d.weeklySchedule[day].length > 0) {
+                    scheduleSummary += `<b>${day.substring(0,3)}:</b> ${d.weeklySchedule[day].join(', ')}<br>`;
+                }
+            });
+            if(!scheduleSummary) scheduleSummary = "Sin horarios";
+
+            html += `
+            <div style="background:white; border:1px solid #ddd; padding:15px; border-radius:5px; margin-bottom:10px; display:flex; justify-content:space-between;">
+                <div>
+                    <h3 style="margin:0;">${d.name} <span style="font-size:0.6em; font-weight:normal; color:#666;">(Capacidad: ${d.capacity})</span></h3>
+                    ${d.link ? `<a href="${d.link}" target="_blank" style="font-size:0.8em;">Ver Mapa</a>` : ""}
+                    <div style="margin-top:10px; font-size:0.8em; color:#555;">${scheduleSummary}</div>
+                </div>
+                <div>
+                    <button onclick='openLocationModal(${JSON.stringify(d).replace(/'/g, "&#39;")})' style="padding:5px 15px; font-size:0.9em; background:#ffc107; color:black; width:auto;">Editar</button>
+                </div>
+            </div>`;
+        });
+
+        if (html === "") html = "<p>No hay ubicaciones creadas.</p>";
+        div.innerHTML = html;
+    });
+}
+
+function openLocationModal(locData = null) {
+    const modal = document.getElementById('location-modal');
+    modal.style.display = "block";
+    modal.style.zIndex = "10000";
+
+    document.getElementById('loc-msg').innerText = "";
+    document.getElementById('loc-error').innerText = "";
+
+    // Setup Schedule Editor
+    const scheduleContainer = document.getElementById('loc-schedule-editor');
+    scheduleContainer.innerHTML = "";
+
+    let currentSchedule = locData ? (locData.weeklySchedule || {}) : {};
+
+    DAYS_OF_WEEK.forEach(day => {
+        const dayDiv = document.createElement('div');
+        dayDiv.style.marginBottom = "10px";
+        dayDiv.innerHTML = `<strong>${day}</strong> <button onclick="addTimeSlot('${day}')" style="font-size:0.7em; padding:2px 5px; width:auto;">+ Agregar</button>`;
+
+        const slotsDiv = document.createElement('div');
+        slotsDiv.id = `slots-${day}`;
+
+        // Add existing slots
+        if (currentSchedule[day]) {
+            currentSchedule[day].forEach(timeStr => {
+                // timeStr expected "08:00-10:00"
+                addTimeSlotToDOM(slotsDiv, timeStr);
+            });
+        }
+
+        dayDiv.appendChild(slotsDiv);
+        scheduleContainer.appendChild(dayDiv);
+    });
+
+    if (locData) {
+        document.getElementById('loc-modal-title').innerText = "Editar Ubicación";
+        document.getElementById('loc-id').value = locData.id;
+        document.getElementById('loc-name').value = locData.name;
+        document.getElementById('loc-link').value = locData.link || "";
+        document.getElementById('loc-capacity').value = locData.capacity || 2;
+        document.getElementById('btn-delete-loc').style.display = "inline-block";
+        // Store original capacity for validation
+        modal.dataset.originalCapacity = locData.capacity || 2;
+    } else {
+        document.getElementById('loc-modal-title').innerText = "Nueva Ubicación";
+        document.getElementById('loc-id').value = "";
+        document.getElementById('loc-name').value = "";
+        document.getElementById('loc-link').value = "";
+        document.getElementById('loc-capacity').value = 2;
+        document.getElementById('btn-delete-loc').style.display = "none";
+        modal.dataset.originalCapacity = 0;
+    }
+}
+
+function addTimeSlot(day) {
+    const container = document.getElementById(`slots-${day}`);
+    addTimeSlotToDOM(container, "");
+}
+
+function addTimeSlotToDOM(container, value) {
+    const div = document.createElement('div');
+    div.style.display = "flex";
+    div.style.alignItems = "center";
+    div.style.marginTop = "5px";
+
+    // Parse value "08:00-10:00" -> start, end
+    let start = "08:00";
+    let end = "10:00";
+    if (value) {
+        [start, end] = value.split('-');
+    }
+
+    div.innerHTML = `
+        <input type="time" class="time-start" value="${start.trim()}" style="width:auto; padding:2px;">
+        <span style="margin:0 5px;">a</span>
+        <input type="time" class="time-end" value="${end.trim()}" style="width:auto; padding:2px;">
+        <button onclick="this.parentElement.remove()" style="background:none; color:red; border:none; width:auto; cursor:pointer; font-weight:bold; margin-left:5px;">×</button>
+    `;
+    container.appendChild(div);
+}
+
+function closeLocationModal() {
+    document.getElementById('location-modal').style.display = "none";
+}
+
+async function saveLocation() {
+    const id = document.getElementById('loc-id').value;
+    const name = document.getElementById('loc-name').value.trim();
+    const link = document.getElementById('loc-link').value.trim();
+    const capacity = parseInt(document.getElementById('loc-capacity').value);
+
+    const msg = document.getElementById('loc-msg');
+    const err = document.getElementById('loc-error');
+    msg.innerText = "";
+    err.innerText = "";
+
+    if (!name) { err.innerText = "El nombre es obligatorio."; return; }
+
+    // Parse Schedule
+    const weeklySchedule = {};
+    DAYS_OF_WEEK.forEach(day => {
+        const slotsDiv = document.getElementById(`slots-${day}`);
+        const inputs = slotsDiv.querySelectorAll('div'); // each row
+        const times = [];
+        inputs.forEach(row => {
+            const start = row.querySelector('.time-start').value;
+            const end = row.querySelector('.time-end').value;
+            if (start && end) {
+                times.push(`${start}-${end}`);
+            }
+        });
+        if (times.length > 0) weeklySchedule[day] = times;
+    });
+
+    // Validation: Reducing Capacity
+    const originalCap = parseInt(document.getElementById('location-modal').dataset.originalCapacity);
+    if (id && capacity < originalCap) {
+        // Must check if any future shift has > new capacity
+        msg.innerText = "Validando cambios de capacidad...";
+        const futureShifts = await db.collection('shifts')
+            .where('location', '==', name) // This assumes ID == Name, if we change ID to UUID this breaks.
+            // We'll stick to ID=Name for simplicity or handle migration.
+            // Actually, we use 'location' field in shifts which is the Name.
+            .get();
+
+        let conflict = false;
+        futureShifts.forEach(doc => {
+            const d = doc.data();
+            // Count actual humans (not "Disponible")
+            const humans = d.participants.filter(p => !p.toLowerCase().includes('disponible')).length;
+            if (humans > capacity) {
+                conflict = true;
+            }
+        });
+
+        if (conflict) {
+            err.innerText = "No puedes reducir la capacidad porque hay turnos futuros con más asignados. Cancela esos turnos primero.";
+            return;
+        }
+    }
+
+    try {
+        const docId = id || name; // Use name as ID for simplicity so 'location' field matches
+        // Note: If renaming, we need to handle that. For now, assume Create/Edit same ID.
+        // If 'id' is set, we use it. If not, we create new doc with name.
+
+        await db.collection('locations').doc(docId).set({
+            name, link, capacity, weeklySchedule
+        }, { merge: true });
+
+        msg.innerText = "Guardado exitosamente.";
+        setTimeout(closeLocationModal, 1000);
+    } catch (e) {
+        console.error(e);
+        err.innerText = "Error: " + e.message;
+    }
+}
+
+async function deleteLocation() {
+    const id = document.getElementById('loc-id').value;
+    if (!confirm("¿ESTÁS SEGURO? Si eliminas esta ubicación, se perderá la configuración.")) return;
+
+    // Check for shifts
+    const shiftsSnap = await db.collection('shifts').where('location', '==', id).get();
+    if (!shiftsSnap.empty) {
+        if (!confirm(`ADVERTENCIA: Hay ${shiftsSnap.size} turnos (pasados o futuros) asociados a esta ubicación. ¿Quieres eliminarlos TODOS?`)) return;
+        if (!confirm("Esta acción es irreversible. ¿Confirmas borrar la ubicación y sus turnos?")) return;
+
+        // Batch delete shifts
+        const batch = db.batch();
+        shiftsSnap.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+    }
+
+    await db.collection('locations').doc(id).delete();
+    closeLocationModal();
 }
 
 async function generateSchedulePreview() {

@@ -4,9 +4,19 @@ const SHEET_ID = '1SuiFgX2XiBeVec6bCeJFRhXPuTUEdYe7IIa105NI8jY';
 const ADMIN_PHONE = '595983281197';
 
 // Initialize Firebase
-// firebaseConfig is now loaded from firebase-config.js
+// Self-Contained Configuration to avoid dependency on HTML/External file
+const config = {
+  apiKey: "AIzaSyC5HPI4WY19Om_HmQgJJl6IvXr0XrMmflQ",
+  authDomain: "ppam-beta.firebaseapp.com",
+  projectId: "ppam-beta",
+  storageBucket: "ppam-beta.firebasestorage.app",
+  messagingSenderId: "879252975424",
+  appId: "1:879252975424:web:6e62c58c4b4ba8689d94a5",
+  measurementId: "G-BXVKGLHV9L"
+};
+
 if (typeof firebase !== 'undefined') {
-  firebase.initializeApp(firebaseConfig);
+  firebase.initializeApp(config);
   var auth = firebase.auth();
   var db = firebase.firestore();
 } else {

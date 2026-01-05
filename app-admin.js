@@ -1,11 +1,19 @@
-// Initialize Main App (for Admin Auth)
-// Note: firebaseConfig is loaded from firebase-config.js
-const mainApp = firebase.initializeApp(firebaseConfig);
+const config = {
+  apiKey: "AIzaSyC5HPI4WY19Om_HmQgJJl6IvXr0XrMmflQ",
+  authDomain: "ppam-beta.firebaseapp.com",
+  projectId: "ppam-beta",
+  storageBucket: "ppam-beta.firebasestorage.app",
+  messagingSenderId: "879252975424",
+  appId: "1:879252975424:web:6e62c58c4b4ba8689d94a5",
+  measurementId: "G-BXVKGLHV9L"
+};
+
+const mainApp = firebase.initializeApp(config);
 const mainAuth = mainApp.auth();
 const db = mainApp.firestore();
 
 // Initialize Secondary App (for User Creation without logout)
-const secondaryApp = firebase.initializeApp(firebaseConfig, "Secondary");
+const secondaryApp = firebase.initializeApp(config, "Secondary");
 const secondaryAuth = secondaryApp.auth();
 
 const loginSection = document.getElementById('login-section');
@@ -49,16 +57,16 @@ function loadDashboardData() {
     db.collection('users').orderBy('createdAt', 'desc').onSnapshot(snap => {
         allUsers = [];
         const linkedNames = new Set();
-
+        
         snap.forEach(doc => {
             const data = doc.data();
             data.uid = doc.id;
             allUsers.push(data);
             if (data.linkedName) linkedNames.add(data.linkedName);
         });
-
+        
         renderUsersTable(allUsers);
-
+        
         // 2. Load Unassigned Participants to Dropdown
         loadUnassignedParticipants(linkedNames);
     });
@@ -67,7 +75,7 @@ function loadDashboardData() {
 function renderUsersTable(users) {
     const tbody = document.getElementById('users-table-body');
     let html = "";
-
+    
     users.forEach(user => {
         html += `<tr>
             <td style="padding:8px;">${user.username}</td>
@@ -79,15 +87,15 @@ function renderUsersTable(users) {
             </td>
         </tr>`;
     });
-
+    
     if (html === "") html = '<tr><td colspan="4" style="text-align:center; padding:10px;">No hay usuarios.</td></tr>';
     tbody.innerHTML = html;
 }
 
 function filterUsers() {
     const query = document.getElementById('user-search').value.toLowerCase();
-    const filtered = allUsers.filter(u =>
-        u.username.toLowerCase().includes(query) ||
+    const filtered = allUsers.filter(u => 
+        u.username.toLowerCase().includes(query) || 
         (u.linkedName && u.linkedName.toLowerCase().includes(query))
     );
     renderUsersTable(filtered);
@@ -95,11 +103,11 @@ function filterUsers() {
 
 function loadUnassignedParticipants(linkedNamesSet) {
     const select = document.getElementById('new-displayname-select');
-
+    
     db.collection('participants').orderBy('name').get().then(snap => {
         let html = '<option value="">-- Selecciona un nombre --</option>';
         let count = 0;
-
+        
         snap.forEach(doc => {
             const name = doc.id;
             if (!linkedNamesSet.has(name)) {
@@ -107,7 +115,7 @@ function loadUnassignedParticipants(linkedNamesSet) {
                 count++;
             }
         });
-
+        
         if (count === 0) {
             html = '<option value="">Todos los nombres tienen cuenta</option>';
         }
@@ -117,8 +125,8 @@ function loadUnassignedParticipants(linkedNamesSet) {
 
 function deleteUser(uid) {
     if (!confirm("¿Seguro que deseas eliminar este usuario? (La autenticación debe borrarse manualmente en Firebase Console por seguridad, esto solo borra el perfil)")) return;
-
-    // Note: Deleting auth user from client SDK is restricted.
+    
+    // Note: Deleting auth user from client SDK is restricted. 
     // We can only delete the Firestore doc here. Admin must clean up Auth console.
     db.collection('users').doc(uid).delete().then(() => {
         alert("Perfil de usuario eliminado. Recuerda borrar también el usuario en 'Authentication' del panel de Firebase.");
@@ -128,12 +136,12 @@ function deleteUser(uid) {
 function adminLogin() {
     const user = document.getElementById('admin-user').value.trim();
     const pass = document.getElementById('admin-pass').value;
-
+    
     let email = user;
     if (!user.includes('@')) {
         email = user + "@ppam.placeholder.com";
     }
-
+    
     mainAuth.signInWithEmailAndPassword(email, pass)
         .catch(error => {
             document.getElementById('login-error').innerText = error.message;
@@ -149,24 +157,24 @@ function createUser() {
     const pass = document.getElementById('new-password').value;
     const name = document.getElementById('new-displayname-select').value; // Changed to SELECT
     const role = document.getElementById('new-role').value;
-
+    
     const msg = document.getElementById('create-msg');
     const err = document.getElementById('create-error');
-
+    
     msg.innerText = "";
     err.innerText = "";
-
+    
     if (!username || !pass || !name) {
         err.innerText = "Completa todos los campos.";
         return;
     }
-
+    
     const email = username.includes('@') ? username : username + "@ppam.placeholder.com";
-
+    
     secondaryAuth.createUserWithEmailAndPassword(email, pass)
         .then((userCredential) => {
             const uid = userCredential.user.uid;
-
+            
             // Create User Profile
             const userRef = db.collection('users').doc(uid);
             const userPromise = userRef.set({
@@ -175,11 +183,11 @@ function createUser() {
                 role: role,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
-
+            
             // Ensure Participant Exists
             const partRef = db.collection('participants').doc(name);
             const partPromise = partRef.set({ name: name }, { merge: true });
-
+            
             return Promise.all([userPromise, partPromise]);
         })
         .then(() => {
@@ -188,7 +196,7 @@ function createUser() {
             document.getElementById('new-username').value = "";
             document.getElementById('new-password').value = "";
             document.getElementById('new-displayname-select').value = "";
-
+            
             // Sign out the secondary auth so it doesn't interfere (optional but good practice)
             secondaryAuth.signOut();
         })
@@ -202,23 +210,23 @@ function createUser() {
 
 function openEditModal(uid, username, role) {
     console.log("Opening edit modal for:", uid, username); // DEBUG
-
+    
     const modal = document.getElementById('edit-user-modal');
     if (!modal) {
         console.error("Modal element not found!");
         return;
     }
-
+    
     document.getElementById('edit-uid').value = uid;
     document.getElementById('edit-username-display').innerText = username;
     document.getElementById('edit-role').value = role;
     document.getElementById('edit-new-password').value = "";
     document.getElementById('edit-msg').innerText = "";
     document.getElementById('edit-error').innerText = "";
-
+    
     modal.style.display = "block";
     // Ensure high z-index and center just in case style.css overrides
-    modal.style.zIndex = "10000";
+    modal.style.zIndex = "10000"; 
 }
 
 function closeEditModal() {
@@ -229,30 +237,30 @@ async function saveUserChanges() {
     const uid = document.getElementById('edit-uid').value;
     const role = document.getElementById('edit-role').value;
     const newPass = document.getElementById('edit-new-password').value.trim();
-
+    
     const msg = document.getElementById('edit-msg');
     const err = document.getElementById('edit-error');
-
+    
     msg.innerText = "Guardando...";
     err.innerText = "";
 
     try {
         // 1. Update Firestore Role
         await db.collection('users').doc(uid).update({ role: role });
-
+        
         // 2. Update Password (via Cloud Function)
         if (newPass) {
              msg.innerText = "Actualizando contraseña en servidor...";
              // Call the new Cloud Function
              const resetUserPassword = firebase.functions().httpsCallable('resetUserPassword');
-
+             
              await resetUserPassword({ uid: uid, newPassword: newPass });
              console.log("Password reset successful via function");
         }
-
+        
         msg.innerText = "Cambios guardados correctamente.";
         setTimeout(closeEditModal, 1500);
-
+        
     } catch (e) {
         console.error(e);
         err.innerText = "Error: " + e.message;
@@ -275,7 +283,7 @@ let availabilityData = {}; // Stores loaded availability
 function switchAdminTab(tab) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
-
+    
     document.getElementById(`tab-${tab}`).classList.add('active');
     document.getElementById(`tab-btn-${tab}`).classList.add('active');
 }
@@ -283,7 +291,7 @@ function switchAdminTab(tab) {
 async function generateSchedulePreview() {
     const monthKey = document.getElementById('gen-month').value; // "2026-02"
     const [year, month] = monthKey.split('-').map(Number);
-
+    
     const btn = document.querySelector('button[onclick="generateSchedulePreview()"]');
     const originalText = btn.innerText;
     btn.innerText = "Generando...";
@@ -305,7 +313,7 @@ async function generateSchedulePreview() {
         // 2. Define Structure (Simplified for Beta)
         // In real app, this should be configurable
         const locations = ["Costanera", "Liberty"];
-        const shifts = ["08:00 a 10:00", "10:00 a 12:00"];
+        const shifts = ["08:00 a 10:00", "10:00 a 12:00"]; 
         // Note: Weekend afternoons? Omitted for simplicity in beta unless requested.
 
         const daysInMonth = new Date(year, month, 0).getDate();
@@ -317,16 +325,16 @@ async function generateSchedulePreview() {
             const dayOfWeek = dateObj.getDay(); // 0 = Sun, 6 = Sat
 
             // Skip if logic requires (e.g. no Mondays?) - assuming all days active
-
+            
             locations.forEach(loc => {
                 shifts.forEach(time => {
                     const slotKey = `${dateStr}_${time}`;
                     const candidates = availabilityData[slotKey] || [];
-
+                    
                     // Algorithm: Pick up to 2 random candidates
                     // Improvement: Track usage count to balance load
                     const assigned = pickCandidates(candidates, 2);
-
+                    
                     // Fill remaining spots with "Disponible"
                     while (assigned.length < 2) {
                         assigned.push("Disponible");
@@ -364,7 +372,7 @@ function pickCandidates(candidates, count) {
 function renderDraftTable() {
     const thead = document.getElementById('preview-head');
     const tbody = document.getElementById('preview-body');
-
+    
     thead.innerHTML = `
         <tr>
             <th>Fecha</th>
@@ -373,7 +381,7 @@ function renderDraftTable() {
             <th>Asignados (Sugerencia)</th>
         </tr>
     `;
-
+    
     tbody.innerHTML = currentDraft.map(slot => `
         <tr>
             <td>${slot.date}</td>
@@ -387,14 +395,14 @@ function renderDraftTable() {
 async function publishSchedule() {
     if (!currentDraft) return;
     if (!confirm("¿Estás seguro de publicar este programa? Esto creará los turnos en la base de datos visible para todos.")) return;
-
+    
     const btn = document.querySelector('button[onclick="publishSchedule()"]');
     btn.innerText = "Publicando...";
     btn.disabled = true;
-
+    
     const batch = db.batch();
     let count = 0;
-
+    
     // Track unique days to create Day objects
     const daysMap = new Map();
 
@@ -412,9 +420,9 @@ async function publishSchedule() {
         // ID: Date_Loc_Time (sanitized)
         const id = `${slot.date}_${slot.location.replace(/\s/g,'')}_${slot.time.replace(/[^0-9]/g,'')}`;
         const shiftRef = db.collection("shifts").doc(id);
-
+        
         const isOpen = slot.participants.some(p => p === "Disponible");
-
+        
         batch.set(shiftRef, {
             date: slot.date,
             location: slot.location,

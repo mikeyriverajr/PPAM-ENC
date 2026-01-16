@@ -376,6 +376,8 @@ function switchTab(tab) {
   }
 }
 
+// --- New Availability Logic (Weekly Pattern) ---
+
 async function renderAvailabilityInput() {
   const container = document.getElementById('availability-container');
   container.innerHTML = "Cargando formulario...";
@@ -385,119 +387,116 @@ async function renderAvailabilityInput() {
     return;
   }
 
-  // 1. Determine Target Month (Next Month)
-  // For beta purposes, let's hardcode to February 2026 since the CSV is Jan 2026.
-  // In real app, this would be dynamic: new Date().getMonth() + 1
-  const targetYear = 2026;
-  const targetMonth = 1; // 0-indexed, so 1 is February
-  const daysInMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
-  const monthLabel = "Febrero 2026";
-  const monthKey = "2026-02";
-
-  // 2. Fetch Existing Availability
-  let existingSlots = [];
   try {
-    const doc = await db.collection("availability").doc(`${monthKey}_${currentUser.uid}`).get();
-    if (doc.exists) {
-      existingSlots = doc.data().slots || []; // Array of strings "YYYY-MM-DD_Time"
-    }
-  } catch (e) {
-    console.error("Error loading availability", e);
-  }
+      // 1. Fetch Locations Configuration
+      const locationsSnap = await db.collection("locations").orderBy("name").get();
+      if (locationsSnap.empty) {
+          container.innerHTML = "<p style='text-align:center; padding:20px;'>No hay ubicaciones configuradas. Contacta al administrador.</p>";
+          return;
+      }
 
-  // 3. Identify Standard Time Slots from current scheduleData
-  // We collect all unique time strings found in the current schedule to populate the form
-  const uniqueTimes = new Set();
-  scheduleData.forEach(d => {
-    d.slots.forEach(s => uniqueTimes.add(s.time));
-  });
-  const timeOptions = Array.from(uniqueTimes).sort();
-  // If empty (no data loaded yet), provide defaults
-  if (timeOptions.length === 0) {
-      timeOptions.push("08:00 a 10:00", "10:00 a 12:00", "14:00 a 16:00", "16:00 a 18:00");
-  }
+      // 2. Fetch User's Weekly Profile
+      let weeklyProfile = {};
+      const userDoc = await db.collection("users").doc(currentUser.uid).get();
+      if (userDoc.exists && userDoc.data().weeklyAvailability) {
+          weeklyProfile = userDoc.data().weeklyAvailability;
+          // Structure: { "Costanera_Lunes_08:00-10:00": true, ... } or simpler
+      }
 
-  // 4. Build UI
-  let html = `
-    <div style="background:white; padding:15px; border-radius:8px; margin-bottom:20px;">
-      <h3>Disponibilidad para ${monthLabel}</h3>
-      <p>Marca las casillas de los horarios en los que podrías servir.</p>
-    </div>
-    <form id="availability-form">
-  `;
-
-  for (let d = 1; d <= daysInMonth; d++) {
-    const dateObj = new Date(targetYear, targetMonth, d);
-    const dayName = dateObj.toLocaleDateString('es-ES', { weekday: 'long' });
-    const dayStr = d.toString().padStart(2,'0');
-    const fullDate = `${targetYear}-${(targetMonth+1).toString().padStart(2,'0')}-${dayStr}`;
-
-    // Capitalize day name
-    const dayLabel = dayName.charAt(0).toUpperCase() + dayName.slice(1);
-
-    html += `
-      <div class="day-avail-row" style="background:white; margin-bottom:10px; padding:10px; border-radius:8px;">
-        <div style="font-weight:bold; margin-bottom:8px; border-bottom:1px solid #eee; padding-bottom:5px;">
-           ${dayLabel} ${dayStr}
+      let html = `
+        <div style="background:white; padding:15px; border-radius:8px; margin-bottom:20px;">
+          <h3>Disponibilidad Semanal Estándar</h3>
+          <p>Selecciona los días y horarios que <strong>generalmente</strong> tienes disponibles. Esto se usará para generar los programas de todos los meses.</p>
         </div>
-        <div style="display:flex; flex-wrap:wrap; gap:10px;">
-    `;
+        <form id="availability-form">
+      `;
 
-    timeOptions.forEach(time => {
-       const slotKey = `${fullDate}_${time}`;
-       const isChecked = existingSlots.includes(slotKey) ? "checked" : "";
+      locationsSnap.forEach(doc => {
+          const loc = doc.data();
+          const schedule = loc.weeklySchedule || {};
+          const locName = loc.name;
+          const safeLocName = locName.replace(/\s+/g, '_');
 
-       html += `
-         <label style="display:flex; align-items:center; background:#f0f4f8; padding:5px 10px; border-radius:15px; font-size:0.9em; cursor:pointer;">
-           <input type="checkbox" name="avail_slot" value="${slotKey}" ${isChecked} style="margin-right:5px;">
-           ${time}
-         </label>
-       `;
-    });
+          // Check if location has any slots
+          if (Object.keys(schedule).length === 0) return;
 
-    html += `</div></div>`;
+          html += `<div style="background:white; margin-bottom:15px; padding:15px; border-radius:8px;">
+              <h4 style="margin-top:0; border-bottom:2px solid #eee; padding-bottom:10px;">${locName}</h4>`;
+
+          const days = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+
+          days.forEach(day => {
+              if (schedule[day] && schedule[day].length > 0) {
+                  html += `<div style="margin-top:10px;">
+                      <strong>${day}</strong>
+                      <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:5px;">`;
+
+                  schedule[day].forEach(time => {
+                      // Key format: "LocationName|Day|Time"
+                      const key = `${locName}|${day}|${time}`;
+                      const isChecked = weeklyProfile[key] ? "checked" : "";
+
+                      html += `
+                         <label style="display:flex; align-items:center; background:#f0f4f8; padding:5px 10px; border-radius:15px; font-size:0.9em; cursor:pointer;">
+                           <input type="checkbox" name="weekly_slot" value="${key}" ${isChecked} style="margin-right:5px;">
+                           ${time}
+                         </label>
+                       `;
+                  });
+
+                  html += `</div></div>`;
+              }
+          });
+
+          html += `</div>`;
+      });
+
+      html += `
+        <div style="position:sticky; bottom:20px; text-align:center; padding:10px;">
+          <button type="button" onclick="saveAvailability()" style="background:#28a745; color:white; border:none; padding:15px 30px; border-radius:25px; font-size:1.1em; box-shadow:0 4px 10px rgba(0,0,0,0.2); cursor:pointer;">
+            Guardar Preferencias
+          </button>
+        </div>
+        </form>
+      `;
+
+      container.innerHTML = html;
+
+  } catch (err) {
+      console.error("Error rendering availability:", err);
+      container.innerHTML = "Error cargando datos. Revisa la consola.";
   }
-
-  html += `
-    <div style="position:sticky; bottom:20px; text-align:center; padding:10px;">
-      <button type="button" onclick="saveAvailability('${monthKey}')" style="background:#28a745; color:white; border:none; padding:15px 30px; border-radius:25px; font-size:1.1em; box-shadow:0 4px 10px rgba(0,0,0,0.2); cursor:pointer;">
-        Guardar Disponibilidad
-      </button>
-    </div>
-    </form>
-  `;
-
-  container.innerHTML = html;
 }
 
-function saveAvailability(monthKey) {
+async function saveAvailability() {
   if (!currentUser) return;
 
-  const checkboxes = document.querySelectorAll('input[name="avail_slot"]:checked');
-  const selectedSlots = Array.from(checkboxes).map(cb => cb.value);
+  const checkboxes = document.querySelectorAll('input[name="weekly_slot"]:checked');
+  const weeklyProfile = {};
 
-  const docId = `${monthKey}_${currentUser.uid}`;
-  const btn = document.querySelector('button[onclick^="saveAvailability"]');
+  checkboxes.forEach(cb => {
+      weeklyProfile[cb.value] = true;
+  });
+
+  const btn = document.querySelector('button[onclick="saveAvailability()"]');
   const originalText = btn.innerText;
   btn.innerText = "Guardando...";
   btn.disabled = true;
 
-  db.collection("availability").doc(docId).set({
-    uid: currentUser.uid,
-    linkedName: linkedName || "Unknown", // Assuming linkedName is global
-    month: monthKey,
-    slots: selectedSlots,
-    updatedAt: new Date()
-  }).then(() => {
-    alert("¡Disponibilidad guardada correctamente!");
-    btn.innerText = originalText;
-    btn.disabled = false;
-  }).catch(err => {
-    console.error("Error saving availability", err);
-    alert("Hubo un error al guardar. Intenta de nuevo.");
-    btn.innerText = originalText;
-    btn.disabled = false;
-  });
+  try {
+      await db.collection("users").doc(currentUser.uid).set({
+          weeklyAvailability: weeklyProfile,
+          lastAvailabilityUpdate: firebase.firestore.FieldValue.serverTimestamp()
+      }, { merge: true });
+
+      alert("¡Preferencias guardadas! Se usarán para futuros programas.");
+  } catch (err) {
+      console.error("Error saving:", err);
+      alert("Error al guardar: " + err.message);
+  } finally {
+      btn.innerText = originalText;
+      btn.disabled = false;
+  }
 }
 
 // CSV Parser Helper

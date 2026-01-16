@@ -527,56 +527,77 @@ async function generateSchedulePreview() {
     btn.disabled = true;
 
     try {
-        // 1. Fetch Availability for this month
-        availabilityData = {};
-        const snapshot = await db.collection("availability").where("month", "==", monthKey).get();
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            // data.slots is array of "YYYY-MM-DD_Time"
-            data.slots.forEach(slotKey => {
-                if (!availabilityData[slotKey]) availabilityData[slotKey] = [];
-                availabilityData[slotKey].push(data.linkedName);
-            });
+        // 1. Fetch Locations Configuration (to know what shifts exist)
+        const locationsSnap = await db.collection('locations').get();
+        const locationsConfig = [];
+        locationsSnap.forEach(doc => locationsConfig.push(doc.data()));
+
+        if (locationsConfig.length === 0) {
+            alert("No hay ubicaciones configuradas. Ve a la pestaña 'Ubicaciones' y crea al menos una ubicación con horarios.");
+            btn.innerText = originalText;
+            btn.disabled = false;
+            return;
+        }
+
+        // 2. Fetch All Users' Weekly Availability
+        // Note: For 250 users, fetching all is fine. For 10k, we'd need better query.
+        const usersSnap = await db.collection("users").get();
+        const userAvailabilities = []; // [{ name: "Juan", weekly: {...} }]
+        usersSnap.forEach(doc => {
+            const d = doc.data();
+            if (d.linkedName && d.weeklyAvailability) {
+                userAvailabilities.push({
+                    name: d.linkedName,
+                    weekly: d.weeklyAvailability
+                });
+            }
         });
 
-        // 2. Define Structure (Simplified for Beta)
-        // In real app, this should be configurable
-        const locations = ["Costanera", "Liberty"];
-        const shifts = ["08:00 a 10:00", "10:00 a 12:00"];
-        // Note: Weekend afternoons? Omitted for simplicity in beta unless requested.
-
+        // 3. Generate Schedule
         const daysInMonth = new Date(year, month, 0).getDate();
         currentDraft = [];
+
+        // Map JS day index (0=Sun) to our Spanish string
+        const dayNames = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 
         for (let d = 1; d <= daysInMonth; d++) {
             const dateObj = new Date(year, month - 1, d);
             const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-            const dayOfWeek = dateObj.getDay(); // 0 = Sun, 6 = Sat
+            const dayName = dayNames[dateObj.getDay()];
 
-            // Skip if logic requires (e.g. no Mondays?) - assuming all days active
+            // Iterate through configured locations
+            locationsConfig.forEach(loc => {
+                const schedule = loc.weeklySchedule || {};
+                const capacity = loc.capacity || 2;
 
-            locations.forEach(loc => {
-                shifts.forEach(time => {
-                    const slotKey = `${dateStr}_${time}`;
-                    const candidates = availabilityData[slotKey] || [];
+                // If this location has shifts for this day of week
+                if (schedule[dayName]) {
+                    schedule[dayName].forEach(timeRange => {
+                        // Key to look for in user profile: "LocName|DayName|TimeRange"
+                        const availKey = `${loc.name}|${dayName}|${timeRange}`;
 
-                    // Algorithm: Pick up to 2 random candidates
-                    // Improvement: Track usage count to balance load
-                    const assigned = pickCandidates(candidates, 2);
+                        // Find candidates
+                        const candidates = userAvailabilities
+                            .filter(u => u.weekly[availKey] === true)
+                            .map(u => u.name);
 
-                    // Fill remaining spots with "Disponible"
-                    while (assigned.length < 2) {
-                        assigned.push("Disponible");
-                    }
+                        // Pick random candidates
+                        const assigned = pickCandidates(candidates, capacity);
 
-                    currentDraft.push({
-                        date: dateStr,
-                        dayLabel: dateObj.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
-                        location: loc,
-                        time: time,
-                        participants: assigned
+                        // Fill empty spots
+                        while (assigned.length < capacity) {
+                            assigned.push("Disponible");
+                        }
+
+                        currentDraft.push({
+                            date: dateStr,
+                            dayLabel: dateObj.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }),
+                            location: loc.name,
+                            time: timeRange,
+                            participants: assigned
+                        });
                     });
-                });
+                }
             });
         }
 

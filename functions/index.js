@@ -20,7 +20,7 @@ exports.resetUserPassword = onCall(async (request) => {
 
     const callerUid = request.auth.uid;
     const callerDoc = await db.collection('users').doc(callerUid).get();
-
+    
     if (!callerDoc.exists || callerDoc.data().role !== 'admin') {
         throw new HttpsError('permission-denied', 'No tienes permisos de administrador.');
     }
@@ -60,7 +60,7 @@ exports.onShiftChange = onDocumentUpdated('shifts/{shiftId}', async (event) => {
 
         // 1. Detect New Assignments (someone added)
         const addedUsers = newParticipants.filter(p => !oldParticipants.includes(p));
-
+        
         // 2. Detect Cancellations (someone removed)
         const removedUsers = oldParticipants.filter(p => !newParticipants.includes(p));
 
@@ -93,11 +93,11 @@ exports.onShiftChange = onDocumentUpdated('shifts/{shiftId}', async (event) => {
                 });
             }
         });
-
+        
         // Notify Removed Users
         removedUsers.forEach(name => {
              if (name.toLowerCase().includes('disponible')) return;
-
+             
              const uid = nameToUidMap[name];
              if (uid) {
                 const notifRef = db.collection('users').doc(uid).collection('notifications').doc();

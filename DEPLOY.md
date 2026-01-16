@@ -27,7 +27,7 @@ Para que el "Reseteo de Contraseña" y el "Sistema de Notificaciones" funcionen,
     *   **¿Language?** JavaScript.
     *   **¿ESLint?** No (opcional).
     *   **¿Install dependencies?** Yes.
-
+    
     *Nota: Si te pregunta si quieres sobrescribir `functions/package.json` o `functions/index.js`, dile que **NO** (N), ya que yo ya creé esos archivos por ti.*
 
 3.  **Desplegar**

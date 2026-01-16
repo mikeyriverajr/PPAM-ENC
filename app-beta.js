@@ -42,7 +42,7 @@ if ('serviceWorker' in navigator) {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
-  
+
   // Auth State Listener
   if (auth) {
     auth.onAuthStateChanged((user) => {
@@ -56,7 +56,7 @@ document.addEventListener("DOMContentLoaded", function () {
             savedNames = [linkedName]; // Override local favorites with cloud identity
             updateAuthUI(); // Update display name
             renderSchedule();
-            
+
             // Listen to notifications
             listenToNotifications(user.uid);
           }
@@ -66,15 +66,15 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   loadFavorites();
-  
+
   if (savedNames.length > 0) {
     currentView = 'mine';
   } else {
     currentView = 'all';
   }
-  
+
   switchTab(currentView);
-  
+
   initFirestoreListener();
 });
 
@@ -83,7 +83,7 @@ document.addEventListener("DOMContentLoaded", function () {
 function fetchOriginalDataForMigration() {
   const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Programa`;
   console.log("Fetching original CSV data for migration...");
-  
+
   return fetch(url)
     .then(response => {
       if (!response.ok) throw new Error('Network response was not ok');
@@ -105,7 +105,7 @@ function fetchOriginalDataForMigration() {
 
 async function migrateData() {
   if (!confirm("Esto sobrescribirá la base de datos con los datos actuales de la hoja de cálculo. ¿Estás seguro?")) return;
-  
+
   // 1. Fetch data first
   const success = await fetchOriginalDataForMigration();
   if (!success) return;
@@ -116,7 +116,7 @@ async function migrateData() {
 
   // 1. Extract all unique names for "participants"
   const allNames = new Set();
-  
+
   scheduleData.forEach(day => {
     // Save Day
     const dayRef = db.collection("days").doc(day.date);
@@ -140,18 +140,18 @@ async function migrateData() {
     day.slots.forEach(slot => {
        const slotId = day.date + "_" + slot.loc.replace(/[^a-zA-Z0-9]/g, '') + "_" + slot.time.replace(/[^a-zA-Z0-9]/g, '');
        const slotRef = db.collection("shifts").doc(slotId);
-       
+
        // Fix: Keep "Disponible" placeholders to preserve slot capacity logic
        batch.set(slotRef, {
          date: day.date,
          location: slot.loc,
          time: slot.time,
-         participants: slot.names, 
+         participants: slot.names,
          status: slot.names.some(n => n.toLowerCase().includes("disponible")) ? "open" : "full"
        });
-       
+
        count++;
-       
+
        slot.names.forEach(n => {
          if(!n.toLowerCase().includes("disponible")) allNames.add(n);
        });
@@ -187,18 +187,18 @@ function handleAuth() {
   const username = document.getElementById('auth-username').value.trim();
   const pass = document.getElementById('auth-password').value;
   const errorEl = document.getElementById('auth-error');
-  
+
   if (!username || !pass) {
     errorEl.innerText = "Por favor completa todos los campos.";
     return;
   }
-  
+
   // Email Strategy: Check if it looks like an email, otherwise make it a dummy one
   let email = username;
   if (!username.includes('@')) {
     email = username + "@ppam.placeholder.com";
   }
-  
+
   auth.signInWithEmailAndPassword(email, pass)
     .then(() => {
       closeAuthModal();
@@ -212,7 +212,7 @@ function updateAuthUI() {
   const nameEl = document.getElementById('user-display-name');
   const overlay = document.getElementById('login-overlay');
   const appContent = document.getElementById('app-content');
-  
+
   if (currentUser) {
     nameEl.innerText = linkedName || currentUser.email.split('@')[0];
     overlay.style.display = 'none';
@@ -228,17 +228,17 @@ function handleGatekeeperLogin() {
     const user = document.getElementById('gate-username').value.trim();
     const pass = document.getElementById('gate-password').value;
     const err = document.getElementById('gate-error');
-    
+
     if (!user || !pass) {
         err.innerText = "Ingresa usuario y contraseña.";
         return;
     }
-    
+
     let email = user;
     if (!user.includes('@')) {
         email = user + "@ppam.placeholder.com";
     }
-    
+
     auth.signInWithEmailAndPassword(email, pass)
         .catch(error => {
             err.innerText = "Credenciales incorrectas.";
@@ -249,7 +249,7 @@ function handleGatekeeperLogin() {
 function logout() {
     auth.signOut().then(() => {
         linkedName = null;
-        savedNames = []; 
+        savedNames = [];
         window.location.reload();
     });
 }
@@ -263,7 +263,7 @@ function listenToNotifications(uid) {
       .onSnapshot(snap => {
           const badge = document.getElementById('notif-badge');
           const list = document.getElementById('notif-list');
-          
+
           const count = snap.size;
           if (count > 0) {
               badge.style.display = 'block';
@@ -271,7 +271,7 @@ function listenToNotifications(uid) {
           } else {
               badge.style.display = 'none';
           }
-          
+
           let html = "";
           snap.forEach(doc => {
               const n = doc.data();
@@ -287,7 +287,7 @@ function listenToNotifications(uid) {
                   </div>
               `;
           });
-          
+
           if (html === "") html = '<p style="padding:15px; text-align:center; color:#666;">No hay notificaciones nuevas.</p>';
           list.innerHTML = html;
       });
@@ -338,20 +338,20 @@ function toggleFavorite(name) {
 
 function switchTab(tab) {
   currentView = tab;
-  
+
   // Update Tab UI
   document.getElementById('tab-all').className = tab === 'all' ? 'tab active' : 'tab';
   document.getElementById('tab-mine').className = tab === 'mine' ? 'tab active' : 'tab';
   document.getElementById('tab-available').className = tab === 'available' ? 'tab active' : 'tab';
   document.getElementById('tab-availability-input').className = tab === 'availability-input' ? 'tab active' : 'tab';
-  
+
   // Toggle Search & Instructions visibility
   const searchContainer = document.getElementById('search-container');
   const allInstructions = document.getElementById('all-view-instructions');
   const availInstructions = document.getElementById('availability-instructions');
   const scheduleContainer = document.getElementById('schedule-container');
   const availabilityContainer = document.getElementById('availability-container');
-  
+
   // Defaults
   searchContainer.style.display = 'none';
   allInstructions.style.display = 'none';
@@ -395,13 +395,30 @@ async function renderAvailabilityInput() {
           return;
       }
 
-      // 2. Fetch User's Weekly Profile
+      // 2. Fetch User's Weekly Profile & Partner Preferences
       let weeklyProfile = {};
+      let currentPartner = "";
+      let currentStrict = false;
+
       const userDoc = await db.collection("users").doc(currentUser.uid).get();
-      if (userDoc.exists && userDoc.data().weeklyAvailability) {
-          weeklyProfile = userDoc.data().weeklyAvailability;
-          // Structure: { "Costanera_Lunes_08:00-10:00": true, ... } or simpler
+      if (userDoc.exists) {
+          const d = userDoc.data();
+          if (d.weeklyAvailability) weeklyProfile = d.weeklyAvailability;
+          if (d.preferredPartner) currentPartner = d.preferredPartner;
+          if (d.strictPartnerLock) currentStrict = d.strictPartnerLock;
       }
+
+      // 3. Fetch All Users for Partner Dropdown
+      const usersSnap = await db.collection("users").get();
+      let partners = [];
+      usersSnap.forEach(doc => {
+         const d = doc.data();
+         // Exclude self and users without linkedName
+         if (doc.id !== currentUser.uid && d.linkedName) {
+             partners.push(d.linkedName);
+         }
+      });
+      partners.sort();
 
       let html = `
         <div style="background:white; padding:15px; border-radius:8px; margin-bottom:20px;">
@@ -409,6 +426,27 @@ async function renderAvailabilityInput() {
           <p>Selecciona los días y horarios que <strong>generalmente</strong> tienes disponibles. Esto se usará para generar los programas de todos los meses.</p>
         </div>
         <form id="availability-form">
+
+        <!-- Partner Selection Module -->
+        <div style="background:white; padding:15px; border-radius:8px; margin-bottom:20px;">
+            <h4 style="margin-top:0; border-bottom:2px solid #eee; padding-bottom:10px;">Preferencia de Compañero</h4>
+            <p style="font-size:0.9em; color:#666;">Opcional: Selecciona un compañero con el que prefieres trabajar.</p>
+
+            <div style="margin-top:15px;">
+               <label style="display:block; margin-bottom:5px; font-weight:bold;">Compañero Preferido:</label>
+               <select id="preferred-partner" style="width:100%; max-width:300px; padding:8px; border-radius:4px; border:1px solid #ccc;">
+                  <option value="">-- Sin preferencia --</option>
+                  ${partners.map(p => `<option value="${p}" ${p === currentPartner ? 'selected' : ''}>${p}</option>`).join('')}
+               </select>
+            </div>
+
+            <div style="margin-top:15px;">
+               <label style="display:flex; align-items:center; cursor:pointer;">
+                  <input type="checkbox" id="strict-partner-lock" ${currentStrict ? 'checked' : ''} style="margin-right:10px; transform: scale(1.2);">
+                  <span><strong>Solamente</strong> con este compañero(a) (aunque signifique menos turnos).</span>
+               </label>
+            </div>
+        </div>
       `;
 
       locationsSnap.forEach(doc => {
@@ -422,20 +460,20 @@ async function renderAvailabilityInput() {
 
           html += `<div style="background:white; margin-bottom:15px; padding:15px; border-radius:8px;">
               <h4 style="margin-top:0; border-bottom:2px solid #eee; padding-bottom:10px;">${locName}</h4>`;
-          
+
           const days = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
-          
+
           days.forEach(day => {
               if (schedule[day] && schedule[day].length > 0) {
                   html += `<div style="margin-top:10px;">
                       <strong>${day}</strong>
                       <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:5px;">`;
-                  
+
                   schedule[day].forEach(time => {
                       // Key format: "LocationName|Day|Time"
                       const key = `${locName}|${day}|${time}`;
                       const isChecked = weeklyProfile[key] ? "checked" : "";
-                      
+
                       html += `
                          <label style="display:flex; align-items:center; background:#f0f4f8; padding:5px 10px; border-radius:15px; font-size:0.9em; cursor:pointer;">
                            <input type="checkbox" name="weekly_slot" value="${key}" ${isChecked} style="margin-right:5px;">
@@ -443,11 +481,11 @@ async function renderAvailabilityInput() {
                          </label>
                        `;
                   });
-                  
+
                   html += `</div></div>`;
               }
           });
-          
+
           html += `</div>`;
       });
 
@@ -470,14 +508,21 @@ async function renderAvailabilityInput() {
 
 async function saveAvailability() {
   if (!currentUser) return;
-  
+
   const checkboxes = document.querySelectorAll('input[name="weekly_slot"]:checked');
   const weeklyProfile = {};
-  
+
   checkboxes.forEach(cb => {
       weeklyProfile[cb.value] = true;
   });
-  
+
+  // Get Partner Preferences
+  const partnerSelect = document.getElementById('preferred-partner');
+  const strictCheck = document.getElementById('strict-partner-lock');
+
+  const preferredPartner = partnerSelect ? partnerSelect.value : "";
+  const strictPartnerLock = strictCheck ? strictCheck.checked : false;
+
   const btn = document.querySelector('button[onclick="saveAvailability()"]');
   const originalText = btn.innerText;
   btn.innerText = "Guardando...";
@@ -486,9 +531,11 @@ async function saveAvailability() {
   try {
       await db.collection("users").doc(currentUser.uid).set({
           weeklyAvailability: weeklyProfile,
+          preferredPartner: preferredPartner,
+          strictPartnerLock: strictPartnerLock,
           lastAvailabilityUpdate: firebase.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
-      
+
       alert("¡Preferencias guardadas! Se usarán para futuros programas.");
   } catch (err) {
       console.error("Error saving:", err);
@@ -505,11 +552,11 @@ function parseCSV(text) {
   let row = [];
   let inQuote = false;
   let token = "";
-  
+
   for (let i = 0; i < text.length; i++) {
     const char = text[i];
     const nextChar = text[i + 1];
-    
+
     if (inQuote) {
       if (char === '"') {
         if (nextChar === '"') {
@@ -547,13 +594,13 @@ function parseCSV(text) {
 
 function parseData(rows) {
   // rows is an array of arrays (from CSV)
-  
+
   // Helper to safely get value from row/col
   const getVal = (r, c) => {
     if (!r || !r[c]) return "";
     return r[c].trim();
   };
-  
+
   // Note: CSV does not support hyperlinks, so getLink is removed.
 
   // Find header row index
@@ -571,46 +618,46 @@ function parseData(rows) {
     console.warn("Could not find header row. Assuming row 0 is header.");
     headerIndex = 0;
   }
-  
+
   // Dynamic Column Mapping
-  let managerColIndex = -1; 
+  let managerColIndex = -1;
   let linkColIndex = -1;
   const slotColumns = []; // [{ index: 2, label: "8 a 10" }, ...]
 
   const headerRow = rows[headerIndex];
   for (let c = 0; c < headerRow.length; c++) {
       const headerVal = headerRow[c].toLowerCase().trim();
-      
+
       // Reserved Columns
       if (headerVal.includes("fecha") || headerVal.includes("ubicación") || headerVal.includes("ubicacion")) {
           continue; // standard columns 0 and 1
       }
-      
+
       if (headerVal.includes("encargado")) {
           managerColIndex = c;
           continue;
       }
-      
+
       if (headerVal.includes("enlace") || headerVal.includes("link")) {
           linkColIndex = c;
           continue;
       }
-      
+
       // If it's not a reserved column, assume it's a Time Slot
       if (headerVal.length > 0) {
           slotColumns.push({ index: c, label: headerRow[c].trim() });
       }
   }
-  
+
   // Fallback if no specific manager column found (backward compatibility)
   if (managerColIndex === -1 && rows[0].length > 5) managerColIndex = 5;
 
-  const daysMap = new Map(); 
+  const daysMap = new Map();
   let lastDateStr = "";
 
   for (let i = headerIndex + 1; i < rows.length; i++) {
     const row = rows[i];
-    
+
     // Fill-down logic for Date
     let dateStr = getVal(row, 0);
     if (dateStr) {
@@ -631,8 +678,8 @@ function parseData(rows) {
       daysMap.set(dateStr, {
         date: parseSpanishDate(dateStr),
         dayLabel: dateStr,
-        managers: new Map(), 
-        slotsMap: new Map() 
+        managers: new Map(),
+        slotsMap: new Map()
       });
     }
 
@@ -645,7 +692,7 @@ function parseData(rows) {
       } else if (location.toLowerCase().includes("liberty")) {
         role = "Encargado del día";
       }
-      
+
       if (!dayObj.managers.has(managerName)) {
         dayObj.managers.set(managerName, { role: role, name: managerName, link: managerLink });
       }
@@ -663,7 +710,7 @@ function parseData(rows) {
           names: []
         });
       }
-      
+
       const namesList = namesStr.split(/[\n,]+/).map(n => n.trim()).filter(n => n.length > 0);
       namesList.forEach(name => {
         if (name.toLowerCase().includes("no hay turno")) return;
@@ -683,19 +730,19 @@ function parseData(rows) {
   daysMap.forEach((dayObj, dateStr) => {
     const managersArray = Array.from(dayObj.managers.values());
     const slotsArray = Array.from(dayObj.slotsMap.values()).filter(s => s.names.length > 0);
-    
+
     // Sort slots
     slotsArray.sort((a, b) => {
       const pad = (s) => {
         // Try to find a time pattern like "8:00", "08", "15" in the label
-        const match = s.match(/(\d{1,2})[:\s]?(?:\d{2})?\s*(?:a|–|-|—)/); 
+        const match = s.match(/(\d{1,2})[:\s]?(?:\d{2})?\s*(?:a|–|-|—)/);
         if (!match) {
             // Fallback for simple numbers at start
             const simple = s.match(/^\d{1,2}/);
             if(simple) return simple[0].padStart(5, '0');
-            return s; 
+            return s;
         }
-        return match[1].padStart(5, '0'); 
+        return match[1].padStart(5, '0');
       };
       return pad(a.time).localeCompare(pad(b.time));
     });
@@ -713,21 +760,21 @@ function parseData(rows) {
 
 function parseSpanishDate(dateStr) {
   const months = {
-    "enero": "01", "febrero": "02", "marzo": "03", "abril": "04", 
-    "mayo": "05", "junio": "06", "julio": "07", "agosto": "08", 
+    "enero": "01", "febrero": "02", "marzo": "03", "abril": "04",
+    "mayo": "05", "junio": "06", "julio": "07", "agosto": "08",
     "septiembre": "09", "octubre": "10", "noviembre": "11", "diciembre": "12"
   };
-  
+
   const lower = dateStr.toLowerCase();
   let day = "01";
   let month = "01";
-  let year = 2026; 
+  let year = 2026;
 
   const dayMatch = lower.match(/\d{1,2}/);
   if (dayMatch) {
     day = dayMatch[0].padStart(2, '0');
   }
-  
+
   for (const [name, code] of Object.entries(months)) {
     if (lower.includes(name)) {
       month = code;
@@ -739,7 +786,7 @@ function parseSpanishDate(dateStr) {
       break;
     }
   }
-  
+
   return `${year}-${month}-${day}`;
 }
 
@@ -747,11 +794,11 @@ function parseSpanishDate(dateStr) {
 function renderSchedule() {
   const container = document.getElementById('schedule-container');
   container.innerHTML = "";
-  
+
   const counterEl = document.getElementById('shift-counter');
   let myShiftCount = 0;
   let hasVisibleShifts = false;
-  
+
   // Calculate today string for filtering count
   const now = new Date();
   const year = now.getFullYear();
@@ -801,7 +848,7 @@ function renderSchedule() {
         // Check if I am a Manager for this day
         // We use the same filtering logic: did we "match" this day because of a manager role?
         const amIManager = Array.from(day.managers.values()).some(m => savedNames.includes(m.name));
-        
+
         if (amIManager) {
             // If I am a manager, count the DAY as 1 shift (regardless of how many slots)
             if (visibleSlots.length > 0) { // Only count if there are actual slots to manage
@@ -818,27 +865,27 @@ function renderSchedule() {
     if ((currentView === 'mine' || currentView === 'available') && visibleSlots.length === 0) {
         return; // Don't render empty days in Mine/Available view
     }
-    
+
     const dayDiv = document.createElement('div');
     dayDiv.className = 'day';
     dayDiv.setAttribute('data-date', day.date);
-    
+
     let html = `<h2>${day.dayLabel}</h2>`;
-    
+
     // Only show managers if NOT in "Available" view
     if (day.managers && day.managers.size > 0) {
       html += `<div class="encargado">`;
       day.managers.forEach(mgr => {
-        const content = mgr.link 
-          ? `<a href="${mgr.link}" target="_blank">${mgr.name}</a>` 
+        const content = mgr.link
+          ? `<a href="${mgr.link}" target="_blank">${mgr.name}</a>`
           : mgr.name;
-          
+
         const isFav = savedNames.includes(mgr.name);
         const starClass = isFav ? "star-btn active" : "star-btn";
         const starIcon = isFav ? "★" : "☆";
         const safeName = mgr.name.replace(/'/g, "\\'");
-        
-        html += `<div><strong>${mgr.role}:</strong> ${content} 
+
+        html += `<div><strong>${mgr.role}:</strong> ${content}
                  <button class="${starClass}" onclick="toggleFavorite('${safeName}')" title="${isFav ? 'Quitar de mis turnos' : 'Agregar a mis turnos'}">${starIcon}</button>
                  </div>`;
       });
@@ -846,7 +893,7 @@ function renderSchedule() {
     }
 
     html += `<div class="schedule">`;
-    
+
     visibleSlots.forEach(slot => {
       let icon = "🕘";
       if (slot.time.includes("8:00")) icon = "🕗";
@@ -857,19 +904,19 @@ function renderSchedule() {
       // In Firestore mode, 'names' might not contain "Disponible". The status is what matters.
       // But for rendering lists, we iterate names.
       // If status is 'open', we should render the "Take Shift" action.
-      
+
       const isFull = slot.status === 'full';
-      
+
       // Render existing participants
       slot.names.forEach(n => {
         const isDisponible = n.toLowerCase().includes("disponible");
         if (isDisponible) return; // Don't list "Disponible" as a person
-        
+
         const isFav = savedNames.includes(n);
         const starClass = isFav ? "star-btn active" : "star-btn";
         const starIcon = isFav ? "★" : "☆";
         const safeName = n.replace(/'/g, "\\'");
-        
+
         // Check if this is ME (the logged in user)
         let actionHtml = ``;
         if (currentUser && linkedName === n) {
@@ -879,13 +926,13 @@ function renderSchedule() {
             // Allow starring for others or if not logged in
             actionHtml = `<button class="${starClass}" onclick="toggleFavorite('${safeName}')" title="${isFav ? 'Quitar de mis turnos' : 'Agregar a mis turnos'}">${starIcon}</button>`;
         }
-        
+
         listHtml += `<li>
-          ${n} 
+          ${n}
           ${actionHtml}
         </li>`;
       });
-      
+
       // Render "Take Shift" option if open
       if (!isFull) {
            if (currentUser && linkedName) {
@@ -905,16 +952,16 @@ function renderSchedule() {
       const dateStr = day.date.replace(/-/g, '');
       const times = slot.time.match(/(\d{1,2}:\d{2})\s*[–—-]\s*(\d{1,2}:\d{2})/);
       let calendarActions = "";
-      
+
       if (times) {
         const start = times[1].replace(':', '').padStart(4,'0') + "00";
         const end = times[2].replace(':', '').padStart(4,'0') + "00";
         const title = `${slot.loc} – PPAM`;
         const details = `Asignados: ${slot.names.join(', ')}`;
         const locationStr = slot.loc;
-        
+
         const googleUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dateStr}T${start}/${dateStr}T${end}&details=${encodeURIComponent(details)}&location=${encodeURIComponent(locationStr)}&ctz=America/Asuncion`;
-        
+
         const icsContent = generateICS(title, day.date, times[1], times[2], locationStr, details);
         const icsBlob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
         const icsUrl = URL.createObjectURL(icsBlob);
@@ -943,7 +990,7 @@ function renderSchedule() {
       `;
     });
 
-    html += `</div>`; 
+    html += `</div>`;
     dayDiv.innerHTML = html;
     container.appendChild(dayDiv);
     hasVisibleShifts = true;
@@ -952,7 +999,7 @@ function renderSchedule() {
   if (currentView === 'mine' && !hasVisibleShifts && savedNames.length > 0) {
       container.innerHTML = "<p style='text-align:center; padding:20px;'>No se encontraron turnos para tus nombres guardados.</p>";
   }
-  
+
   if (currentView === 'available' && !hasVisibleShifts) {
       container.innerHTML = "<p style='text-align:center; padding:20px;'>No hay turnos disponibles por el momento.</p>";
   }
@@ -963,7 +1010,7 @@ function renderSchedule() {
 
 function generateICS(title, date, startTime, endTime, location, description) {
   const formatTime = (t) => {
-    const raw = t.replace(':', ''); 
+    const raw = t.replace(':', '');
     const parts = t.split(':');
     const h = parts[0].padStart(2, '0');
     const m = parts[1].padStart(2, '0');
@@ -972,7 +1019,7 @@ function generateICS(title, date, startTime, endTime, location, description) {
 
   const start = date.replace(/-/g, '') + "T" + formatTime(startTime);
   const end = date.replace(/-/g, '') + "T" + formatTime(endTime);
-  
+
   return `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//PPAM//Schedule//ES
@@ -994,11 +1041,11 @@ function applyDateFilter() {
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const d = String(now.getDate()).padStart(2, '0');
   const todayStr = `${year}-${month}-${d}`;
-  
+
   document.querySelectorAll(".day").forEach(day => {
     const dateAttr = day.getAttribute('data-date');
     if (!dateAttr) return;
-    
+
     if (dateAttr === todayStr) {
       day.classList.add("today");
     } else {
@@ -1015,9 +1062,9 @@ function applyDateFilter() {
 
 function searchName() {
   if (currentView !== 'all') return;
-  
+
   const q = document.getElementById("searchInput").value.toLowerCase().trim();
-  
+
   if (q === "") {
     applyDateFilter();
     return;
@@ -1067,22 +1114,22 @@ function initFirestoreListener() {
 
   // Real-time listener
   // We need to fetch days AND shifts.
-  // Structure: 
+  // Structure:
   // 1. Fetch Days to get the structure (Date -> Label, Managers)
   // 2. Fetch Shifts (Shifts Collection)
-  
+
   // To keep it simple for now, we will just listen to shifts and days
-  
+
   db.collection("days").orderBy("date").onSnapshot(snapshot => {
     const days = [];
     snapshot.forEach(doc => {
       days.push(doc.data());
     });
-    
+
     // Now fetch shifts. Since we need to merge them, we can do a second listener
     // Ideally we would combine this, but for now let's query all shifts
     // Optimisation: Query only future shifts? For now, all.
-    
+
     db.collection("shifts").onSnapshot(shiftSnap => {
         const shifts = [];
         shiftSnap.forEach(doc => {
@@ -1090,18 +1137,18 @@ function initFirestoreListener() {
             data.id = doc.id; // needed for updates
             shifts.push(data);
         });
-        
+
         // Merge Data into scheduleData structure
         scheduleData = days.map(d => {
             // Find shifts for this day
             const dayShifts = shifts.filter(s => s.date === d.date);
-            
+
             // Managers is an array of objects
             const managersMap = new Map();
             if (d.managers) {
                 d.managers.forEach(m => managersMap.set(m.name, m));
             }
-            
+
             // Slots logic
             // Map Shift DB Object to App Slot Object
             const slots = dayShifts.map(s => ({
@@ -1111,7 +1158,7 @@ function initFirestoreListener() {
                names: s.participants,
                status: s.status
             }));
-            
+
             return {
                 date: d.date,
                 dayLabel: d.dayLabel,
@@ -1119,14 +1166,14 @@ function initFirestoreListener() {
                 slots: slots
             };
         });
-        
+
         renderSchedule();
         applyDateFilter();
-        
+
     }, error => {
         console.error("Error fetching shifts", error);
     });
-    
+
   }, error => {
       console.error("Error fetching days", error);
       container.innerHTML = "Error cargando calendario. Revisa la consola.";
@@ -1135,23 +1182,23 @@ function initFirestoreListener() {
 
 function takeShift(slotId) {
     if (!confirm("¿Confirmas que quieres tomar este turno?")) return;
-    
+
     const docRef = db.collection("shifts").doc(slotId);
-    
+
     db.runTransaction(transaction => {
         return transaction.get(docRef).then(doc => {
             if (!doc.exists) throw "Shift does not exist!";
-            
+
             const data = doc.data();
             if (data.status !== 'open') throw "Este turno ya no está disponible.";
-            
+
             // Logic: Remove "Disponible" placeholder, Add User Name
             // Warning: This assumes only one "Disponible" slot exists or we are taking one of them.
             // If multiple spots are open, we just fill one.
-            
+
             // Find index of a "Disponible" string
             const availableIndex = data.participants.findIndex(p => p.toLowerCase().includes("disponible"));
-            
+
             let newParticipants = [...data.participants];
             if (availableIndex !== -1) {
                 newParticipants[availableIndex] = linkedName;
@@ -1159,10 +1206,10 @@ function takeShift(slotId) {
                 // Should not happen if status is open, but just in case
                 newParticipants.push(linkedName);
             }
-            
+
             // Check if there are any other "Disponible" left
             const stillOpen = newParticipants.some(p => p.toLowerCase().includes("disponible"));
-            
+
             transaction.update(docRef, {
                 participants: newParticipants,
                 status: stillOpen ? 'open' : 'full'
@@ -1179,19 +1226,19 @@ function takeShift(slotId) {
 
 function cancelShift(slotId) {
     if (!confirm("¿Seguro que deseas cancelar tu asistencia a este turno?")) return;
-    
+
     const docRef = db.collection("shifts").doc(slotId);
 
     db.runTransaction(transaction => {
         return transaction.get(docRef).then(doc => {
             if (!doc.exists) throw "Shift does not exist!";
-            
+
             const data = doc.data();
             const newParticipants = data.participants.map(p => {
                 if (p === linkedName) return "Disponible";
                 return p;
             });
-            
+
             transaction.update(docRef, {
                 participants: newParticipants,
                 status: 'open' // Always open if someone cancels

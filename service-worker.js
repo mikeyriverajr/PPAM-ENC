@@ -1,9 +1,9 @@
-const CACHE_NAME = 'ppam-schedule-v12';
+const CACHE_NAME = 'ppam-schedule-v6';
 const ASSETS = [
   './',
   './index.html',
   './style.css',
-  './app.v12.js',
+  './app.v6.js',
   './icon.png',
   './manifest.json'
 ];

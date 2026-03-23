@@ -45,6 +45,7 @@ function switchAdminTab(tabId) {
   document.getElementById('tab-' + tabId).classList.add('active');
   if (tabId === 'locations') loadLocations();
   if (tabId === 'users') loadPublishers();
+  if (tabId === 'schedule') checkMonthStatus(); // Check DB status whenever we open the tab
 }
 
 // ==========================================
@@ -286,9 +287,40 @@ async function deleteLocation() {
 // ==========================================
 let draftSchedule = []; 
 
+// SMART UI: CHECK IF MONTH IS ALREADY PUBLISHED
+async function checkMonthStatus() {
+    const monthVal = document.getElementById('gen-month').value;
+    const btnGen = document.getElementById('btn-gen-draft');
+    const btnLoad = document.getElementById('btn-load-month');
+    const containerDel = document.getElementById('container-delete-month');
+    
+    // Hide preview table while loading/switching months
+    document.getElementById('schedule-preview-container').style.display = 'none';
+
+    try {
+        const snap = await db.collection('shifts')
+            .where('date', '>=', `${monthVal}-01`)
+            .where('date', '<=', `${monthVal}-31`)
+            .limit(1)
+            .get();
+
+        if (!snap.empty) {
+            // Data exists! Hide generate, show Edit/Delete
+            btnGen.style.display = 'none';
+            btnLoad.style.display = 'inline-block';
+            containerDel.style.display = 'block';
+        } else {
+            // Month is empty! Show generate, hide Edit/Delete
+            btnGen.style.display = 'inline-block';
+            btnLoad.style.display = 'none';
+            containerDel.style.display = 'none';
+        }
+    } catch(e) { console.error("Error checking month status:", e); }
+}
+
 // FEATURE 1: GENERATE NEW DRAFT
 async function generateDraft() {
-  const btn = document.querySelector('#tab-schedule button');
+  const btn = document.getElementById('btn-gen-draft');
   btn.innerText = "Calculando..."; btn.disabled = true;
 
   try {
@@ -375,7 +407,7 @@ async function generateDraft() {
 
     draftSchedule = shiftTasks.sort((a,b) => a.dateObj - b.dateObj); 
     renderPreviewTable();
-    document.querySelector('#schedule-preview-container button').innerText = "Guardar Nuevo Programa";
+    document.getElementById('btn-publish-bottom').innerText = "Guardar Nuevo Programa";
 
   } catch (error) { alert("Error al generar: " + error.message); } 
   finally { btn.innerText = "1. Generar Borrador Nuevo"; btn.disabled = false; }
@@ -427,7 +459,7 @@ async function loadPublishedMonth() {
 
     draftSchedule.sort((a,b) => a.dateObj - b.dateObj);
     renderPreviewTable();
-    document.querySelector('#schedule-preview-container button').innerText = "Guardar Cambios";
+    document.getElementById('btn-publish-bottom').innerText = "Guardar Cambios";
 
   } catch (error) { alert("Error al cargar: " + error.message); }
 }
@@ -457,6 +489,7 @@ async function deletePublishedMonth() {
       alert("El mes ha sido eliminado por completo de la base de datos.");
       document.getElementById('schedule-preview-container').style.display = 'none';
       draftSchedule = [];
+      checkMonthStatus(); // Refresh the buttons instantly!
 
   } catch(e) { alert("Error al eliminar: " + e.message); }
 }
@@ -580,7 +613,7 @@ async function publishSchedule() {
   if (draftSchedule.length === 0) return;
   if (!confirm('¿Estás seguro de guardar estos cambios en la base de datos?')) return;
   
-  const btn = document.querySelector('#schedule-preview-container button');
+  const btn = document.getElementById('btn-publish-bottom');
   btn.innerText = "Guardando..."; btn.disabled = true;
 
   try {
@@ -601,6 +634,7 @@ async function publishSchedule() {
     alert('¡Programa guardado con éxito!');
     document.getElementById('schedule-preview-container').style.display = 'none';
     draftSchedule = []; 
+    checkMonthStatus(); // Re-check the UI instantly so it hides the Generate button!
   } catch (error) { alert("Error: " + error.message); } 
   finally { btn.innerText = "Guardar / Publicar"; btn.disabled = false; }
 }

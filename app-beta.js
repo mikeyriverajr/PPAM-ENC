@@ -23,8 +23,6 @@ auth.onAuthStateChanged(user => {
     document.getElementById('login-overlay').style.display = 'none';
     document.getElementById('app-content').style.display = 'block';
     
-    console.log("Logged in successfully. UID:", user.uid);
-    
     // FETCH THE DATA!
     loadShifts(); 
   } else {
@@ -67,8 +65,18 @@ async function loadShifts() {
     const pubSnapshot = await db.collection('publishers').get();
     pubSnapshot.forEach(doc => {
       const data = doc.data();
-      // Store it in our dictionary as "ID: First Last"
-      publisherCache[doc.id] = `${data.firstName} ${data.lastName}`; 
+      
+      // BULLETPROOF NAME CHECK: 
+      // Checks for 'name' OR 'firstName' + 'lastName'
+      let fullName = "Nombre no definido";
+      if (data.name) {
+          fullName = data.name;
+      } else if (data.firstName || data.lastName) {
+          fullName = `${data.firstName || ''} ${data.lastName || ''}`.trim();
+      }
+      
+      // Store it in our dictionary
+      publisherCache[doc.id] = fullName; 
     });
 
     // 2. Fetch the Shifts (Ordered by date)
@@ -85,8 +93,6 @@ async function loadShifts() {
     shiftsSnapshot.forEach(doc => {
       const shift = doc.data();
       
-      // Translate the array of Publisher IDs into an array of Real Names
-      // Adding a safe fallback in case 'participants' is undefined or not an array
       const participantsArray = shift.participants || [];
       const participantNames = participantsArray.map(id => {
          return publisherCache[id] || 'Publicador Desconocido';
@@ -119,9 +125,6 @@ async function loadShifts() {
 
 // 5. Tab Switching Function (Since it's referenced in your HTML)
 function switchTab(tabId) {
-  // Simple logic to handle tab switching visual states for now
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + tabId).classList.add('active');
-  
-  // We will add the logic to filter views later!
 }

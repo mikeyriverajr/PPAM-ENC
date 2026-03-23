@@ -1,6 +1,5 @@
 // app-beta.js - Complete File
 
-// 1. Your Real Firebase Config
 const firebaseConfig = {
   apiKey: "AIzaSyC5HPI4WY19Om_HmQgJJl6IvXr0XrMmflQ",
   authDomain: "ppam-beta.firebaseapp.com",
@@ -11,16 +10,14 @@ const firebaseConfig = {
   measurementId: "G-BXVKGLHV9L"
 };
 
-// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-// Global Variables
 let publisherCache = {}; 
 let currentUserPublisherId = null;
+let capacitiesCache = {}; // Cache to know max capacity for open shifts
 
-// 2. Authentication Gatekeeper
 auth.onAuthStateChanged(async user => {
   if (user) {
     document.getElementById('login-overlay').style.display = 'none';
@@ -31,24 +28,20 @@ auth.onAuthStateChanged(async user => {
       if (userDoc.exists && userDoc.data().publisherId) {
         currentUserPublisherId = userDoc.data().publisherId;
         
-        // PRE-LOAD CACHE: Build the name dictionary once so all tabs can use it instantly
-        const pubSnapshot = await db.collection('publishers').get();
-        pubSnapshot.forEach(doc => {
-          const data = doc.data();
-          publisherCache[doc.id] = `${data.firstName || ''} ${data.lastName || ''}`.trim();
-        });
+        // Load Dictionaries
+        const pubSnap = await db.collection('publishers').get();
+        pubSnap.forEach(d => { publisherCache[d.id] = `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(); });
+        
+        const locSnap = await db.collection('locations').get();
+        locSnap.forEach(d => { capacitiesCache[d.data().name] = d.data().capacity || 2; });
 
-        // Load the features
+        // Load Tabs
         loadShifts(); 
-        loadMyShifts(); // <--- NEW TAB LOADED HERE
+        loadMyShifts(); 
+        loadAvailableShifts();
         loadAvailabilityForm();
-      } else {
-        console.warn("User logged in, but has no linked publisherId.");
       }
-    } catch (error) {
-      console.error("Error fetching user profile:", error);
-    }
-    
+    } catch (error) { console.error("Error:", error); }
   } else {
     document.getElementById('login-overlay').style.display = 'block';
     document.getElementById('app-content').style.display = 'none';
@@ -74,160 +67,275 @@ function switchTab(tabId) {
 }
 
 // ==========================================
-// TAB 1: TODOS LOS TURNOS
+// TAB 1: TODOS LOS TURNOS & SEARCH
 // ==========================================
+let allShiftsData = []; // Store for searching
+
 async function loadShifts() {
   const container = document.getElementById('schedule-container');
-  container.innerHTML = '<p style="text-align:center; padding:20px;">Cargando programa...</p>';
-
+  container.innerHTML = '<p style="text-align:center;">Cargando programa...</p>';
   try {
     const shiftsSnapshot = await db.collection('shifts').orderBy('date').get();
-    if (shiftsSnapshot.empty) {
-      container.innerHTML = '<p style="text-align:center;">No hay turnos programados.</p>';
-      return;
-    }
-
     container.innerHTML = '';
+    allShiftsData = [];
+    
     shiftsSnapshot.forEach(doc => {
-      const shift = doc.data();
-      const participantNames = (shift.participants || []).map(id => publisherCache[id] || 'Publicador');
-
-      const shiftCard = document.createElement('div');
-      shiftCard.style.cssText = "background:white; padding:15px; margin-bottom:15px; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1);";
-      shiftCard.innerHTML = `
-        <h3 style="margin: 0 0 8px 0; color: #5d7aa9; border-bottom: 1px solid #eee; padding-bottom: 8px;">
-          📅 ${shift.date} | ⏰ ${shift.time}
-        </h3>
-        <p style="margin: 8px 0;"><strong>📍 Lugar:</strong> ${shift.location}</p>
-        <p style="margin: 8px 0;"><strong>👥 Publicadores:</strong> ${participantNames.join(', ')}</p>
-      `;
-      container.appendChild(shiftCard);
+      let shift = doc.data();
+      shift.id = doc.id;
+      allShiftsData.push(shift);
     });
-  } catch (error) {
-    container.innerHTML = '<p style="color:red; text-align:center;">Error al cargar el programa.</p>';
-  }
+    
+    renderAllShifts(allShiftsData);
+  } catch (error) { container.innerHTML = '<p style="color:red; text-align:center;">Error al cargar.</p>'; }
+}
+
+function renderAllShifts(shifts) {
+  const container = document.getElementById('schedule-container');
+  container.innerHTML = '';
+  if(shifts.length === 0) { container.innerHTML = '<p style="text-align:center;">No se encontraron turnos.</p>'; return; }
+  
+  shifts.forEach(shift => {
+    const participantNames = (shift.participants || []).map(id => publisherCache[id] || 'Desconocido');
+    const shiftCard = document.createElement('div');
+    shiftCard.className = 'shift-card-search';
+    shiftCard.style.cssText = "background:white; padding:15px; margin-bottom:15px; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1);";
+    shiftCard.innerHTML = `
+      <h3 style="margin: 0 0 8px 0; color: #5d7aa9; border-bottom: 1px solid #eee; padding-bottom: 8px;">
+        📅 ${shift.date} | ⏰ ${shift.time}
+      </h3>
+      <p style="margin: 8px 0;"><strong>📍 Lugar:</strong> <span class="loc-text">${shift.location}</span></p>
+      <p style="margin: 8px 0;"><strong>👥 Publicadores:</strong> <span class="pub-text">${participantNames.join(', ')}</span></p>
+    `;
+    container.appendChild(shiftCard);
+  });
+}
+
+function filterAllShifts() {
+  const query = document.getElementById('search-all').value.toLowerCase();
+  const filtered = allShiftsData.filter(s => {
+      const names = (s.participants || []).map(id => publisherCache[id] || '').join(' ').toLowerCase();
+      return s.location.toLowerCase().includes(query) || s.date.includes(query) || names.includes(query);
+  });
+  renderAllShifts(filtered);
 }
 
 // ==========================================
-// TAB 2: MIS TURNOS (NEW LOGIC)
+// TAB 2: MIS TURNOS & CANCELLATION LOGIC
 // ==========================================
+let myCurrentShifts = []; // Used to check overlaps later
+
 async function loadMyShifts() {
   if (!currentUserPublisherId) return;
   const container = document.getElementById('tab-mine');
-  container.innerHTML = '<p style="text-align:center; padding:20px;">Buscando tus turnos...</p>';
+  container.innerHTML = '<p style="text-align:center;">Buscando tus turnos...</p>';
 
   try {
-    // Firebase Magic: 'array-contains' instantly finds shifts where you are in the participants array
-    const shiftsSnapshot = await db.collection('shifts')
-                                   .where('participants', 'array-contains', currentUserPublisherId)
-                                   .get();
-
+    const shiftsSnapshot = await db.collection('shifts').where('participants', 'array-contains', currentUserPublisherId).get();
     if (shiftsSnapshot.empty) {
-      container.innerHTML = `
-        <div style="background: white; padding: 20px; border-radius: 8px; text-align: center;">
-          <h3 style="color: #666;">Sin turnos asignados</h3>
-          <p style="color: #888;">No tienes turnos programados para este mes. Revisa tu disponibilidad para el próximo mes.</p>
-        </div>
-      `;
+      container.innerHTML = `<div style="background:white; padding:20px; text-align:center; border-radius:8px;"><h3 style="color:#666;">Sin turnos asignados</h3></div>`;
+      myCurrentShifts = [];
       return;
     }
 
     container.innerHTML = '<h3 style="margin-top:0; color:#333; margin-bottom: 15px;">Tus Próximos Turnos</h3>';
+    myCurrentShifts = [];
+    shiftsSnapshot.forEach(doc => { let s = doc.data(); s.id = doc.id; myCurrentShifts.push(s); });
+    myCurrentShifts.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    // Sort in memory chronologically
-    let myShifts = [];
-    shiftsSnapshot.forEach(doc => myShifts.push(doc.data()));
-    myShifts.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-    myShifts.forEach(shift => {
-      const participantNames = (shift.participants || []).map(id => publisherCache[id] || 'Publicador');
-
+    myCurrentShifts.forEach(shift => {
+      const others = (shift.participants || []).filter(id => id !== currentUserPublisherId).map(id => publisherCache[id] || 'Desconocido');
+      const partnerText = others.length > 0 ? others.join(', ') : 'Solo/a';
+      
       const shiftCard = document.createElement('div');
-      // Adding a nice green border-left to make their personal shifts feel distinct
-      shiftCard.style.cssText = "background:white; padding:15px; margin-bottom:15px; border-radius:8px; border-left: 5px solid #28a745; box-shadow:0 1px 3px rgba(0,0,0,0.1);";
+      shiftCard.style.cssText = "background:white; padding:15px; margin-bottom:15px; border-radius:8px; border-left: 5px solid #28a745; box-shadow:0 1px 3px rgba(0,0,0,0.1); display:flex; justify-content:space-between; align-items:center;";
       shiftCard.innerHTML = `
-        <h4 style="margin: 0 0 10px 0; color: #28a745;">📅 ${shift.date} | ⏰ ${shift.time}</h4>
-        <p style="margin: 5px 0;"><strong>📍 Lugar:</strong> ${shift.location}</p>
-        <p style="margin: 5px 0;"><strong>👥 Con:</strong> ${participantNames.join(', ')}</p>
+        <div>
+          <h4 style="margin: 0 0 8px 0; color: #28a745;">📅 ${shift.date} | ⏰ ${shift.time}</h4>
+          <p style="margin: 5px 0;"><strong>📍 Lugar:</strong> ${shift.location}</p>
+          <p style="margin: 5px 0;"><strong>👥 Con:</strong> ${partnerText}</p>
+        </div>
+        <button onclick="attemptCancel('${shift.id}', '${shift.date}', '${shift.time}', '${shift.location}')" class="btn-action btn-danger">Cancelar</button>
       `;
       container.appendChild(shiftCard);
     });
+  } catch (error) { container.innerHTML = '<p style="color:red; text-align:center;">Error al cargar.</p>'; }
+}
 
-  } catch (error) {
-    console.error("Error cargando mis turnos:", error);
-    container.innerHTML = '<p style="color:red; text-align:center;">Error al cargar tus turnos.</p>';
+async function attemptCancel(shiftId, dateStr, timeStr, locationName) {
+  // 1. 24-Hour Lockout Check
+  const startTime = timeStr.split('-')[0]; // Gets "08:00" from "08:00-10:00"
+  const shiftDateTime = new Date(`${dateStr}T${startTime}:00`);
+  const now = new Date();
+  const diffHours = (shiftDateTime - now) / (1000 * 60 * 60);
+
+  if (diffHours < 24) {
+      alert("⚠️ No puedes cancelar un turno con menos de 24 horas de anticipación a través de la aplicación. Por favor, comunícate directamente con los hermanos responsables de la PPAM para informar tu ausencia.");
+      return;
   }
+
+  if(!confirm("¿Estás seguro de que deseas cancelar este turno? Tu espacio quedará disponible para otro publicador.")) return;
+
+  try {
+    const shiftRef = db.collection('shifts').doc(shiftId);
+    const docSnap = await shiftRef.get();
+    let currentParticipants = docSnap.data().participants || [];
+    
+    // Remove user
+    currentParticipants = currentParticipants.filter(id => id !== currentUserPublisherId);
+    await shiftRef.update({ participants: currentParticipants });
+
+    // 2. Notification System
+    await db.collection('notifications').add({
+       type: 'cancel',
+       shiftId: shiftId,
+       publisherId: currentUserPublisherId,
+       publisherName: publisherCache[currentUserPublisherId],
+       message: `Canceló su turno el ${dateStr} a las ${timeStr} en ${locationName}`,
+       timestamp: new Date(),
+       relatedUsers: currentParticipants // Let partners know
+    });
+
+    alert("Turno cancelado. Los administradores han sido notificados.");
+    loadMyShifts(); 
+    loadAvailableShifts(); // Refresh open market
+    loadShifts(); // Refresh main list
+  } catch (err) { alert("Error al cancelar: " + err.message); }
 }
 
 // ==========================================
-// TAB 3: MI DISPONIBILIDAD
+// TAB 3: TURNOS DISPONIBLES (CLAIM LOGIC)
+// ==========================================
+async function loadAvailableShifts() {
+  if (!currentUserPublisherId) return;
+  const container = document.getElementById('open-shifts-container');
+  container.innerHTML = '<p style="text-align:center;">Buscando espacios libres...</p>';
+
+  try {
+    const shiftsSnapshot = await db.collection('shifts').orderBy('date').get();
+    let openShifts = [];
+
+    shiftsSnapshot.forEach(doc => {
+      let shift = doc.data(); shift.id = doc.id;
+      const capacity = capacitiesCache[shift.location] || 2;
+      const participants = shift.participants || [];
+      
+      // Filter 1: Is there room?
+      if (participants.length < capacity) {
+        // Filter 2: Are you already in it?
+        if (!participants.includes(currentUserPublisherId)) {
+           openShifts.push(shift);
+        }
+      }
+    });
+
+    if (openShifts.length === 0) {
+      container.innerHTML = '<p style="text-align:center; color:#666;">No hay espacios libres en este momento.</p>';
+      return;
+    }
+
+    container.innerHTML = '';
+    openShifts.forEach(shift => {
+      const names = (shift.participants || []).map(id => publisherCache[id] || 'Alguien').join(', ') || 'Vacío';
+      const cap = capacitiesCache[shift.location] || 2;
+      const availableSpots = cap - (shift.participants || []).length;
+
+      const card = document.createElement('div');
+      card.style.cssText = "background:white; padding:15px; margin-bottom:15px; border-radius:8px; border-left: 5px solid #17a2b8; box-shadow:0 1px 3px rgba(0,0,0,0.1); display:flex; justify-content:space-between; align-items:center;";
+      card.innerHTML = `
+        <div>
+          <h4 style="margin: 0 0 8px 0; color: #17a2b8;">📅 ${shift.date} | ⏰ ${shift.time}</h4>
+          <p style="margin: 5px 0;"><strong>📍 Lugar:</strong> ${shift.location}</p>
+          <p style="margin: 5px 0; font-size:0.9em;"><strong>👥 Actuales:</strong> ${names}</p>
+          <p style="margin: 5px 0; font-size:0.8em; color:#666;">Lugares libres: ${availableSpots}</p>
+        </div>
+        <button onclick="claimShift('${shift.id}', '${shift.date}', '${shift.time}')" class="btn-action btn-success">+ Tomar Turno</button>
+      `;
+      container.appendChild(card);
+    });
+
+  } catch (error) { container.innerHTML = '<p style="color:red; text-align:center;">Error al cargar espacios.</p>'; }
+}
+
+async function claimShift(shiftId, dateStr, timeStr) {
+  // 1. Time Overlap Check (Double Booking Protection)
+  const [newStart, newEnd] = timeStr.split('-');
+  
+  for (let s of myCurrentShifts) {
+    if (s.date === dateStr) {
+      const [myStart, myEnd] = s.time.split('-');
+      // Mathematical logic for overlapping time blocks
+      if (newStart < myEnd && myStart < newEnd) {
+          alert(`⚠️ No puedes tomar este turno porque se superpone con un turno que ya tienes a las ${s.time} en ${s.location}.`);
+          return;
+      }
+    }
+  }
+
+  if(!confirm("¿Deseas anotarte en este turno?")) return;
+
+  try {
+    const shiftRef = db.collection('shifts').doc(shiftId);
+    const docSnap = await shiftRef.get();
+    let currentParticipants = docSnap.data().participants || [];
+    const capacity = capacitiesCache[docSnap.data().location] || 2;
+
+    if (currentParticipants.length >= capacity) {
+       alert("Lo sentimos, alguien más acaba de tomar el último lugar en este turno.");
+       loadAvailableShifts(); return;
+    }
+
+    currentParticipants.push(currentUserPublisherId);
+    await shiftRef.update({ participants: currentParticipants });
+
+    alert("¡Turno agregado a tu programa!");
+    loadMyShifts(); 
+    loadAvailableShifts();
+    loadShifts(); 
+  } catch (err) { alert("Error al tomar turno: " + err.message); }
+}
+
+// ==========================================
+// TAB 4: MI DISPONIBILIDAD
 // ==========================================
 async function loadAvailabilityForm() {
   if (!currentUserPublisherId) return;
   const container = document.getElementById('availability-form-container');
-  
   try {
     const pubDoc = await db.collection('publishers').doc(currentUserPublisherId).get();
-    const myAvailability = pubDoc.data().availability || []; 
-
+    const myAvail = pubDoc.data().availability || []; 
     const locSnapshot = await db.collection('locations').where('isActive', '==', true).get();
-    
     const daysOrder = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-    const groupedShifts = { 'Lunes': [], 'Martes': [], 'Miércoles': [], 'Jueves': [], 'Viernes': [], 'Sábado': [], 'Domingo': [] };
+    const grouped = { 'Lunes': [], 'Martes': [], 'Miércoles': [], 'Jueves': [], 'Viernes': [], 'Sábado': [], 'Domingo': [] };
 
     locSnapshot.forEach(doc => {
       const loc = doc.data();
       (loc.templates || []).forEach(t => {
-        if (groupedShifts[t.day] !== undefined) {
-          const valueString = `${loc.name}_${t.day}_${t.startTime}`;
-          groupedShifts[t.day].push({ locationName: loc.name, timeLabel: `${t.startTime} - ${t.endTime}`, value: valueString, isChecked: myAvailability.includes(valueString) });
-        }
+        if (grouped[t.day] !== undefined) grouped[t.day].push({ name: loc.name, time: `${t.startTime} - ${t.endTime}`, val: `${loc.name}_${t.day}_${t.startTime}`, checked: myAvail.includes(`${loc.name}_${t.day}_${t.startTime}`) });
       });
     });
 
     container.innerHTML = '';
     let hasShifts = false;
-
     daysOrder.forEach(day => {
-      const shiftsForDay = groupedShifts[day];
-      if (shiftsForDay.length > 0) {
+      if (grouped[day].length > 0) {
         hasShifts = true;
-        shiftsForDay.sort((a, b) => a.timeLabel.localeCompare(b.timeLabel));
-
-        const dayDiv = document.createElement('div');
-        dayDiv.className = 'day-group';
-        let shiftsHtml = `<h4 class="day-title">${day}</h4>`;
-        
-        shiftsForDay.forEach(shift => {
-          const checkedAttr = shift.isChecked ? 'checked' : '';
-          shiftsHtml += `
-            <div class="shift-option">
-              <input type="checkbox" id="chk-${shift.value}" class="avail-checkbox" value="${shift.value}" ${checkedAttr}>
-              <label for="chk-${shift.value}"><strong>${shift.locationName}</strong> (${shift.timeLabel})</label>
-            </div>
-          `;
-        });
-        dayDiv.innerHTML = shiftsHtml;
-        container.appendChild(dayDiv);
+        grouped[day].sort((a, b) => a.time.localeCompare(b.time));
+        const div = document.createElement('div'); div.className = 'day-group';
+        let html = `<h4 class="day-title">${day}</h4>`;
+        grouped[day].forEach(s => html += `<div class="shift-option"><input type="checkbox" id="chk-${s.val}" class="avail-checkbox" value="${s.val}" ${s.checked ? 'checked' : ''}><label for="chk-${s.val}"><strong>${s.name}</strong> (${s.time})</label></div>`);
+        div.innerHTML = html; container.appendChild(div);
       }
     });
-
-    if (!hasShifts) container.innerHTML = '<p style="text-align:center; color:#666;">No hay ubicaciones configuradas.</p>';
-
-  } catch (error) { container.innerHTML = '<p style="color:red; text-align:center;">Error al cargar tus opciones.</p>'; }
+    if (!hasShifts) container.innerHTML = '<p style="text-align:center;">No hay ubicaciones.</p>';
+  } catch (error) {}
 }
 
 async function saveAvailability() {
   if (!currentUserPublisherId) return;
-  const msgP = document.getElementById('avail-msg');
-  msgP.innerText = 'Guardando...'; msgP.style.color = '#5d7aa9';
-
-  const checkboxes = document.querySelectorAll('.avail-checkbox:checked');
-  const selectedAvailability = Array.from(checkboxes).map(cb => cb.value);
-
+  const msgP = document.getElementById('avail-msg'); msgP.innerText = 'Guardando...'; msgP.style.color = '#5d7aa9';
+  const selected = Array.from(document.querySelectorAll('.avail-checkbox:checked')).map(cb => cb.value);
   try {
-    await db.collection('publishers').doc(currentUserPublisherId).update({ availability: selectedAvailability });
-    msgP.innerText = '¡Disponibilidad guardada con éxito!'; msgP.style.color = 'green';
-    setTimeout(() => { msgP.innerText = ''; }, 3000);
+    await db.collection('publishers').doc(currentUserPublisherId).update({ availability: selected });
+    msgP.innerText = '¡Guardado!'; msgP.style.color = 'green'; setTimeout(() => msgP.innerText = '', 3000);
   } catch (error) { msgP.innerText = 'Error al guardar.'; msgP.style.color = 'red'; }
 }

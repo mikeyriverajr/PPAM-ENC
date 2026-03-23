@@ -97,9 +97,7 @@ async function savePublisher() {
   msgP.innerText = ''; errorP.innerText = '';
   if (!firstName || !lastName) { errorP.innerText = 'El nombre y apellido son obligatorios.'; return; }
 
-  // Create the fake email format for Firebase Auth
   const email = username ? username.toLowerCase().replace(/\s+/g, '') + '@ppam.app' : '';
-
   let partnerName = "";
   if (partnerId) { const pObj = allPublishers.find(p => p.id === partnerId); if (pObj) partnerName = `${pObj.firstName} ${pObj.lastName}`; }
   const pubData = { firstName, lastName, gender, partner: partnerId, partnerName, hardPair };
@@ -284,13 +282,14 @@ async function deleteLocation() {
 }
 
 // ==========================================
-// TAB 3: SCHEDULE GENERATOR 
+// TAB 3: SCHEDULE GENERATOR & EDITOR
 // ==========================================
 let draftSchedule = []; 
 
+// FEATURE 1: GENERATE NEW DRAFT
 async function generateDraft() {
   const btn = document.querySelector('#tab-schedule button');
-  btn.innerText = "Generando..."; btn.disabled = true;
+  btn.innerText = "Calculando..."; btn.disabled = true;
 
   try {
     const monthVal = document.getElementById('gen-month').value; 
@@ -298,10 +297,7 @@ async function generateDraft() {
     const targetYear = parseInt(targetYearStr);
     const targetMonthIndex = parseInt(targetMonthStr) - 1; 
 
-    const pubsSnap = await db.collection('publishers').get();
     const locsSnap = await db.collection('locations').where('isActive', '==', true).get();
-
-    const publishers = []; pubsSnap.forEach(d => { let p=d.data(); p.id=d.id; publishers.push(p); });
     const locations = []; locsSnap.forEach(d => { let l=d.data(); l.id=d.id; locations.push(l); });
 
     const daysInMonth = new Date(targetYear, targetMonthIndex + 1, 0).getDate();
@@ -317,6 +313,7 @@ async function generateDraft() {
         (loc.templates || []).forEach(t => {
           if (t.day === dayName) {
             shiftTasks.push({
+              docId: null, // Marks it as a brand new draft
               dateObj: dateObj, dateString: dateString, location: loc.name, time: `${t.startTime}-${t.endTime}`,
               capacity: loc.capacity, availKey: `${loc.name}_${t.day}_${t.startTime}`,
               pool: [], assigned: []
@@ -326,7 +323,7 @@ async function generateDraft() {
       });
     }
 
-    publishers.forEach(pub => {
+    allPublishers.forEach(pub => {
       const avail = pub.availability || [];
       shiftTasks.forEach(task => { if (avail.includes(task.availKey)) task.pool.push(pub); });
     });
@@ -336,8 +333,7 @@ async function generateDraft() {
     let assignedCounts = {}; let assignedDates = {};  
 
     function canAssign(pubId, dateObj, dateString) {
-      let pub = publishers.find(p => p.id === pubId);
-      // <--- NEW: Dynamic limits up to 5
+      let pub = allPublishers.find(p => p.id === pubId);
       let limit = pub.maxShifts ? parseInt(pub.maxShifts) : 5;
       
       if ((assignedCounts[pubId] || 0) >= limit) return false; 
@@ -355,7 +351,7 @@ async function generateDraft() {
         if (!canAssign(pub.id, task.dateObj, task.dateString)) return; 
 
         if (pub.hardPair && pub.partner) {
-          let partner = publishers.find(p => p.id === pub.partner);
+          let partner = allPublishers.find(p => p.id === pub.partner);
           if (!partner) return;
           if (!task.pool.find(p => p.id === partner.id)) return; 
           if (!canAssign(partner.id, task.dateObj, task.dateString)) return; 
@@ -379,9 +375,90 @@ async function generateDraft() {
 
     draftSchedule = shiftTasks.sort((a,b) => a.dateObj - b.dateObj); 
     renderPreviewTable();
+    document.querySelector('#schedule-preview-container button').innerText = "Guardar Nuevo Programa";
 
   } catch (error) { alert("Error al generar: " + error.message); } 
-  finally { btn.innerText = "Generar Propuesta (Borrador)"; btn.disabled = false; }
+  finally { btn.innerText = "1. Generar Borrador Nuevo"; btn.disabled = false; }
+}
+
+// FEATURE 2: LOAD PUBLISHED MONTH
+async function loadPublishedMonth() {
+  const monthVal = document.getElementById('gen-month').value; 
+  const startDate = `${monthVal}-01`;
+  const endDate = `${monthVal}-31`;
+
+  try {
+    const shiftsSnap = await db.collection('shifts')
+        .where('date', '>=', startDate)
+        .where('date', '<=', endDate)
+        .get();
+
+    if (shiftsSnap.empty) {
+        alert("No hay turnos publicados para este mes en la base de datos.");
+        return;
+    }
+
+    draftSchedule = [];
+    
+    shiftsSnap.forEach(doc => {
+        const s = doc.data();
+        let assignedPubs = [];
+        (s.participants || []).forEach(pubId => {
+            let pubObj = allPublishers.find(p => p.id === pubId);
+            if (pubObj) assignedPubs.push(pubObj);
+        });
+
+        const [y, m, d] = s.date.split('-');
+        const dateObj = new Date(parseInt(y), parseInt(m)-1, parseInt(d));
+        const dayName = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][dateObj.getDay()];
+        const availKey = `${s.location}_${dayName}_${s.time.split('-')[0]}`;
+
+        let taskPool = [];
+        allPublishers.forEach(pub => {
+            if ((pub.availability || []).includes(availKey)) taskPool.push(pub);
+        });
+
+        draftSchedule.push({
+            docId: doc.id, // Marks it as an existing database shift!
+            dateObj: dateObj, dateString: s.date, location: s.location, time: s.time,
+            capacity: s.capacity || 2, availKey: availKey, pool: taskPool, assigned: assignedPubs
+        });
+    });
+
+    draftSchedule.sort((a,b) => a.dateObj - b.dateObj);
+    renderPreviewTable();
+    document.querySelector('#schedule-preview-container button').innerText = "Guardar Cambios";
+
+  } catch (error) { alert("Error al cargar: " + error.message); }
+}
+
+// FEATURE 3: THE NUKE BUTTON
+async function deletePublishedMonth() {
+  const monthVal = document.getElementById('gen-month').value; 
+  
+  if (!confirm(`⚠️ PELIGRO: Estás a punto de ELIMINAR todo el mes de ${monthVal}.\n\n¿Estás seguro?`)) return;
+  if (!confirm(`⚠️ ÚLTIMA ADVERTENCIA: Esta acción no se puede deshacer. Todos los publicadores perderán sus asignaciones en la aplicación.\n\n¿Proceder con la eliminación masiva?`)) return;
+
+  try {
+      const shiftsSnap = await db.collection('shifts')
+          .where('date', '>=', `${monthVal}-01`)
+          .where('date', '<=', `${monthVal}-31`)
+          .get();
+
+      if (shiftsSnap.empty) {
+          alert("No hay turnos para eliminar en este mes.");
+          return;
+      }
+
+      const batch = db.batch();
+      shiftsSnap.forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
+
+      alert("El mes ha sido eliminado por completo de la base de datos.");
+      document.getElementById('schedule-preview-container').style.display = 'none';
+      draftSchedule = [];
+
+  } catch(e) { alert("Error al eliminar: " + e.message); }
 }
 
 function renderPreviewTable() {
@@ -498,22 +575,32 @@ function manualRemove(shiftIndex, pubId) {
   renderPreviewTable(); openShiftEditModal(shiftIndex); 
 }
 
+// THE SMART SAVER
 async function publishSchedule() {
   if (draftSchedule.length === 0) return;
-  if (!confirm('¿Estás seguro de publicar este mes?')) return;
+  if (!confirm('¿Estás seguro de guardar estos cambios en la base de datos?')) return;
+  
   const btn = document.querySelector('#schedule-preview-container button');
-  btn.innerText = "Publicando..."; btn.disabled = true;
+  btn.innerText = "Guardando..."; btn.disabled = true;
 
   try {
     for (const shift of draftSchedule) {
-      await db.collection('shifts').add({
-        date: shift.dateString, location: shift.location, time: shift.time, capacity: shift.capacity,
-        participants: shift.assigned.map(p => p.id) 
-      });
+      if (shift.docId) {
+        // It's a pre-existing shift -> Just update the names!
+        await db.collection('shifts').doc(shift.docId).update({
+          participants: shift.assigned.map(p => p.id) 
+        });
+      } else {
+        // It's a brand new shift -> Create it
+        await db.collection('shifts').add({
+          date: shift.dateString, location: shift.location, time: shift.time, capacity: shift.capacity,
+          participants: shift.assigned.map(p => p.id) 
+        });
+      }
     }
-    alert('¡Programa publicado con éxito!');
+    alert('¡Programa guardado con éxito!');
     document.getElementById('schedule-preview-container').style.display = 'none';
     draftSchedule = []; 
   } catch (error) { alert("Error: " + error.message); } 
-  finally { btn.innerText = "Publicar Programa"; btn.disabled = false; }
+  finally { btn.innerText = "Guardar / Publicar"; btn.disabled = false; }
 }

@@ -17,11 +17,29 @@ const secondaryAuth = secondaryApp.auth();
 
 const formatDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-auth.onAuthStateChanged(user => {
+// ==========================================
+// THE GATEKEEPER (SECURITY & LOGIN)
+// ==========================================
+auth.onAuthStateChanged(async user => {
   if (user) {
-    document.getElementById('login-section').style.display = 'none';
-    document.getElementById('dashboard-section').style.display = 'block';
-    loadPublishers(); 
+    try {
+      const userDoc = await db.collection('users').doc(user.uid).get();
+      const isDbAdmin = userDoc.exists && userDoc.data().role === 'admin';
+      const isOriginalAdmin = !user.email.endsWith('@ppam.app'); 
+
+      if (isDbAdmin || isOriginalAdmin) {
+        document.getElementById('login-section').style.display = 'none';
+        document.getElementById('dashboard-section').style.display = 'block';
+        loadPublishers(); 
+      } else {
+        // They are just a publisher trying to sneak in! Kick them out.
+        auth.signOut();
+        document.getElementById('login-error').innerText = "Acceso Denegado: Esta cuenta no tiene permisos de Administrador.";
+      }
+    } catch (e) {
+      console.error(e);
+      auth.signOut();
+    }
   } else {
     document.getElementById('login-section').style.display = 'block';
     document.getElementById('dashboard-section').style.display = 'none';
@@ -29,11 +47,18 @@ auth.onAuthStateChanged(user => {
 });
 
 function adminLogin() {
-  const email = document.getElementById('admin-user').value;
+  let input = document.getElementById('admin-user').value.trim();
   const pass = document.getElementById('admin-pass').value;
   const errorDiv = document.getElementById('login-error');
   errorDiv.innerText = "";
-  auth.signInWithEmailAndPassword(email, pass).catch(e => { errorDiv.innerText = "Error: " + e.message; });
+  
+  // Smart Login: Allows your real email OR their simple username
+  let email = input;
+  if (!input.includes('@')) {
+      email = input.toLowerCase().replace(/\s+/g, '') + '@ppam.app';
+  }
+
+  auth.signInWithEmailAndPassword(email, pass).catch(e => { errorDiv.innerText = "Error: Verifica tu usuario o contraseña."; });
 }
 
 function logout() { auth.signOut(); }
@@ -52,7 +77,7 @@ function switchAdminTab(tabId) {
 // TAB 1: DIRECTORIO LOGIC
 // ==========================================
 let allPublishers = []; 
-let currentLinkedUserDocId = null; // To track if they have an account
+let currentLinkedUserDocId = null; 
 
 async function loadPublishers() {
   const listDiv = document.getElementById('publishers-list');
@@ -106,12 +131,17 @@ async function savePublisher() {
   try {
     if (id) {
       await db.collection('publishers').doc(id).update(pubData);
+      
+      // If we are creating a new account for an existing publisher
       if (email && password && !usernameIsDisabled) {
         if (password.length < 6) { errorP.innerText = 'Contraseña requiere 6+ caracteres.'; setTimeout(() => { clearPublisherForm(); loadPublishers(); }, 2500); return; }
         const userCred = await secondaryAuth.createUserWithEmailAndPassword(email, password);
-        // ADDING REQUIREPASSWORDCHANGE: TRUE
         await db.collection('users').doc(userCred.user.uid).set({ publisherId: id, role: role, username: username, requirePasswordChange: true });
         await secondaryAuth.signOut();
+      } 
+      // If the account already exists, just update their role!
+      else if (currentLinkedUserDocId) {
+        await db.collection('users').doc(currentLinkedUserDocId).update({ role: role });
       }
       msgP.innerText = 'Actualizado exitosamente.';
     } else {
@@ -168,7 +198,6 @@ async function editPublisher(id) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-// ADMIN OVERRIDE WORKAROUND
 async function unlinkAccount() {
   if (!currentLinkedUserDocId) return;
   if (!confirm("⚠️ ¿Estás seguro de desvincular esta cuenta? Esto borrará su acceso actual. Podrás asignarle un nuevo usuario y contraseña temporal inmediatamente.")) return;
@@ -180,7 +209,7 @@ async function unlinkAccount() {
       currentLinkedUserDocId = null;
       document.getElementById('pub-username').disabled = false;
       document.getElementById('pub-password').disabled = false;
-      document.getElementById('pub-username').value = document.getElementById('pub-username').value + '2'; // Suggest new username
+      document.getElementById('pub-username').value = document.getElementById('pub-username').value + '2'; 
       document.getElementById('pub-password').placeholder = "Ingresa contraseña temporal";
       document.getElementById('account-status-msg').innerText = "⚠️ Cuenta desvinculada. Crea los nuevos datos de acceso.";
       document.getElementById('btn-unlink').style.display = 'none';
@@ -228,7 +257,9 @@ function filterPublishers() {
   cards.forEach(c => { c.style.display = c.querySelector('.pub-name').innerText.toLowerCase().includes(input) ? 'flex' : 'none'; });
 }
 
-// ... (LOCATIONS AND SCHEDULE LOGIC REMAINS EXACTLY THE SAME AS PREVIOUS ITERATION)
+// ==========================================
+// TAB 2: LOCATIONS LOGIC
+// ==========================================
 async function loadLocations() {
   const listDiv = document.getElementById('locations-list');
   listDiv.innerHTML = '<p style="color:#666;">Cargando ubicaciones...</p>';
@@ -307,7 +338,11 @@ async function deleteLocation() {
   closeLocationModal(); loadLocations();
 }
 
+// ==========================================
+// TAB 3: SCHEDULE GENERATOR & EDITOR
+// ==========================================
 let draftSchedule = []; 
+
 async function checkMonthStatus() {
     const monthVal = document.getElementById('gen-month').value;
     const btnGen = document.getElementById('btn-gen-draft');

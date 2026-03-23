@@ -128,20 +128,29 @@
   
   <div id="tab-schedule" class="tab-content">
       <div style="background:#f9f9f9; padding:20px; border-radius:8px; border: 1px solid #ddd;">
-          <h3 style="margin-top: 0; color: #5d7aa9;">Generar Programa Mensual</h3>
-          <p style="color: #555; font-size: 0.9em;">Esta herramienta asigna turnos automáticamente basándose en la disponibilidad.</p>
+          <h3 style="margin-top: 0; color: #5d7aa9;">Gestión del Programa Mensual</h3>
+          <p style="color: #555; font-size: 0.9em;">Genera un mes nuevo automáticamente o edita uno que ya fue publicado.</p>
+          
           <label>Mes Objetivo</label>
           <select id="gen-month">
               <option value="2026-03">Marzo 2026</option>
               <option value="2026-04">Abril 2026</option>
               <option value="2026-05">Mayo 2026</option>
           </select>
-          <button onclick="generateDraft()" style="margin-top:15px;">Generar Propuesta (Borrador)</button>
+          
+          <div style="display:flex; gap:10px; margin-top:15px; flex-wrap: wrap;">
+              <button onclick="generateDraft()" style="flex:1; min-width: 200px;">1. Generar Borrador Nuevo</button>
+              <button onclick="loadPublishedMonth()" style="flex:1; min-width: 200px; background:#17a2b8;">2. Cargar Mes Publicado</button>
+          </div>
+          
+          <div style="text-align:right; margin-top:20px; border-top: 1px solid #ddd; padding-top: 15px;">
+              <button onclick="deletePublishedMonth()" style="width:auto; background:#dc3545; font-size:0.85em; padding:8px 15px;">⚠️ Eliminar Mes Completo</button>
+          </div>
       </div>
       
       <div id="schedule-preview-container" style="display:none; margin-top:20px;">
           <h3 style="display:flex; justify-content:space-between; align-items:center;">
-            Vista Previa
+            Vista Previa del Programa
             <span style="font-size: 0.6em; color: #666; font-weight: normal;">Haz clic en 'Editar' para modificar manualmente.</span>
           </h3>
           <div style="overflow-x:auto;">
@@ -151,7 +160,7 @@
               </table>
           </div>
           <div style="margin-top:20px; text-align:right;">
-             <button onclick="publishSchedule()" style="background:#28a745; width:auto; padding:10px 30px;">Publicar Programa</button>
+             <button onclick="publishSchedule()" style="background:#28a745; width:auto; padding:10px 30px;">Guardar / Publicar</button>
           </div>
       </div>
   </div>

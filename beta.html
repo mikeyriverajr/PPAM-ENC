@@ -8,30 +8,30 @@
       body { background-color: #f0f2f5; font-family: sans-serif; margin: 0; padding: 20px; }
       .app-container { max-width: 800px; margin: 0 auto; }
       
-      /* Login Overlay */
       #login-overlay { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 400px; margin: 40px auto; text-align: center; }
       #login-overlay input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
       #login-overlay button { width: 100%; padding: 10px; background-color: #5d7aa9; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; }
       
-      /* Header & Tabs */
       .header { background-color: #5d7aa9; color: white; padding: 15px 20px; border-radius: 10px 10px 0 0; display: flex; justify-content: space-between; align-items: center; }
       .tabs { display: flex; background: #e9ecef; border-radius: 0 0 10px 10px; overflow-x: auto; }
-      .tab { padding: 12px 20px; cursor: pointer; color: #555; font-weight: bold; white-space: nowrap; flex: 1; text-align: center; border-bottom: 3px solid transparent; }
+      .tab { padding: 12px 20px; cursor: pointer; color: #555; font-weight: bold; white-space: nowrap; flex: 1; text-align: center; border-bottom: 3px solid transparent; font-size: 0.9em; }
       .tab.active { background: white; color: #5d7aa9; border-bottom: 3px solid #5d7aa9; }
       
       .tab-content { display: none; margin-top: 20px; }
       .tab-content.active { display: block; }
 
-      /* Buttons & Inputs */
       .btn-logout { background: #f8f9fa; color: #333; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.9em; }
       .search-box { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; margin-bottom: 15px; }
       
-      /* Availability Checklist */
       .day-group { background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
       .day-title { margin-top: 0; color: #5d7aa9; border-bottom: 1px solid #eee; padding-bottom: 8px; }
       .shift-option { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 0.95em; }
       .shift-option input { transform: scale(1.2); cursor: pointer; }
       .shift-option label { cursor: pointer; flex: 1; }
+      
+      .btn-action { padding: 8px 15px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 0.85em; }
+      .btn-danger { background-color: #dc3545; color: white; }
+      .btn-success { background-color: #28a745; color: white; }
   </style>
 </head>
 <body>
@@ -53,42 +53,35 @@
     </div>
 
     <div class="tabs">
-      <div class="tab active" onclick="switchTab('all')" id="tab-btn-all">Todos los Turnos</div>
+      <div class="tab active" onclick="switchTab('all')" id="tab-btn-all">Programa General</div>
       <div class="tab" onclick="switchTab('mine')" id="tab-btn-mine">Mis Turnos</div>
+      <div class="tab" onclick="switchTab('open')" id="tab-btn-open">Turnos Disponibles</div>
       <div class="tab" onclick="switchTab('avail')" id="tab-btn-avail">Mi Disponibilidad</div>
     </div>
 
     <div id="tab-all" class="tab-content active">
-      <input type="text" class="search-box" placeholder="🔍 Buscar por nombre o lugar...">
-      <div id="schedule-container">
-        </div>
+      <input type="text" id="search-all" class="search-box" placeholder="🔍 Buscar lugar, fecha o publicador..." onkeyup="filterAllShifts()">
+      <div id="schedule-container"></div>
     </div>
 
-    <div id="tab-mine" class="tab-content">
-      <div style="background: white; padding: 20px; border-radius: 8px; text-align: center;">
-        <h3 style="color: #666;">Tus turnos asignados</h3>
-        <p style="color: #888;">Aquí aparecerán los turnos en los que estás asignado.</p>
+    <div id="tab-mine" class="tab-content"></div>
+
+    <div id="tab-open" class="tab-content">
+      <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #17a2b8;">
+        <h3 style="margin-top: 0; color: #333;">Espacios Disponibles</h3>
+        <p style="color: #555; font-size: 0.9em; margin-bottom: 0;">Aquí puedes anotarte en turnos que aún tienen lugares libres o donde alguien ha cancelado. No puedes anotarte si tus horarios se superponen el mismo día.</p>
       </div>
+      <div id="open-shifts-container"></div>
     </div>
 
     <div id="tab-avail" class="tab-content">
       <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #5d7aa9;">
         <h3 style="margin-top: 0; color: #333;">Mi Rutina Semanal</h3>
-        <p style="color: #555; font-size: 0.9em; margin-bottom: 0;">
-          Selecciona los horarios en los que **usualmente** estás disponible para predicar. 
-          <br><br>
-          <i>Nota: Esto funciona como tu plantilla base. Si haces cambios aquí, se aplicarán la próxima vez que los hermanos generen un programa nuevo (mes siguiente). No afectará el mes en curso.</i>
-        </p>
+        <p style="color: #555; font-size: 0.9em; margin-bottom: 0;">Selecciona los horarios en los que usualmente estás disponible. Esto aplicará para la generación del próximo mes.</p>
       </div>
-
-      <div id="availability-form-container">
-        <p style="text-align: center; color: #666;">Cargando opciones...</p>
-      </div>
-      
+      <div id="availability-form-container"><p style="text-align: center; color: #666;">Cargando...</p></div>
       <div style="text-align: right; margin-top: 20px;">
-        <button onclick="saveAvailability()" style="background: #28a745; color: white; border: none; padding: 12px 25px; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 1em;">
-          Guardar Mi Disponibilidad
-        </button>
+        <button onclick="saveAvailability()" style="background: #28a745; color: white; border: none; padding: 12px 25px; border-radius: 5px; font-weight: bold; cursor: pointer;">Guardar Mi Disponibilidad</button>
         <p id="avail-msg" style="color: green; margin-top: 10px; font-weight: bold;"></p>
       </div>
     </div>

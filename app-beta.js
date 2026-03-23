@@ -1,6 +1,6 @@
-// app-beta.js - Foundation
+// app-beta.js - Complete File
 
-// 1. Paste your Firebase Config here (You get this from Project Settings in Firebase)
+// 1. Paste your real Firebase Config here
 const firebaseConfig = {
  apiKey: "AIzaSyC5HPI4WY19Om_HmQgJJl6IvXr0XrMmflQ",
   authDomain: "ppam-beta.firebaseapp.com",
@@ -25,19 +25,8 @@ auth.onAuthStateChanged(user => {
     
     console.log("Logged in successfully. UID:", user.uid);
     
-    auth.onAuthStateChanged(user => {
-  if (user) {
-    // User is logged in! Hide the login screen, show the app.
-    document.getElementById('login-overlay').style.display = 'none';
-    document.getElementById('app-content').style.display = 'block';
-    
-    console.log("Logged in successfully. UID:", user.uid);
-    
     // FETCH THE DATA!
     loadShifts(); 
-    
-  } else {
-    // ... rest of the code
   } else {
     // Not logged in. Show the login screen.
     document.getElementById('login-overlay').style.display = 'flex';
@@ -47,7 +36,6 @@ auth.onAuthStateChanged(user => {
 
 // 3. Login Function (Tied to the button in beta.html)
 function handleGatekeeperLogin() {
-  // Note: Firebase Auth uses emails, so the "Usuario" field should be an email address
   const email = document.getElementById('gate-username').value; 
   const pass = document.getElementById('gate-password').value;
   const errorDiv = document.getElementById('gate-error');
@@ -59,6 +47,12 @@ function handleGatekeeperLogin() {
       errorDiv.innerText = "Error: " + error.message;
     });
 }
+
+// 4. Logout Function
+function logout() {
+  auth.signOut();
+}
+
 // --- APP LOGIC ---
 
 // A dictionary to store our Publisher IDs and their real names
@@ -92,8 +86,9 @@ async function loadShifts() {
       const shift = doc.data();
       
       // Translate the array of Publisher IDs into an array of Real Names
-      const participantNames = shift.participants.map(id => {
-         // If the ID isn't in our dictionary, show a fallback
+      // Adding a safe fallback in case 'participants' is undefined or not an array
+      const participantsArray = shift.participants || [];
+      const participantNames = participantsArray.map(id => {
          return publisherCache[id] || 'Publicador Desconocido';
       });
 
@@ -107,9 +102,9 @@ async function loadShifts() {
 
       shiftCard.innerHTML = `
         <h3 style="margin-top: 0; color: #5d7aa9; border-bottom: 1px solid #eee; padding-bottom: 8px;">
-          📅 ${shift.date} | ⏰ ${shift.time}
+          📅 ${shift.date || 'Fecha sin definir'} | ⏰ ${shift.time || 'Hora sin definir'}
         </h3>
-        <p style="margin: 8px 0;"><strong>📍 Lugar:</strong> ${shift.location}</p>
+        <p style="margin: 8px 0;"><strong>📍 Lugar:</strong> ${shift.location || 'Lugar sin definir'}</p>
         <p style="margin: 8px 0;"><strong>👥 Publicadores:</strong> ${participantNames.join(', ')}</p>
       `;
       
@@ -121,7 +116,12 @@ async function loadShifts() {
     container.innerHTML = '<p style="color:red; text-align:center;">Error al cargar el programa. Revisa la consola.</p>';
   }
 }
-// 4. Logout Function
-function logout() {
-  auth.signOut();
+
+// 5. Tab Switching Function (Since it's referenced in your HTML)
+function switchTab(tabId) {
+  // Simple logic to handle tab switching visual states for now
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + tabId).classList.add('active');
+  
+  // We will add the logic to filter views later!
 }

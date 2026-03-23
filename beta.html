@@ -12,6 +12,12 @@
       #login-overlay input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
       #login-overlay button { width: 100%; padding: 10px; background-color: #5d7aa9; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; }
       
+      /* THE HARD GATE MODAL */
+      #force-password-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; align-items: center; justify-content: center; }
+      .force-pass-box { background: white; padding: 30px; border-radius: 10px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
+      .force-pass-box input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+      .force-pass-box button { width: 100%; padding: 10px; margin-top: 10px; background-color: #dc3545; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; }
+
       .header { background-color: #5d7aa9; color: white; padding: 15px 20px; border-radius: 10px 10px 0 0; display: flex; justify-content: space-between; align-items: center; }
       .tabs { display: flex; background: #e9ecef; border-radius: 0 0 10px 10px; overflow-x: auto; }
       .tab { padding: 12px 15px; cursor: pointer; color: #555; font-weight: bold; white-space: nowrap; flex: 1; text-align: center; border-bottom: 3px solid transparent; font-size: 0.85em; }
@@ -48,6 +54,17 @@
     <input type="password" id="gate-password" placeholder="Contraseña">
     <button onclick="handleGatekeeperLogin()">Ingresar</button>
     <p id="gate-error" style="color: red; font-size: 0.9em;"></p>
+  </div>
+
+  <div id="force-password-modal">
+    <div class="force-pass-box">
+      <h3 style="color:#dc3545; margin-top:0;">🔒 Cambio Obligatorio</h3>
+      <p style="font-size:0.9em; color:#555;">Por seguridad, debes crear una contraseña privada antes de poder acceder a tu programa.</p>
+      <input type="password" id="force-new-pass1" placeholder="Nueva Contraseña (Mín. 6 caracteres)">
+      <input type="password" id="force-new-pass2" placeholder="Confirmar Nueva Contraseña">
+      <button onclick="submitForcedPassword()">Guardar y Entrar</button>
+      <p id="force-pass-error" style="color:red; font-size:0.9em; margin-bottom:0;"></p>
+    </div>
   </div>
 
   <div id="app-content" class="app-container" style="display: none;">
@@ -95,26 +112,13 @@
       <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #6c757d;">
         <h3 style="margin-top: 0; color: #333;">Mis Datos Personales</h3>
         
-        <div class="form-group">
-          <label>Teléfono Celular</label>
-          <input type="tel" id="prof-phone" placeholder="ej. 0981 123 456">
-        </div>
-        
-        <div class="form-group">
-          <label>Correo Electrónico (Para recibir notificaciones)</label>
-          <input type="email" id="prof-email" placeholder="ej. juan@gmail.com">
-        </div>
+        <div class="form-group"><label>Teléfono Celular</label><input type="tel" id="prof-phone" placeholder="ej. 0981 123 456"></div>
+        <div class="form-group"><label>Correo Electrónico (Para recibir notificaciones)</label><input type="email" id="prof-email" placeholder="ej. juan@gmail.com"></div>
 
         <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
         <h4 style="margin-top: 0; color: #5d7aa9;">En Caso de Emergencia</h4>
-        <div class="form-group">
-          <label>Nombre del Contacto</label>
-          <input type="text" id="prof-emerg-name" placeholder="Familiar o amigo">
-        </div>
-        <div class="form-group">
-          <label>Teléfono de Emergencia</label>
-          <input type="tel" id="prof-emerg-phone" placeholder="Número de contacto">
-        </div>
+        <div class="form-group"><label>Nombre del Contacto</label><input type="text" id="prof-emerg-name" placeholder="Familiar o amigo"></div>
+        <div class="form-group"><label>Teléfono de Emergencia</label><input type="tel" id="prof-emerg-phone" placeholder="Número de contacto"></div>
 
         <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
         <h4 style="margin-top: 0; color: #5d7aa9;">Preferencias de Asignación</h4>
@@ -128,18 +132,10 @@
             <option value="1">1 turno</option>
           </select>
         </div>
-
-        <div class="form-group">
-          <label>Pareja Preferida</label>
-          <select id="prof-partner"><option value="">Cargando congregación...</option></select>
-        </div>
-
+        <div class="form-group"><label>Pareja Preferida</label><select id="prof-partner"><option value="">Cargando...</option></select></div>
         <div style="margin-top:10px; display:flex; align-items:flex-start; gap:8px;">
             <input type="checkbox" id="prof-hardpair" style="margin-top: 3px; cursor:pointer;">
-            <label for="prof-hardpair" style="margin:0; font-weight:normal; cursor:pointer; font-size: 0.9em; color: #444;">
-              <strong>Pareja Estricta:</strong> Solo programarme si mi pareja también está disponible. <br>
-              <span style="color:#dc3545; font-size:0.85em;">Nota: Activar esta opción restringirá tus asignaciones y puede significar que recibas menos turnos.</span>
-            </label>
+            <label for="prof-hardpair" style="margin:0; font-weight:normal; cursor:pointer; font-size: 0.9em; color: #444;"><strong>Pareja Estricta:</strong> Solo programarme si mi pareja también está disponible.<br><span style="color:#dc3545; font-size:0.85em;">Nota: Esto restringirá tus asignaciones.</span></label>
         </div>
         
         <div style="text-align: right; margin-top: 30px;">
@@ -147,9 +143,16 @@
           <p id="prof-msg" style="color: green; margin-top: 10px; font-weight: bold;"></p>
         </div>
 
+        <hr style="border:0; border-top:1px solid #eee; margin:30px 0 20px 0;">
+        <h4 style="margin-top: 0; color: #dc3545;">Cambiar Contraseña</h4>
+        <div class="form-group"><label>Nueva Contraseña (Mín. 6 caracteres)</label><input type="password" id="prof-new-pass"></div>
+        <div style="text-align: right; margin-top: 10px;">
+          <button onclick="changeProfilePassword()" style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer;">Actualizar Contraseña</button>
+          <p id="prof-pass-msg" style="margin-top: 10px; font-weight: bold;"></p>
+        </div>
+
       </div>
     </div>
-
   </div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>

@@ -19,26 +19,32 @@ let currentUserPublisherId = null;
 auth.onAuthStateChanged(async user => {
   if (user) {
     document.getElementById('login-overlay').style.display = 'none';
-    document.getElementById('app-content').style.display = 'block';
     
     try {
       const userDoc = await db.collection('users').doc(user.uid).get();
-      if (userDoc.exists && userDoc.data().publisherId) {
-        currentUserPublisherId = userDoc.data().publisherId;
+      if (userDoc.exists) {
+        const userData = userDoc.data();
+        currentUserPublisherId = userData.publisherId;
         
-        const pubSnap = await db.collection('publishers').get();
-        pubSnap.forEach(d => { publisherCache[d.id] = `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(); });
-        
-        loadShifts(); 
-        loadMyShifts(); 
-        loadAvailableShifts();
-        loadAvailabilityForm();
-        loadProfileForm(); // Load Profile data
+        // CHECK FOR THE HARD GATE
+        if (userData.requirePasswordChange) {
+            document.getElementById('force-password-modal').style.display = 'flex';
+            document.getElementById('app-content').style.display = 'none';
+        } else {
+            document.getElementById('force-password-modal').style.display = 'none';
+            document.getElementById('app-content').style.display = 'block';
+            
+            const pubSnap = await db.collection('publishers').get();
+            pubSnap.forEach(d => { publisherCache[d.id] = `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(); });
+            
+            loadShifts(); loadMyShifts(); loadAvailableShifts(); loadAvailabilityForm(); loadProfileForm(); 
+        }
       }
     } catch (error) { console.error("Error:", error); }
   } else {
     document.getElementById('login-overlay').style.display = 'block';
     document.getElementById('app-content').style.display = 'none';
+    document.getElementById('force-password-modal').style.display = 'none';
     currentUserPublisherId = null;
   }
 });
@@ -48,10 +54,7 @@ function handleGatekeeperLogin() {
   const pass = document.getElementById('gate-password').value;
   const errorDiv = document.getElementById('gate-error');
   errorDiv.innerText = "";
-  
-  // The Username Trick
   const email = usernameInput.toLowerCase().replace(/\s+/g, '') + '@ppam.app';
-
   auth.signInWithEmailAndPassword(email, pass).catch(err => { errorDiv.innerText = "Error: Verifica tu usuario o contraseña."; });
 }
 
@@ -62,6 +65,61 @@ function switchTab(tabId) {
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   document.getElementById('tab-btn-' + tabId).classList.add('active');
   document.getElementById('tab-' + tabId).classList.add('active');
+}
+
+// ==========================================
+// PASSWORD MANAGEMENT LOGIC
+// ==========================================
+async function submitForcedPassword() {
+  const p1 = document.getElementById('force-new-pass1').value;
+  const p2 = document.getElementById('force-new-pass2').value;
+  const err = document.getElementById('force-pass-error');
+  err.innerText = "";
+
+  if (p1.length < 6) { err.innerText = "La contraseña debe tener al menos 6 caracteres."; return; }
+  if (p1 !== p2) { err.innerText = "Las contraseñas no coinciden."; return; }
+
+  try {
+      const user = auth.currentUser;
+      await user.updatePassword(p1);
+      // Remove the flag so they are never asked again
+      await db.collection('users').doc(user.uid).update({ requirePasswordChange: false });
+      
+      // Load the app safely
+      document.getElementById('force-password-modal').style.display = 'none';
+      document.getElementById('app-content').style.display = 'block';
+      const pubSnap = await db.collection('publishers').get();
+      pubSnap.forEach(d => { publisherCache[d.id] = `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(); });
+      loadShifts(); loadMyShifts(); loadAvailableShifts(); loadAvailabilityForm(); loadProfileForm(); 
+
+  } catch (error) {
+      if(error.code === 'auth/requires-recent-login') {
+         err.innerText = "Por seguridad, cierra sesión, vuelve a ingresar e inténtalo de nuevo.";
+      } else {
+         err.innerText = "Error al actualizar: " + error.message;
+      }
+  }
+}
+
+async function changeProfilePassword() {
+  const p = document.getElementById('prof-new-pass').value;
+  const msg = document.getElementById('prof-pass-msg');
+  msg.innerText = "";
+
+  if (p.length < 6) { msg.innerText = "Mínimo 6 caracteres."; msg.style.color = "red"; return; }
+
+  try {
+      await auth.currentUser.updatePassword(p);
+      msg.innerText = "¡Contraseña actualizada con éxito!"; msg.style.color = "green";
+      document.getElementById('prof-new-pass').value = '';
+      setTimeout(() => msg.innerText = "", 3000);
+  } catch (error) {
+      if(error.code === 'auth/requires-recent-login') {
+         msg.innerText = "Error: Cierra sesión y vuelve a ingresar antes de cambiar tu contraseña."; msg.style.color = "red";
+      } else {
+         msg.innerText = "Error: " + error.message; msg.style.color = "red";
+      }
+  }
 }
 
 // ==========================================
@@ -266,7 +324,7 @@ async function saveAvailability() {
 }
 
 // ==========================================
-// TAB 5: MI PERFIL (NEW)
+// TAB 5: MI PERFIL 
 // ==========================================
 async function loadProfileForm() {
   if (!currentUserPublisherId) return;
@@ -281,11 +339,9 @@ async function loadProfileForm() {
     document.getElementById('prof-max').value = pub.maxShifts || '5';
     document.getElementById('prof-hardpair').checked = pub.hardPair || false;
 
-    // Populate Partner Dropdown (Exclude self)
     const partnerSelect = document.getElementById('prof-partner');
     partnerSelect.innerHTML = '<option value="">Ninguna (Soltero/a)</option>';
     
-    // Sort publishers alphabetically
     const sortedPubs = Object.keys(publisherCache).map(id => ({ id: id, name: publisherCache[id] })).sort((a, b) => a.name.localeCompare(b.name));
     
     sortedPubs.forEach(p => {

@@ -31,6 +31,10 @@
       table { width:100%; border-collapse:collapse; text-align:left; font-size:0.9em; margin-top: 10px; }
       th, td { padding: 10px; border: 1px solid #ddd; }
       th { background: #f8f9fa; color: #333; }
+      
+      /* Utilities */
+      .badge-green { background:#28a745; color:white; padding:2px 6px; border-radius:10px; font-size:0.8em; margin-left:5px; }
+      .badge-red { background:#dc3545; color:white; padding:2px 6px; border-radius:10px; font-size:0.8em; margin-left:5px; }
   </style>
 </head>
 <body>
@@ -63,27 +67,18 @@
       
       <div style="flex:1; min-width: 300px; background:#f9f9f9; padding:20px; border-radius:8px; border:1px solid #ddd;">
         <h3 id="pub-form-title" style="margin-top:0; color:#333;">Nuevo Publicador</h3>
-        <input type="hidden" id="pub-id"> <div style="display:flex; gap:10px;">
-          <div style="flex:1;">
-            <label>Nombre</label>
-            <input type="text" id="pub-firstname" placeholder="ej. Juan">
-          </div>
-          <div style="flex:1;">
-            <label>Apellido</label>
-            <input type="text" id="pub-lastname" placeholder="ej. Pérez">
-          </div>
+        <input type="hidden" id="pub-id"> 
+        
+        <div style="display:flex; gap:10px;">
+          <div style="flex:1;"><label>Nombre</label><input type="text" id="pub-firstname" placeholder="ej. Juan"></div>
+          <div style="flex:1;"><label>Apellido</label><input type="text" id="pub-lastname" placeholder="ej. Pérez"></div>
         </div>
         
         <label>Género</label>
-        <select id="pub-gender">
-            <option value="H">Hermano (H)</option>
-            <option value="M">Hermana (M)</option>
-        </select>
+        <select id="pub-gender"><option value="H">Hermano (H)</option><option value="M">Hermana (M)</option></select>
 
         <label>Pareja Preferida (Opcional)</label>
-        <select id="pub-partner">
-            <option value="">Cargando publicadores...</option>
-        </select>
+        <select id="pub-partner"><option value="">Cargando publicadores...</option></select>
         
         <div style="margin-top:10px; margin-bottom: 15px; display:flex; align-items:center; gap:8px;">
             <input type="checkbox" id="pub-hardpair" style="width:auto; margin:0; cursor:pointer;">
@@ -93,19 +88,9 @@
         <hr style="margin:20px 0; border:0; border-top:1px solid #ddd;">
         
         <h4 style="margin-top:0; color:#5d7aa9;">Cuenta de Acceso (Opcional)</h4>
-        <p style="font-size:0.8em; color:#666; margin-top:-10px; line-height: 1.4;">Si dejas esto en blanco, el publicador existirá en el programa pero no podrá iniciar sesión en la web.</p>
-        
-        <label>Correo Electrónico</label>
-        <input type="email" id="pub-email" placeholder="ej. juan@email.com">
-        
-        <label>Contraseña</label>
-        <input type="text" id="pub-password" placeholder="Mínimo 6 caracteres">
-        
-        <label>Rol de Usuario</label>
-        <select id="pub-role">
-            <option value="user">Publicador Normal</option>
-            <option value="admin">Administrador</option>
-        </select>
+        <label>Correo Electrónico</label><input type="email" id="pub-email" placeholder="ej. juan@email.com">
+        <label>Contraseña</label><input type="text" id="pub-password" placeholder="Mínimo 6 caracteres">
+        <label>Rol de Usuario</label><select id="pub-role"><option value="user">Publicador Normal</option><option value="admin">Administrador</option></select>
         
         <p id="account-status-msg" style="font-size:0.85em; color:#0056b3; margin-top:5px; margin-bottom:15px;"></p>
 
@@ -115,18 +100,14 @@
         </div>
         <button id="btn-cancel-pub" onclick="clearPublisherForm()" style="margin-top:10px; background:#6c757d; display: none;">Cancelar Edición</button>
         
-        <p class="success" id="pub-msg"></p>
-        <p class="error" id="pub-error"></p>
+        <p class="success" id="pub-msg"></p><p class="error" id="pub-error"></p>
       </div>
 
       <div style="flex:1; min-width: 300px;">
           <h3 style="margin-top:0; color:#333;">Directorio</h3>
           <input type="text" id="pub-search" placeholder="🔍 Buscar por nombre..." onkeyup="filterPublishers()" style="margin-bottom:15px;">
-          <div id="publishers-list" style="max-height:600px; overflow-y:auto; padding-right:5px;">
-              <p style="color: #666;">Cargando directorio...</p>
-          </div>
+          <div id="publishers-list" style="max-height:600px; overflow-y:auto; padding-right:5px;"><p style="color: #666;">Cargando directorio...</p></div>
       </div>
-
     </div>
   </div>
 
@@ -134,9 +115,7 @@
       <div style="margin-bottom:20px; text-align:right;">
           <button onclick="openLocationModal()" style="width:auto; background:#28a745; padding: 10px 20px;">+ Nueva Ubicación</button>
       </div>
-      <div id="locations-list">
-          <p style="color: #666;">Cargando ubicaciones...</p>
-      </div>
+      <div id="locations-list"><p style="color: #666;">Cargando ubicaciones...</p></div>
   </div>
 
   <div id="location-modal" class="modal">
@@ -145,44 +124,37 @@
           <h3 id="loc-modal-title" style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px;">Nueva Ubicación</h3>
           <input type="hidden" id="loc-id">
           
-          <label>Nombre de la Ubicación</label>
-          <input type="text" id="loc-name" placeholder="Ej. Costanera">
-          
-          <label>Capacidad (personas por turno)</label>
-          <input type="number" id="loc-capacity" value="2" min="1">
-          
+          <label>Nombre de la Ubicación</label><input type="text" id="loc-name" placeholder="Ej. Costanera">
+          <label>Capacidad (personas por turno)</label><input type="number" id="loc-capacity" value="2" min="1">
           <h4 style="margin-top: 20px; margin-bottom: 10px; color: #5d7aa9;">Plantillas de Turnos</h4>
-          <p style="font-size: 0.85em; color: #666; margin-top: 0;">Agrega los horarios base que el generador utilizará para crear espacios en esta ubicación.</p>
-          
-          <div id="shifts-container" style="background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee; max-height: 250px; overflow-y: auto;">
-              </div>
+          <div id="shifts-container" style="background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee; max-height: 250px; overflow-y: auto;"></div>
           
           <div style="margin-top:20px; display: flex; justify-content: flex-end; gap: 10px;">
               <button id="btn-delete-loc" onclick="deleteLocation()" style="width:auto; background:#dc3545; margin: 0; display:none;">Eliminar</button>
               <button onclick="saveLocation()" style="width:auto; background:#28a745; margin: 0;">Guardar Ubicación</button>
           </div>
-          <p id="loc-msg" class="success"></p>
-          <p id="loc-error" class="error"></p>
+          <p id="loc-msg" class="success"></p><p id="loc-error" class="error"></p>
       </div>
   </div>
   
   <div id="tab-schedule" class="tab-content">
       <div style="background:#f9f9f9; padding:20px; border-radius:8px; border: 1px solid #ddd;">
           <h3 style="margin-top: 0; color: #5d7aa9;">Generar Programa Mensual</h3>
-          <p style="color: #555; font-size: 0.9em;">Esta herramienta asigna turnos automáticamente basándose en la disponibilidad que los publicadores cargaron y las reglas de emparejamiento.</p>
-          
+          <p style="color: #555; font-size: 0.9em;">Esta herramienta asigna turnos automáticamente basándose en la disponibilidad.</p>
           <label>Mes Objetivo</label>
           <select id="gen-month">
               <option value="2026-03">Marzo 2026</option>
               <option value="2026-04">Abril 2026</option>
               <option value="2026-05">Mayo 2026</option>
           </select>
-          
           <button onclick="generateDraft()" style="margin-top:15px;">Generar Propuesta (Borrador)</button>
       </div>
       
       <div id="schedule-preview-container" style="display:none; margin-top:20px;">
-          <h3>Vista Previa del Programa</h3>
+          <h3 style="display:flex; justify-content:space-between; align-items:center;">
+            Vista Previa del Programa
+            <span style="font-size: 0.6em; color: #666; font-weight: normal;">Haz clic en 'Editar' en cualquier fila para modificar manualmente.</span>
+          </h3>
           <div style="overflow-x:auto;">
               <table id="preview-table">
                   <thead id="preview-head"></thead>
@@ -193,6 +165,29 @@
              <button onclick="publishSchedule()" style="background:#28a745; width:auto; padding:10px 30px;">Publicar Programa</button>
           </div>
       </div>
+  </div>
+
+  <div id="shift-edit-modal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="closeShiftEditModal()">×</span>
+        <h3 id="shift-modal-title" style="margin-top: 0; color: #5d7aa9; border-bottom: 1px solid #eee; padding-bottom: 10px;">Editar Turno</h3>
+        
+        <div style="margin-bottom: 15px;">
+            <strong>Actualmente asignados (<span id="shift-modal-count">0</span>):</strong>
+            <div id="shift-modal-assigned" style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+                </div>
+        </div>
+        
+        <hr style="border:0; border-top:1px solid #ddd; margin: 15px 0;">
+        
+        <div style="margin-bottom: 10px;">
+            <strong>Añadir Publicador Manualmente:</strong>
+            <div style="display:flex; gap: 10px; margin-top: 5px; align-items: center;">
+                <select id="shift-add-select" style="margin:0; flex:1;"></select>
+                <button id="shift-add-btn" style="margin:0; width:auto; background:#17a2b8; padding:10px 15px;">Añadir</button>
+            </div>
+        </div>
+    </div>
   </div>
 
 </div>

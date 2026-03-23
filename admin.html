@@ -180,6 +180,19 @@
           
           <button onclick="generateDraft()" style="margin-top:15px;">Generar Propuesta (Borrador)</button>
       </div>
+      
+      <div id="schedule-preview-container" style="display:none; margin-top:20px;">
+          <h3>Vista Previa del Programa</h3>
+          <div style="overflow-x:auto;">
+              <table id="preview-table">
+                  <thead id="preview-head"></thead>
+                  <tbody id="preview-body"></tbody>
+              </table>
+          </div>
+          <div style="margin-top:20px; text-align:right;">
+             <button onclick="publishSchedule()" style="background:#28a745; width:auto; padding:10px 30px;">Publicar Programa</button>
+          </div>
+      </div>
   </div>
 
 </div>

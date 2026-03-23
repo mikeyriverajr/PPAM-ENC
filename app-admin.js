@@ -11,12 +11,12 @@ const firebaseConfig = {
   measurementId: "G-BXVKGLHV9L"
 };
 
-// Initialize Main Firebase App (For your Admin Session)
+// Initialize Main Firebase App
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-// Initialize Secondary App (The "Ghost" app to create users without logging you out)
+// Initialize Secondary App (The "Ghost" app)
 const secondaryApp = firebase.initializeApp(firebaseConfig, "Secondary");
 const secondaryAuth = secondaryApp.auth();
 
@@ -25,8 +25,6 @@ auth.onAuthStateChanged(user => {
   if (user) {
     document.getElementById('login-section').style.display = 'none';
     document.getElementById('dashboard-section').style.display = 'block';
-    
-    // Load the default active tab data
     loadPublishers(); 
   } else {
     document.getElementById('login-section').style.display = 'block';
@@ -44,9 +42,7 @@ function adminLogin() {
     .catch(error => { errorDiv.innerText = "Error: " + error.message; });
 }
 
-function logout() {
-  auth.signOut();
-}
+function logout() { auth.signOut(); }
 
 // --- UI NAVIGATION ---
 function switchAdminTab(tabId) {
@@ -61,10 +57,10 @@ function switchAdminTab(tabId) {
 }
 
 // ==========================================
-// TAB 1: DIRECTORIO LOGIC (NEW)
+// TAB 1: DIRECTORIO LOGIC
 // ==========================================
 
-let allPublishers = []; // Global array to hold publishers for the partner dropdown
+let allPublishers = []; 
 
 async function loadPublishers() {
   const listDiv = document.getElementById('publishers-list');
@@ -89,7 +85,6 @@ async function loadPublishers() {
       pub.id = doc.id;
       allPublishers.push(pub);
       
-      // 1. Add to the Directorio List on the right
       const card = document.createElement('div');
       card.className = 'pub-card';
       card.style.cssText = "background:white; padding:15px; margin-bottom:10px; border:1px solid #ddd; border-radius:5px; display:flex; justify-content:space-between; align-items:center;";
@@ -107,13 +102,11 @@ async function loadPublishers() {
       `;
       listDiv.appendChild(card);
       
-      // 2. Add to the Partner Dropdown on the left
       partnerSelect.innerHTML += `<option value="${pub.id}">${pub.firstName} ${pub.lastName}</option>`;
     });
 
   } catch (error) {
     listDiv.innerHTML = '<p class="error">Error al cargar el directorio.</p>';
-    console.error(error);
   }
 }
 
@@ -128,6 +121,7 @@ async function savePublisher() {
   const email = document.getElementById('pub-email').value.trim();
   const password = document.getElementById('pub-password').value;
   const role = document.getElementById('pub-role').value;
+  const emailIsDisabled = document.getElementById('pub-email').disabled;
   
   const msgP = document.getElementById('pub-msg');
   const errorP = document.getElementById('pub-error');
@@ -139,52 +133,50 @@ async function savePublisher() {
     return;
   }
 
-  // Get the partner's name for display purposes if a partner is selected
   let partnerName = "";
   if (partnerId) {
     const partnerObj = allPublishers.find(p => p.id === partnerId);
     if (partnerObj) partnerName = `${partnerObj.firstName} ${partnerObj.lastName}`;
   }
 
-  const pubData = {
-    firstName: firstName,
-    lastName: lastName,
-    gender: gender,
-    partner: partnerId,
-    partnerName: partnerName,
-    hardPair: hardPair
-  };
+  const pubData = { firstName, lastName, gender, partner: partnerId, partnerName, hardPair };
 
   try {
-    let finalPubId = id;
-
     if (id) {
-      // UPDATE EXISTING PUBLISHER
+      // 1. UPDATE EXISTING
       await db.collection('publishers').doc(id).update(pubData);
+      
+      // Feature: Late Account Creation
+      if (email && password && !emailIsDisabled) {
+        if (password.length < 6) {
+           errorP.innerText = 'Datos actualizados, pero la contraseña debe tener 6+ caracteres.';
+           setTimeout(() => { clearPublisherForm(); loadPublishers(); }, 2500);
+           return;
+        }
+        msgP.innerText = 'Actualizando perfil y creando cuenta web...';
+        const userCred = await secondaryAuth.createUserWithEmailAndPassword(email, password);
+        await db.collection('users').doc(userCred.user.uid).set({
+          publisherId: id, role: role, email: email
+        });
+        await secondaryAuth.signOut();
+      }
+      
       msgP.innerText = 'Publicador actualizado exitosamente.';
     } else {
-      // CREATE NEW PUBLISHER
+      // 2. CREATE NEW
       const newPubRef = await db.collection('publishers').add(pubData);
-      finalPubId = newPubRef.id;
       
-      // Handle Optional Account Creation using the "Ghost" app
       if (email && password) {
         if (password.length < 6) {
-           errorP.innerText = 'El publicador se guardó, pero la contraseña debe tener al menos 6 caracteres.';
-           loadPublishers(); return;
+           errorP.innerText = 'El publicador se guardó, pero la contraseña debe tener 6+ caracteres.';
+           setTimeout(() => { clearPublisherForm(); loadPublishers(); }, 2500);
+           return;
         }
-        
         msgP.innerText = 'Creando publicador y cuenta web...';
         const userCred = await secondaryAuth.createUserWithEmailAndPassword(email, password);
-        
-        // Link the new Auth UID to the Publisher Profile
         await db.collection('users').doc(userCred.user.uid).set({
-          publisherId: finalPubId,
-          role: role,
-          email: email
+          publisherId: newPubRef.id, role: role, email: email
         });
-        
-        // Log the ghost app out
         await secondaryAuth.signOut();
       }
       msgP.innerText = 'Publicador creado exitosamente.';
@@ -192,15 +184,14 @@ async function savePublisher() {
     
     setTimeout(() => { clearPublisherForm(); loadPublishers(); }, 1500);
     
-  } catch (error) {
-    errorP.innerText = 'Error: ' + error.message;
-  }
+  } catch (error) { errorP.innerText = 'Error: ' + error.message; }
 }
 
-function editPublisher(id) {
+async function editPublisher(id) {
   const pub = allPublishers.find(p => p.id === id);
   if (!pub) return;
   
+  document.getElementById('pub-form-title').innerText = 'Editar Publicador';
   document.getElementById('pub-id').value = pub.id;
   document.getElementById('pub-firstname').value = pub.firstName || '';
   document.getElementById('pub-lastname').value = pub.lastName || '';
@@ -208,21 +199,65 @@ function editPublisher(id) {
   document.getElementById('pub-partner').value = pub.partner || '';
   document.getElementById('pub-hardpair').checked = pub.hardPair || false;
   
-  // Disable account creation fields during edit to avoid accidental overwrites
-  document.getElementById('pub-email').disabled = true;
-  document.getElementById('pub-password').disabled = true;
-  document.getElementById('pub-role').disabled = true;
-  document.getElementById('pub-email').placeholder = "No se puede editar aquí";
-  document.getElementById('pub-password').placeholder = "No se puede editar aquí";
-  
   document.getElementById('btn-cancel-pub').style.display = 'block';
-  document.getElementById('pub-msg').innerText = 'Modo edición activado.';
+  document.getElementById('btn-delete-pub').style.display = 'block';
+  document.getElementById('pub-msg').innerText = 'Revisando estado de la cuenta...';
   
-  // Scroll to top to see the form
+  // Check if they already have an account linked
+  const userQuery = await db.collection('users').where('publisherId', '==', id).get();
+  
+  if (!userQuery.empty) {
+     // Account exists - lock it
+     const userData = userQuery.docs[0].data();
+     document.getElementById('pub-email').value = userData.email || '';
+     document.getElementById('pub-password').value = '';
+     document.getElementById('pub-email').disabled = true;
+     document.getElementById('pub-password').disabled = true;
+     document.getElementById('pub-role').value = userData.role || 'user';
+     document.getElementById('pub-password').placeholder = "Cuenta vinculada (Bloqueado)";
+     document.getElementById('account-status-msg').innerText = "✅ Este publicador ya tiene una cuenta web vinculada.";
+  } else {
+     // No account - open it up for late creation
+     document.getElementById('pub-email').value = '';
+     document.getElementById('pub-password').value = '';
+     document.getElementById('pub-email').disabled = false;
+     document.getElementById('pub-password').disabled = false;
+     document.getElementById('pub-role').value = 'user';
+     document.getElementById('pub-password').placeholder = "Mínimo 6 caracteres";
+     document.getElementById('account-status-msg').innerText = "⚠️ Sin cuenta. Puedes crearle una ahora ingresando un correo y contraseña.";
+  }
+  
+  document.getElementById('pub-msg').innerText = 'Modo edición activado.';
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+async function deletePublisher() {
+  const id = document.getElementById('pub-id').value;
+  if (!id) return;
+
+  if (!confirm('¿Estás seguro de eliminar este publicador? Esto borrará su perfil del directorio y revocará su acceso. No se puede deshacer.')) return;
+
+  try {
+    document.getElementById('pub-msg').innerText = 'Eliminando...';
+    
+    // 1. Delete the publisher profile
+    await db.collection('publishers').doc(id).delete();
+
+    // 2. Delete the linked database login record
+    const userQuery = await db.collection('users').where('publisherId', '==', id).get();
+    userQuery.forEach(async (doc) => {
+       await db.collection('users').doc(doc.id).delete();
+    });
+
+    clearPublisherForm();
+    loadPublishers();
+  } catch (error) {
+    document.getElementById('pub-error').innerText = "Error al eliminar: " + error.message;
+  }
+}
+
 function clearPublisherForm() {
+  document.getElementById('pub-form-title').innerText = 'Nuevo Publicador';
   document.getElementById('pub-id').value = '';
   document.getElementById('pub-firstname').value = '';
   document.getElementById('pub-lastname').value = '';
@@ -240,6 +275,8 @@ function clearPublisherForm() {
   document.getElementById('pub-password').placeholder = "Mínimo 6 caracteres";
   
   document.getElementById('btn-cancel-pub').style.display = 'none';
+  document.getElementById('btn-delete-pub').style.display = 'none';
+  document.getElementById('account-status-msg').innerText = '';
   document.getElementById('pub-msg').innerText = '';
   document.getElementById('pub-error').innerText = '';
 }
@@ -247,21 +284,15 @@ function clearPublisherForm() {
 function filterPublishers() {
   const input = document.getElementById('pub-search').value.toLowerCase();
   const cards = document.querySelectorAll('.pub-card');
-  
   cards.forEach(card => {
     const name = card.querySelector('.pub-name').innerText.toLowerCase();
-    if (name.includes(input)) {
-      card.style.display = 'flex';
-    } else {
-      card.style.display = 'none';
-    }
+    card.style.display = name.includes(input) ? 'flex' : 'none';
   });
 }
 
 // ==========================================
-// TAB 2: LOCATIONS LOGIC (EXISTING)
+// TAB 2: LOCATIONS LOGIC
 // ==========================================
-
 async function loadLocations() {
   const listDiv = document.getElementById('locations-list');
   listDiv.innerHTML = '<p style="color:#666;">Cargando ubicaciones...</p>';

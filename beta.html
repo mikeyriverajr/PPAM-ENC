@@ -3,92 +3,102 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <!-- Ensure Referrer is sent for Google API Restrictions -->
-  <meta name="referrer" content="no-referrer-when-downgrade">
-  <meta name="theme-color" content="#5d7aa9">
-  <title>Programa PPEAM – Enero 2026</title>
-  <link rel="stylesheet" href="style.css">
-  
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="icon.png">
-  
-  <!-- Manifest for PWA -->
-  <link rel="manifest" href="manifest.json">
+  <title>PPAM - Predicación Pública</title>
+  <style>
+      body { background-color: #f0f2f5; font-family: sans-serif; margin: 0; padding: 20px; }
+      .app-container { max-width: 800px; margin: 0 auto; }
+      
+      /* Login Overlay */
+      #login-overlay { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 400px; margin: 40px auto; text-align: center; }
+      #login-overlay input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+      #login-overlay button { width: 100%; padding: 10px; background-color: #5d7aa9; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; }
+      
+      /* Header & Tabs */
+      .header { background-color: #5d7aa9; color: white; padding: 15px 20px; border-radius: 10px 10px 0 0; display: flex; justify-content: space-between; align-items: center; }
+      .tabs { display: flex; background: #e9ecef; border-radius: 0 0 10px 10px; overflow-x: auto; }
+      .tab { padding: 12px 20px; cursor: pointer; color: #555; font-weight: bold; white-space: nowrap; flex: 1; text-align: center; border-bottom: 3px solid transparent; }
+      .tab.active { background: white; color: #5d7aa9; border-bottom: 3px solid #5d7aa9; }
+      
+      .tab-content { display: none; margin-top: 20px; }
+      .tab-content.active { display: block; }
+
+      /* Buttons & Inputs */
+      .btn-logout { background: #f8f9fa; color: #333; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.9em; }
+      .search-box { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; margin-bottom: 15px; }
+      
+      /* Availability Checklist */
+      .day-group { background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+      .day-title { margin-top: 0; color: #5d7aa9; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+      .shift-option { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 0.95em; }
+      .shift-option input { transform: scale(1.2); cursor: pointer; }
+      .shift-option label { cursor: pointer; flex: 1; }
+  </style>
 </head>
 <body>
-  <div class="container">
-    <header>
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-          <h1>Predicación Pública</h1>
-          <div style="position:relative;">
-              <button onclick="toggleNotifications()" style="background:none; border:none; cursor:pointer; font-size:1.5em; position:relative;">
-                  🔔
-                  <span id="notif-badge" style="display:none; position:absolute; top:0; right:0; background:red; color:white; border-radius:50%; font-size:0.5em; padding:2px 5px;">0</span>
-              </button>
-              <div id="notif-dropdown" style="display:none; position:absolute; right:0; top:40px; background:white; border:1px solid #ddd; width:300px; box-shadow:0 4px 10px rgba(0,0,0,0.2); z-index:1000; border-radius:8px; max-height:400px; overflow-y:auto;">
-                  <div id="notif-list">
-                      <p style="padding:15px; text-align:center; color:#666;">Cargando notificaciones...</p>
-                  </div>
-              </div>
-          </div>
-      </div>
-      <div id="auth-status" style="text-align: right; font-size: 0.9em; margin-top: 5px;">
-        <span id="user-display-name">Invitado</span>
-        <button id="auth-btn" onclick="logout()">Salir</button>
-      </div>
-    </header>
 
-    <!-- Login Gatekeeper (Always visible if not logged in) -->
-    <div id="login-overlay" style="position:fixed; z-index:2000; left:0; top:0; width:100%; height:100%; background-color:#5d7aa9; display:flex; justify-content:center; align-items:center; flex-direction:column;">
-      <div style="background:white; padding:30px; border-radius:10px; box-shadow:0 4px 15px rgba(0,0,0,0.2); width:90%; max-width:350px; text-align:center;">
-        <img src="icon.png" alt="Logo" style="width:64px; height:64px; margin-bottom:20px;">
-        <h2 style="margin-top:0; color:#333;">Bienvenido</h2>
-        <p style="color:#666; margin-bottom:20px;">Ingresa tus credenciales para ver el calendario.</p>
-        
-        <input type="text" id="gate-username" placeholder="Usuario" style="width:100%; padding:12px; margin:8px 0; border:1px solid #ddd; border-radius:5px; box-sizing:border-box;">
-        <input type="password" id="gate-password" placeholder="Contraseña" style="width:100%; padding:12px; margin:8px 0; border:1px solid #ddd; border-radius:5px; box-sizing:border-box;">
-        
-        <div id="gate-error" style="color:red; margin:10px 0; font-size:0.9em; min-height:1.2em;"></div>
-        
-        <button onclick="handleGatekeeperLogin()" style="width:100%; padding:12px; background-color:#5d7aa9; color:white; border:none; border-radius:5px; font-weight:bold; cursor:pointer; font-size:1em;">Ingresar</button>
-      </div>
-    </div>
-
-    <!-- Main App Content (Hidden until login) -->
-    <div id="app-content" style="display:none;">
-        <div class="view-tabs">
-          <button id="tab-all" class="tab active" onclick="switchTab('all')">Todos los Turnos</button>
-          <button id="tab-mine" class="tab" onclick="switchTab('mine')">Mis Turnos</button>
-          <button id="tab-available" class="tab" onclick="switchTab('available')">Turnos Disponibles</button>
-          <button id="tab-availability-input" class="tab" onclick="switchTab('availability-input')">Mi Disponibilidad</button>
-        </div>
-    
-        <div id="shift-counter" class="shift-counter" style="display: none;"></div>
-        
-        <div id="all-view-instructions" class="info-box">
-          <p><strong>Tip:</strong> Toca la estrella <span style="color:#ccc; font-size:1.2em">☆</span> junto a tu nombre para guardar tus turnos en la pestaña <strong>"Mis Turnos"</strong>.</p>
-        </div>
-
-        <div id="availability-instructions" class="info-box" style="display:none;">
-           <p>Selecciona los días y horarios en los que puedes predicar el próximo mes. Esto ayudará al administrador a armar el programa.</p>
-        </div>
-    
-        <div class="search-box" id="search-container">
-          <input type="text" id="searchInput" placeholder="Buscar nombre..." onkeyup="searchName()">
-          <button onclick="clearSearch()">Limpiar</button>
-        </div>
-        
-        <div id="schedule-container">Loading schedule...</div>
-        <div id="availability-container" style="display:none;"></div>
-    </div>
+  <div id="login-overlay">
+    <h2 style="color: #5d7aa9; margin-bottom: 5px;">Bienvenido</h2>
+    <p style="color: #666; font-size: 0.9em;">Ingresa tus credenciales para ver tu programa.</p>
+    <input type="email" id="gate-username" placeholder="Correo electrónico">
+    <input type="password" id="gate-password" placeholder="Contraseña">
+    <button onclick="handleGatekeeperLogin()">Ingresar</button>
+    <p id="gate-error" style="color: red; font-size: 0.9em;"></p>
   </div>
 
-  <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <div id="app-content" class="app-container" style="display: none;">
+    
+    <div class="header">
+      <h2 style="margin: 0; font-size: 1.2em;">Predicación Pública</h2>
+      <button class="btn-logout" onclick="logout()">Salir</button>
+    </div>
 
-  <!-- App Script (Config is internal) -->
-  <script src="app-beta.js"></script>
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('all')" id="tab-btn-all">Todos los Turnos</div>
+      <div class="tab" onclick="switchTab('mine')" id="tab-btn-mine">Mis Turnos</div>
+      <div class="tab" onclick="switchTab('avail')" id="tab-btn-avail">Mi Disponibilidad</div>
+    </div>
+
+    <div id="tab-all" class="tab-content active">
+      <input type="text" class="search-box" placeholder="🔍 Buscar por nombre o lugar...">
+      <div id="schedule-container">
+        </div>
+    </div>
+
+    <div id="tab-mine" class="tab-content">
+      <div style="background: white; padding: 20px; border-radius: 8px; text-align: center;">
+        <h3 style="color: #666;">Tus turnos asignados</h3>
+        <p style="color: #888;">Aquí aparecerán los turnos en los que estás asignado.</p>
+      </div>
+    </div>
+
+    <div id="tab-avail" class="tab-content">
+      <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #5d7aa9;">
+        <h3 style="margin-top: 0; color: #333;">Mi Rutina Semanal</h3>
+        <p style="color: #555; font-size: 0.9em; margin-bottom: 0;">
+          Selecciona los horarios en los que **usualmente** estás disponible para predicar. 
+          <br><br>
+          <i>Nota: Esto funciona como tu plantilla base. Si haces cambios aquí, se aplicarán la próxima vez que los hermanos generen un programa nuevo (mes siguiente). No afectará el mes en curso.</i>
+        </p>
+      </div>
+
+      <div id="availability-form-container">
+        <p style="text-align: center; color: #666;">Cargando opciones...</p>
+      </div>
+      
+      <div style="text-align: right; margin-top: 20px;">
+        <button onclick="saveAvailability()" style="background: #28a745; color: white; border: none; padding: 12px 25px; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 1em;">
+          Guardar Mi Disponibilidad
+        </button>
+        <p id="avail-msg" style="color: green; margin-top: 10px; font-weight: bold;"></p>
+      </div>
+    </div>
+
+  </div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<script src="app-beta.js"></script>
 </body>
 </html>

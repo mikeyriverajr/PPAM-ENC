@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>PPAM - Database Seeder</title>
+  <style>
+    body { font-family: sans-serif; padding: 40px; background: #f0f2f5; text-align: center; }
+    .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+    button { background: #5d7aa9; color: white; border: none; padding: 15px 30px; font-size: 1.2em; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%;}
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    #log { margin-top: 20px; text-align: left; background: #f8f9fa; padding: 15px; border-radius: 5px; height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.9em; border: 1px solid #ddd;}
+  </style>
+</head>
+<body>
+
+  <div class="container" id="login-section">
+    <h2 style="color: #5d7aa9; margin-bottom: 5px;">Seeder Login</h2>
+    <p style="color: #666; margin-top: 0;">Ingresa tu correo de Admin para autorizar la carga de datos.</p>
+    <input type="text" id="admin-user" placeholder="Correo electrónico admin">
+    <input type="password" id="admin-pass" placeholder="Contraseña">
+    <button onclick="adminLogin()">Autorizar</button>
+    <p id="login-error" style="color: red;"></p>
+  </div>
+
+  <div class="container" id="seeder-section" style="display: none;">
+    <h2 style="color: #5d7aa9;">Generador de Datos (30 Publicadores)</h2>
+    <p style="color: #666; margin-bottom: 25px;">Conectado como Admin. Generará 30 publicadores con disponibilidad aleatoria. <br><br><strong>Todos tendrán la contraseña:</strong> <code>123456</code></p>
+    
+    <button id="btn-seed" onclick="startSeeding()">🚀 Generar 30 Publicadores</button>
+    <div id="log"><p style="color: #888; margin:0;">Esperando para iniciar...</p></div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+  <script>
+    // 1. Firebase Config
+    const firebaseConfig = {
+      apiKey: "AIzaSyC5HPI4WY19Om_HmQgJJl6IvXr0XrMmflQ",
+      authDomain: "ppam-beta.firebaseapp.com",
+      projectId: "ppam-beta",
+      storageBucket: "ppam-beta.firebasestorage.app",
+      messagingSenderId: "879252975424",
+      appId: "1:879252975424:web:6e62c58c4b4ba8689d94a5",
+      measurementId: "G-BXVKGLHV9L"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    
+    const secondaryApp = firebase.initializeApp(firebaseConfig, "Secondary");
+    const secondaryAuth = secondaryApp.auth();
+
+    // Data Dictionaries
+    const nombresH = ["Juan", "Carlos", "Miguel", "Jorge", "Luis", "Marcos", "Andrés", "Diego", "Fernando", "Pedro", "Roberto", "Daniel", "Hugo", "Oscar", "Raul"];
+    const nombresM = ["Maria", "Ana", "Laura", "Carmen", "Sofia", "Lucia", "Elena", "Marta", "Paula", "Diana", "Rosa", "Teresa", "Silvia", "Julia", "Blanca"];
+    const apellidos = ["Garcia", "Martinez", "Lopez", "Gonzalez", "Perez", "Rodriguez", "Sanchez", "Ramirez", "Cruz", "Gomez", "Fernandez", "Ruiz", "Diaz", "Alvarez", "Romero"];
+
+    // Login Logic
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        document.getElementById('login-section').style.display = 'none';
+        document.getElementById('seeder-section').style.display = 'block';
+      } else {
+        document.getElementById('login-section').style.display = 'block';
+        document.getElementById('seeder-section').style.display = 'none';
+      }
+    });
+
+    function adminLogin() {
+      const email = document.getElementById('admin-user').value;
+      const pass = document.getElementById('admin-pass').value;
+      const errorDiv = document.getElementById('login-error');
+      errorDiv.innerText = "";
+      auth.signInWithEmailAndPassword(email, pass).catch(e => { errorDiv.innerText = "Error: " + e.message; });
+    }
+
+    function log(msg) {
+      const logDiv = document.getElementById('log');
+      logDiv.innerHTML += `<div>${msg}</div>`;
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+    async function startSeeding() {
+      document.getElementById('btn-seed').disabled = true;
+      document.getElementById('log').innerHTML = '';
+      log("⏳ Iniciando generación de datos...");
+
+      try {
+        const locSnap = await db.collection('locations').where('isActive', '==', true).get();
+        let availPool = [];
+        locSnap.forEach(doc => {
+          const loc = doc.data();
+          (loc.templates || []).forEach(t => { availPool.push(`${loc.name}_${t.day}_${t.startTime}`); });
+        });
+
+        if (availPool.length === 0) {
+          log("❌ ERROR: No hay ubicaciones configuradas en la base de datos.");
+          return;
+        }
+        log(`✅ Se encontraron ${availPool.length} opciones de turnos disponibles.`);
+
+        let createdCouples = []; 
+
+        for (let i = 1; i <= 30; i++) {
+          const isHombre = Math.random() > 0.5;
+          const firstName = isHombre ? nombresH[Math.floor(Math.random() * nombresH.length)] : nombresM[Math.floor(Math.random() * nombresM.length)];
+          const lastName = apellidos[Math.floor(Math.random() * apellidos.length)];
+          const gender = isHombre ? 'H' : 'M';
+          const username = `test${i}`; 
+          const email = `${username}@ppam.app`;
+          const password = "123456";
+          
+          const maxShifts = Math.floor(Math.random() * 4) + 2; 
+
+          let myAvail = [];
+          const numShifts = Math.floor(Math.random() * 4) + 2;
+          for(let s=0; s<numShifts; s++){
+            const randomShift = availPool[Math.floor(Math.random() * availPool.length)];
+            if(!myAvail.includes(randomShift)) myAvail.push(randomShift);
+          }
+
+          const pubData = {
+            firstName: firstName, lastName: lastName, gender: gender, maxShifts: maxShifts,
+            availability: myAvail, phone: "0981 000 000", partner: "", partnerName: "", hardPair: false
+          };
+
+          const newPubRef = await db.collection('publishers').add(pubData);
+          
+          const userCred = await secondaryAuth.createUserWithEmailAndPassword(email, password);
+          await db.collection('users').doc(userCred.user.uid).set({
+            publisherId: newPubRef.id, role: 'user', username: username
+          });
+          await secondaryAuth.signOut();
+
+          if (i <= 6) { createdCouples.push({ id: newPubRef.id, name: `${firstName} ${lastName}` }); }
+
+          log(`👤 Creado [${i}/30]: ${firstName} ${lastName} (Max: ${maxShifts} turnos)`);
+          await sleep(500); 
+        }
+
+        log("🔗 Vinculando matrimonios (Hard Pairs)...");
+        for (let c = 0; c < createdCouples.length; c += 2) {
+            const p1 = createdCouples[c];
+            const p2 = createdCouples[c+1];
+            await db.collection('publishers').doc(p1.id).update({ partner: p2.id, partnerName: p2.name, hardPair: true });
+            await db.collection('publishers').doc(p2.id).update({ partner: p1.id, partnerName: p1.name, hardPair: true });
+            log(`❤️ Pareja estricta creada: ${p1.name} + ${p2.name}`);
+        }
+
+        log("🎉 ¡Generación Completada! Ya puedes ir al Admin Panel a probar el Generador.");
+
+      } catch (error) { log(`❌ ERROR FATAL: ${error.message}`); } 
+      finally { document.getElementById('btn-seed').disabled = false; }
+    }
+  </script>
+</body>
+</html>

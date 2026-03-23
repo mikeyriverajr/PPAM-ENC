@@ -14,7 +14,7 @@
       
       .header { background-color: #5d7aa9; color: white; padding: 15px 20px; border-radius: 10px 10px 0 0; display: flex; justify-content: space-between; align-items: center; }
       .tabs { display: flex; background: #e9ecef; border-radius: 0 0 10px 10px; overflow-x: auto; }
-      .tab { padding: 12px 20px; cursor: pointer; color: #555; font-weight: bold; white-space: nowrap; flex: 1; text-align: center; border-bottom: 3px solid transparent; font-size: 0.9em; }
+      .tab { padding: 12px 15px; cursor: pointer; color: #555; font-weight: bold; white-space: nowrap; flex: 1; text-align: center; border-bottom: 3px solid transparent; font-size: 0.85em; }
       .tab.active { background: white; color: #5d7aa9; border-bottom: 3px solid #5d7aa9; }
       
       .tab-content { display: none; margin-top: 20px; }
@@ -32,31 +32,36 @@
       .btn-action { padding: 8px 15px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 0.85em; }
       .btn-danger { background-color: #dc3545; color: white; }
       .btn-success { background-color: #28a745; color: white; }
+      
+      /* Profile Form */
+      .form-group { margin-bottom: 15px; }
+      .form-group label { display: block; font-weight: bold; margin-bottom: 5px; color: #444; font-size: 0.9em; }
+      .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
   </style>
 </head>
 <body>
 
   <div id="login-overlay">
     <h2 style="color: #5d7aa9; margin-bottom: 5px;">Bienvenido</h2>
-    <p style="color: #666; font-size: 0.9em;">Ingresa tus credenciales para ver tu programa.</p>
-    <input type="email" id="gate-username" placeholder="Correo electrónico">
+    <p style="color: #666; font-size: 0.9em;">Ingresa tu usuario para ver tu programa.</p>
+    <input type="text" id="gate-username" placeholder="Nombre de usuario (ej. juanperez)">
     <input type="password" id="gate-password" placeholder="Contraseña">
     <button onclick="handleGatekeeperLogin()">Ingresar</button>
     <p id="gate-error" style="color: red; font-size: 0.9em;"></p>
   </div>
 
   <div id="app-content" class="app-container" style="display: none;">
-    
     <div class="header">
       <h2 style="margin: 0; font-size: 1.2em;">Predicación Pública</h2>
       <button class="btn-logout" onclick="logout()">Salir</button>
     </div>
 
     <div class="tabs">
-      <div class="tab active" onclick="switchTab('all')" id="tab-btn-all">Programa General</div>
+      <div class="tab active" onclick="switchTab('all')" id="tab-btn-all">Programa</div>
       <div class="tab" onclick="switchTab('mine')" id="tab-btn-mine">Mis Turnos</div>
-      <div class="tab" onclick="switchTab('open')" id="tab-btn-open">Turnos Disponibles</div>
-      <div class="tab" onclick="switchTab('avail')" id="tab-btn-avail">Mi Disponibilidad</div>
+      <div class="tab" onclick="switchTab('open')" id="tab-btn-open">Disponibles</div>
+      <div class="tab" onclick="switchTab('avail')" id="tab-btn-avail">Rutina</div>
+      <div class="tab" onclick="switchTab('profile')" id="tab-btn-profile">Mi Perfil</div>
     </div>
 
     <div id="tab-all" class="tab-content active">
@@ -69,7 +74,7 @@
     <div id="tab-open" class="tab-content">
       <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #17a2b8;">
         <h3 style="margin-top: 0; color: #333;">Espacios Disponibles</h3>
-        <p style="color: #555; font-size: 0.9em; margin-bottom: 0;">Aquí puedes anotarte en turnos que aún tienen lugares libres o donde alguien ha cancelado. No puedes anotarte si tus horarios se superponen el mismo día.</p>
+        <p style="color: #555; font-size: 0.9em; margin-bottom: 0;">Anotarte en turnos libres o cancelados.</p>
       </div>
       <div id="open-shifts-container"></div>
     </div>
@@ -77,12 +82,71 @@
     <div id="tab-avail" class="tab-content">
       <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #5d7aa9;">
         <h3 style="margin-top: 0; color: #333;">Mi Rutina Semanal</h3>
-        <p style="color: #555; font-size: 0.9em; margin-bottom: 0;">Selecciona los horarios en los que usualmente estás disponible. Esto aplicará para la generación del próximo mes.</p>
+        <p style="color: #555; font-size: 0.9em; margin-bottom: 0;">Selecciona los horarios en los que usualmente estás disponible.</p>
       </div>
-      <div id="availability-form-container"><p style="text-align: center; color: #666;">Cargando...</p></div>
+      <div id="availability-form-container"><p style="text-align: center;">Cargando...</p></div>
       <div style="text-align: right; margin-top: 20px;">
         <button onclick="saveAvailability()" style="background: #28a745; color: white; border: none; padding: 12px 25px; border-radius: 5px; font-weight: bold; cursor: pointer;">Guardar Mi Disponibilidad</button>
         <p id="avail-msg" style="color: green; margin-top: 10px; font-weight: bold;"></p>
+      </div>
+    </div>
+
+    <div id="tab-profile" class="tab-content">
+      <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #6c757d;">
+        <h3 style="margin-top: 0; color: #333;">Mis Datos Personales</h3>
+        
+        <div class="form-group">
+          <label>Teléfono Celular</label>
+          <input type="tel" id="prof-phone" placeholder="ej. 0981 123 456">
+        </div>
+        
+        <div class="form-group">
+          <label>Correo Electrónico (Para recibir notificaciones)</label>
+          <input type="email" id="prof-email" placeholder="ej. juan@gmail.com">
+        </div>
+
+        <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
+        <h4 style="margin-top: 0; color: #5d7aa9;">En Caso de Emergencia</h4>
+        <div class="form-group">
+          <label>Nombre del Contacto</label>
+          <input type="text" id="prof-emerg-name" placeholder="Familiar o amigo">
+        </div>
+        <div class="form-group">
+          <label>Teléfono de Emergencia</label>
+          <input type="tel" id="prof-emerg-phone" placeholder="Número de contacto">
+        </div>
+
+        <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
+        <h4 style="margin-top: 0; color: #5d7aa9;">Preferencias de Asignación</h4>
+        <div class="form-group">
+          <label>Límite Máximo de Turnos por Mes</label>
+          <select id="prof-max">
+            <option value="5">5 turnos (Máximo permitido)</option>
+            <option value="4">4 turnos</option>
+            <option value="3">3 turnos</option>
+            <option value="2">2 turnos</option>
+            <option value="1">1 turno</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Pareja Preferida</label>
+          <select id="prof-partner"><option value="">Cargando congregación...</option></select>
+        </div>
+
+        <div style="margin-top:10px; display:flex; align-items:flex-start; gap:8px;">
+            <input type="checkbox" id="prof-hardpair" style="margin-top: 3px; cursor:pointer;">
+            <label for="prof-hardpair" style="margin:0; font-weight:normal; cursor:pointer; font-size: 0.9em; color: #444;">
+              <strong>Pareja Estricta:</strong> Solo programarme si mi pareja también está disponible. <br>
+              <span style="color:#dc3545; font-size:0.85em;">Nota: Activar esta opción restringirá tus asignaciones y puede significar que recibas menos turnos.</span>
+            </label>
+        </div>
+        
+        <div style="text-align: right; margin-top: 30px;">
+          <button onclick="saveProfile()" style="background: #28a745; color: white; border: none; padding: 12px 25px; border-radius: 5px; font-weight: bold; cursor: pointer;">Guardar Perfil</button>
+          <p id="prof-msg" style="color: green; margin-top: 10px; font-weight: bold;"></p>
+        </div>
+
       </div>
     </div>
 
@@ -91,7 +155,6 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
 <script src="app-beta.js"></script>
 </body>
 </html>

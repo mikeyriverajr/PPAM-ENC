@@ -187,11 +187,10 @@ async function changeProfilePassword() {
 // PUSH NOTIFICATIONS & CACHE CLEANUP
 // ==========================================
 
-// THE HUNTER-KILLER SCRIPT: Destroys old rogue caching service workers
+// THE HUNTER-KILLER SCRIPT
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then(function(registrations) {
         for(let registration of registrations) {
-            // If it's NOT our specific Firebase messaging worker, kill it.
             if (!registration.active || !registration.active.scriptURL.includes('firebase-messaging-sw.js')) {
                 console.log("Rogue Service Worker detected and destroyed.");
                 registration.unregister();
@@ -227,6 +226,26 @@ async function enablePushNotifications() {
         console.error("FCM Error:", error);
         showToast("Error al activar notificaciones. Asegúrate de estar en HTTPS o en un celular.", "error");
     }
+}
+
+// ==========================================
+// FOREGROUND NOTIFICATION LISTENER (UPGRADED)
+// ==========================================
+if (typeof messaging !== 'undefined') {
+    messaging.onMessage((payload) => {
+        console.log("Notificación recibida en primer plano:", payload);
+        
+        // Use the 'info' type to trigger the blue styling for notifications
+        showToast(`🔔 ${payload.notification.title} - ${payload.notification.body}`, 'info');
+        
+        // Smart Refresh: If they have the app open, silently refresh the shifts
+        // so the UI matches the new data without requiring a manual refresh!
+        if (currentUserPublisherId) {
+            loadShifts(); 
+            loadMyShifts(); 
+            loadAvailableShifts();
+        }
+    });
 }
 
 let allShiftsData = []; 
@@ -413,18 +432,7 @@ async function claimShift(shiftId, dateStr, timeStr, capacity) {
     loadMyShifts(); loadAvailableShifts(); loadShifts(); 
   } catch (err) { showToast("Error al tomar turno: " + err.message, "error"); }
 }
-// ==========================================
-// FOREGROUND NOTIFICATION LISTENER
-// ==========================================
-// This catches notifications if the user happens to be looking at the app when it arrives
-if (typeof messaging !== 'undefined') {
-    messaging.onMessage((payload) => {
-        console.log("Notificación recibida en primer plano:", payload);
-        
-        // Show the notification as a green Toast inside the app!
-        showToast(`🔔 ${payload.notification.title} - ${payload.notification.body}`);
-    });
-}
+
 // ==========================================
 // TAB 4: MI HORARIO
 // ==========================================

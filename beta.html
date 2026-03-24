@@ -5,124 +5,181 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PPAM - Predicación Pública</title>
   <style>
-      body { background-color: #f0f2f5; font-family: sans-serif; margin: 0; padding: 20px; }
-      .app-container { max-width: 800px; margin: 0 auto; }
+      /* BASE STYLES & LAYOUT */
+      body { background-color: #f4f6f8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 15px 0; color: #333; }
+      .app-container { max-width: 1000px; width: 95%; margin: 0 auto; }
       
-      #login-overlay { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 400px; margin: 40px auto; text-align: center; }
-      #login-overlay input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
-      #login-overlay button { width: 100%; padding: 10px; background-color: #5d7aa9; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; }
+      /* OVERLAYS & MODALS */
+      #login-overlay { background: white; padding: 40px 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); max-width: 400px; margin: 10vh auto; text-align: center; }
+      #login-overlay input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; transition: border-color 0.3s; }
+      #login-overlay input:focus { outline: none; border-color: #5d7aa9; }
+      #login-overlay button { width: 100%; padding: 12px; margin-top: 10px; background-color: #5d7aa9; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 16px; transition: background-color 0.3s; }
+      #login-overlay button:hover { background-color: #4a638b; }
       
-      #force-password-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; align-items: center; justify-content: center; }
-      .force-pass-box { background: white; padding: 30px; border-radius: 10px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
-      .force-pass-box input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
-      .force-pass-box button { width: 100%; padding: 10px; margin-top: 10px; background-color: #dc3545; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; }
+      #force-password-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+      .force-pass-box { background: white; padding: 40px 30px; border-radius: 12px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+      .force-pass-box input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+      .force-pass-box button { width: 100%; padding: 12px; margin-top: 15px; background-color: #333; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 16px; }
 
-      .header { background-color: #5d7aa9; color: white; padding: 15px 20px; border-radius: 10px 10px 0 0; display: flex; justify-content: space-between; align-items: center; }
-      .tabs { display: flex; background: #e9ecef; border-radius: 0 0 10px 10px; overflow-x: auto; }
-      .tab { padding: 12px 15px; cursor: pointer; color: #555; font-weight: bold; white-space: nowrap; flex: 1; text-align: center; border-bottom: 3px solid transparent; font-size: 0.85em; }
-      .tab.active { background: white; color: #5d7aa9; border-bottom: 3px solid #5d7aa9; }
+      /* HEADER & TABS */
+      .header { background-color: #fff; padding: 20px; border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; }
+      .header h2 { margin: 0; font-size: 1.3em; display:flex; align-items:center; gap:10px; color: #222; }
+      #header-user-name { font-size: 0.8em; font-weight: normal; color: #666; border-left: 1px solid #ddd; padding-left: 10px; }
+      .btn-logout { background: transparent; color: #666; border: 1px solid #ddd; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.9em; transition: all 0.2s; }
+      .btn-logout:hover { background: #f0f0f0; color: #333; }
+
+      .tabs { display: flex; background: #fff; border-radius: 0 0 12px 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
+      .tab { padding: 15px 10px; cursor: pointer; color: #777; font-weight: 600; flex: 1; text-align: center; border-bottom: 3px solid transparent; font-size: 0.9em; transition: all 0.2s; }
+      .tab:hover { color: #333; background: #fafafa; }
+      .tab.active { color: #5d7aa9; border-bottom: 3px solid #5d7aa9; background: #fff; }
       
-      .tab-content { display: none; margin-top: 20px; }
+      /* Mobile optimization for tabs */
+      @media (max-width: 600px) {
+          .tab { padding: 12px 2px; font-size: 0.75em; letter-spacing: -0.3px; }
+          .header h2 { font-size: 1.1em; }
+          #header-user-name { font-size: 0.75em; }
+      }
+
+      .tab-content { display: none; margin-top: 25px; }
       .tab-content.active { display: block; }
 
-      .btn-logout { background: #f8f9fa; color: #333; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 0.9em; }
-      .search-box { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; margin-bottom: 15px; }
+      /* SECTION HEADERS */
+      .section-intro { margin-bottom: 25px; padding: 0 5px; }
+      .section-intro h3 { margin: 0 0 5px 0; color: #222; font-size: 1.4em; }
+      .section-intro p { color: #666; font-size: 0.95em; margin: 0; }
+
+      /* FORMS & INPUTS */
+      .search-box { width: 100%; padding: 14px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; margin-bottom: 20px; font-size: 15px; box-shadow: 0 1px 4px rgba(0,0,0,0.02); transition: border-color 0.3s; }
+      .search-box:focus { outline: none; border-color: #5d7aa9; }
       
-      .day-group { background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-      .day-title { margin-top: 0; color: #5d7aa9; border-bottom: 1px solid #eee; padding-bottom: 8px; }
-      .shift-option { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 0.95em; }
-      .shift-option input { transform: scale(1.2); cursor: pointer; }
-      .shift-option label { cursor: pointer; flex: 1; }
+      .form-group { margin-bottom: 20px; }
+      .form-group label { display: block; font-weight: 600; margin-bottom: 8px; color: #444; font-size: 0.9em; }
+      .form-group input, .form-group select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 15px; background: #fff; }
+      .form-group input:focus, .form-group select:focus { outline: none; border-color: #5d7aa9; }
+
+      /* CARDS (CLEAN MINIMALISM) */
+      .shift-card { background: white; padding: 20px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eaeaea; box-shadow: 0 2px 8px rgba(0,0,0,0.02); display: flex; flex-direction: column; gap: 8px; }
+      .shift-card-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #f0f0f0; padding-bottom: 12px; margin-bottom: 4px; }
+      .shift-card-title { margin: 0; color: #333; font-size: 1.1em; text-transform: capitalize; font-weight: 600; }
+      .shift-card-time { color: #666; font-size: 0.9em; background: #f4f6f8; padding: 4px 8px; border-radius: 4px; }
+      .shift-card-detail { margin: 0; color: #555; font-size: 0.95em; display: flex; align-items: center; gap: 8px; }
       
-      .btn-action { padding: 8px 15px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 0.85em; }
-      .btn-danger { background-color: #dc3545; color: white; }
+      .shift-card.mine { border: 1px solid #e0e8f0; }
+      .shift-card.mine .shift-card-title { color: #2c5282; }
+      
+      .card-actions { margin-top: 10px; display: flex; justify-content: flex-end; }
+
+      /* DAY GROUP (RUTINA) */
+      .day-group { background: white; padding: 20px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #eaeaea; }
+      .day-title { margin-top: 0; color: #333; border-bottom: 1px solid #f0f0f0; padding-bottom: 12px; margin-bottom: 15px; font-size: 1.1em; }
+      .shift-option { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; font-size: 0.95em; color: #444; padding: 4px 0; }
+      .shift-option input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: #5d7aa9; }
+      .shift-option label { cursor: pointer; flex: 1; user-select: none; }
+
+      /* BUTTONS */
+      .btn-action { padding: 10px 18px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.9em; transition: opacity 0.2s; }
+      .btn-action:hover { opacity: 0.9; }
+      .btn-danger { background-color: #fff; color: #dc3545; border: 1px solid #dc3545; }
+      .btn-danger:hover { background-color: #fff5f5; }
       .btn-success { background-color: #28a745; color: white; }
       
-      .form-group { margin-bottom: 15px; }
-      .form-group label { display: block; font-weight: bold; margin-bottom: 5px; color: #444; font-size: 0.9em; }
-      .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
+      .btn-primary { background: #5d7aa9; color: white; border: none; padding: 12px 25px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+      .btn-primary:hover { background: #4a638b; }
+      .btn-primary:disabled { background: #e0e0e0; color: #999; cursor: not-allowed; }
+
+      /* PROFILE PANEL */
+      .profile-panel { background: white; padding: 30px; border-radius: 12px; border: 1px solid #eaeaea; }
+      .profile-divider { border: 0; border-top: 1px solid #f0f0f0; margin: 30px 0; }
+      .profile-section-title { margin-top: 0; color: #333; font-size: 1.1em; margin-bottom: 15px; }
   </style>
 </head>
 <body>
 
   <div id="login-overlay">
-    <h2 style="color: #5d7aa9; margin-bottom: 5px;">Bienvenido</h2>
-    <p style="color: #666; font-size: 0.9em;">Ingresa tu usuario para ver tu programa.</p>
-    <input type="text" id="gate-username" placeholder="Nombre de usuario (ej. juanperez)">
+    <h2 style="color: #333; margin-bottom: 5px;">Bienvenido</h2>
+    <p style="color: #666; font-size: 0.95em; margin-bottom: 25px;">Ingresa para ver tu programa de PPAM.</p>
+    <input type="text" id="gate-username" placeholder="Usuario (ej. juanperez)">
     <input type="password" id="gate-password" placeholder="Contraseña">
     <button onclick="handleGatekeeperLogin()">Ingresar</button>
-    <p id="gate-error" style="color: red; font-size: 0.9em;"></p>
+    <p id="gate-error" style="color: #dc3545; font-size: 0.9em; margin-top: 15px;"></p>
   </div>
 
   <div id="force-password-modal">
     <div class="force-pass-box">
-      <h3 style="color:#dc3545; margin-top:0;">🔒 Cambio Obligatorio</h3>
-      <p style="font-size:0.9em; color:#555;">Por seguridad, debes crear una contraseña privada antes de poder acceder a tu programa.</p>
+      <h3 style="color:#333; margin-top:0;">🔒 Cambio Obligatorio</h3>
+      <p style="font-size:0.95em; color:#555; margin-bottom: 25px;">Por seguridad, debes crear una contraseña privada antes de acceder al sistema.</p>
       <input type="password" id="force-new-pass1" placeholder="Nueva Contraseña (Mín. 6 caracteres)">
-      <input type="password" id="force-new-pass2" placeholder="Confirmar Nueva Contraseña">
+      <input type="password" id="force-new-pass2" placeholder="Confirmar Contraseña">
       <button onclick="submitForcedPassword()">Guardar y Entrar</button>
-      <p id="force-pass-error" style="color:red; font-size:0.9em; margin-bottom:0;"></p>
+      <p id="force-pass-error" style="color:#dc3545; font-size:0.9em; margin-bottom:0; margin-top: 10px;"></p>
     </div>
   </div>
 
   <div id="app-content" class="app-container" style="display: none;">
     <div class="header">
-      <h2 style="margin: 0; font-size: 1.2em; display:flex; align-items:center; gap:10px;">
-        PPAM 
-        <span id="header-user-name" style="font-size:0.7em; font-weight:normal; opacity:0.8; border-left:1px solid rgba(255,255,255,0.3); padding-left:10px;"></span>
-      </h2>
+      <h2>PPAM <span id="header-user-name"></span></h2>
       <button class="btn-logout" onclick="logout()">Salir</button>
     </div>
 
     <div class="tabs">
       <div class="tab active" onclick="switchTab('all')" id="tab-btn-all">Programa</div>
-      <div class="tab" onclick="switchTab('mine')" id="tab-btn-mine">Mis Turnos</div>
-      <div class="tab" onclick="switchTab('open')" id="tab-btn-open">Turnos Disponibles</div>
-      <div class="tab" onclick="switchTab('avail')" id="tab-btn-avail">Disponibilidad</div>
-      <div class="tab" onclick="switchTab('profile')" id="tab-btn-profile">Mi Perfil</div>
+      <div class="tab" onclick="switchTab('mine')" id="tab-btn-mine">Míos</div>
+      <div class="tab" onclick="switchTab('open')" id="tab-btn-open">Libres</div>
+      <div class="tab" onclick="switchTab('avail')" id="tab-btn-avail">Rutina</div>
+      <div class="tab" onclick="switchTab('profile')" id="tab-btn-profile">Perfil</div>
     </div>
 
     <div id="tab-all" class="tab-content active">
+      <div class="section-intro">
+        <h3>Programa Mensual</h3>
+        <p>Vista general de todas las ubicaciones.</p>
+      </div>
       <input type="text" id="search-all" class="search-box" placeholder="🔍 Buscar lugar, fecha o publicador..." onkeyup="filterAllShifts()">
       <div id="schedule-container"></div>
     </div>
 
-    <div id="tab-mine" class="tab-content"></div>
+    <div id="tab-mine" class="tab-content">
+      <div class="section-intro">
+        <h3>Mis Turnos</h3>
+        <p>Tus próximas asignaciones confirmadas.</p>
+      </div>
+      <div id="mine-container"></div>
+    </div>
 
     <div id="tab-open" class="tab-content">
-      <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #17a2b8;">
-        <h3 style="margin-top: 0; color: #333;">Turnos Disponibles</h3>
-        <p style="color: #555; font-size: 0.9em; margin-bottom: 0;">Anotarte en turnos libres o cancelados.</p>
+      <div class="section-intro">
+        <h3>Turnos Libres</h3>
+        <p>Espacios vacíos o cancelados que puedes tomar.</p>
       </div>
       <div id="open-shifts-container"></div>
     </div>
 
     <div id="tab-avail" class="tab-content">
-      <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #5d7aa9;">
-        <h3 style="margin-top: 0; color: #333;">Mi Disponibilidad Semanal</h3>
-        <p style="color: #555; font-size: 0.9em; margin-bottom: 0;">Selecciona los lugares y horarios en los que estás disponible.</p>
+      <div class="section-intro">
+        <h3>Mi Disponibilidad</h3>
+        <p>Selecciona tu rutina habitual para que el generador te asigne.</p>
       </div>
-      <div id="availability-form-container"><p style="text-align: center;">Cargando...</p></div>
-      <div style="text-align: right; margin-top: 20px;">
-        <button onclick="saveAvailability()" style="background: #28a745; color: white; border: none; padding: 12px 25px; border-radius: 5px; font-weight: bold; cursor: pointer;">Guardar Disponibilidad</button>
-        <p id="avail-msg" style="color: green; margin-top: 10px; font-weight: bold;"></p>
+      <div id="availability-form-container"><p style="text-align: center; color: #666;">Cargando...</p></div>
+      <div style="text-align: right; margin-top: 25px;">
+        <button onclick="saveAvailability()" class="btn-primary">Guardar Rutina</button>
+        <p id="avail-msg" style="color: #28a745; margin-top: 10px; font-weight: 600;"></p>
       </div>
     </div>
 
     <div id="tab-profile" class="tab-content">
-      <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #6c757d;">
-        <h3 style="margin-top: 0; color: #333;">Mis Datos Personales</h3>
+      <div class="profile-panel">
+        <h3 class="profile-section-title">Mis Datos de Contacto</h3>
         
         <div class="form-group"><label>Teléfono Celular</label><input type="tel" id="prof-phone" oninput="checkProfileChanges()" placeholder="ej. 0981 123 456"></div>
-        <div class="form-group"><label>Correo Electrónico (Para recibir notificaciones)</label><input type="email" id="prof-email" oninput="checkProfileChanges()" placeholder="ej. juan@gmail.com"></div>
+        <div class="form-group"><label>Correo Electrónico (Notificaciones)</label><input type="email" id="prof-email" oninput="checkProfileChanges()" placeholder="ej. juan@gmail.com"></div>
 
-        <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
-        <h4 style="margin-top: 0; color: #5d7aa9;">En Caso de Emergencia</h4>
+        <hr class="profile-divider">
+        <h3 class="profile-section-title">En Caso de Emergencia</h3>
         <div class="form-group"><label>Nombre del Contacto</label><input type="text" id="prof-emerg-name" oninput="checkProfileChanges()" placeholder="Familiar o amigo"></div>
         <div class="form-group"><label>Teléfono de Emergencia</label><input type="tel" id="prof-emerg-phone" oninput="checkProfileChanges()" placeholder="Número de contacto"></div>
 
-        <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
-        <h4 style="margin-top: 0; color: #5d7aa9;">Preferencias de Asignación</h4>
+        <hr class="profile-divider">
+        <h3 class="profile-section-title">Preferencias del Generador</h3>
         <div class="form-group">
           <label>Límite Máximo de Turnos por Mes</label>
           <select id="prof-max" onchange="checkProfileChanges()">
@@ -139,22 +196,22 @@
             <select id="prof-partner" onchange="handlePartnerChange()"><option value="">Ninguno</option></select>
         </div>
         
-        <div id="prof-hardpair-container" style="display:none; margin-top:10px; align-items:flex-start; gap:8px;">
-            <input type="checkbox" id="prof-hardpair" onchange="checkProfileChanges()" style="margin-top: 3px; cursor:pointer;">
-            <label for="prof-hardpair" style="margin:0; font-weight:normal; cursor:pointer; font-size: 0.9em; color: #444;"><strong>Asignar estrictamente:</strong> Solo programarme si mi compañero también está disponible.<br><span style="color:#dc3545; font-size:0.85em;">Nota: Esto restringirá tus asignaciones.</span></label>
+        <div id="prof-hardpair-container" style="display:none; margin-top:10px; align-items:flex-start; gap:10px; background:#f9f9f9; padding:15px; border-radius:8px; border:1px solid #eee;">
+            <input type="checkbox" id="prof-hardpair" onchange="checkProfileChanges()" style="margin-top: 2px; width: 16px; height: 16px; cursor:pointer;">
+            <label for="prof-hardpair" style="margin:0; font-weight:normal; cursor:pointer; font-size: 0.9em; color: #444;"><strong>Asignar estrictamente:</strong> Solo programarme si mi compañero también está disponible.<br><span style="color:#666; font-size:0.85em; display:block; margin-top:4px;">Nota: Esto puede reducir la cantidad de turnos que recibas.</span></label>
         </div>
         
         <div style="text-align: right; margin-top: 30px;">
-          <button id="btn-save-profile" onclick="saveProfile()" disabled style="background: #ccc; color: white; border: none; padding: 12px 25px; border-radius: 5px; font-weight: bold; cursor: not-allowed;">Guardar Perfil</button>
-          <p id="prof-msg" style="margin-top: 10px; font-weight: bold;"></p>
+          <button id="btn-save-profile" onclick="saveProfile()" disabled class="btn-primary">Guardar Cambios</button>
+          <p id="prof-msg" style="margin-top: 10px; font-weight: 600;"></p>
         </div>
 
-        <hr style="border:0; border-top:1px solid #eee; margin:30px 0 20px 0;">
-        <h4 style="margin-top: 0; color: #dc3545;">Cambiar Contraseña</h4>
-        <div class="form-group"><label>Nueva Contraseña (Mín. 6 caracteres)</label><input type="password" id="prof-new-pass" oninput="checkPasswordChange()"></div>
+        <hr class="profile-divider">
+        <h3 class="profile-section-title" style="color: #333;">Seguridad</h3>
+        <div class="form-group"><label>Nueva Contraseña (Mín. 6 caracteres)</label><input type="password" id="prof-new-pass" oninput="checkPasswordChange()" placeholder="Escribe para cambiar..."></div>
         <div style="text-align: right; margin-top: 10px;">
-          <button id="btn-update-pass" onclick="changeProfilePassword()" disabled style="background: #ccc; color: white; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: not-allowed;">Actualizar Contraseña</button>
-          <p id="prof-pass-msg" style="margin-top: 10px; font-weight: bold;"></p>
+          <button id="btn-update-pass" onclick="changeProfilePassword()" disabled class="btn-primary">Actualizar Contraseña</button>
+          <p id="prof-pass-msg" style="margin-top: 10px; font-weight: 600;"></p>
         </div>
 
       </div>

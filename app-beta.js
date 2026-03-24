@@ -413,7 +413,18 @@ async function claimShift(shiftId, dateStr, timeStr, capacity) {
     loadMyShifts(); loadAvailableShifts(); loadShifts(); 
   } catch (err) { showToast("Error al tomar turno: " + err.message, "error"); }
 }
-
+// ==========================================
+// FOREGROUND NOTIFICATION LISTENER
+// ==========================================
+// This catches notifications if the user happens to be looking at the app when it arrives
+if (typeof messaging !== 'undefined') {
+    messaging.onMessage((payload) => {
+        console.log("Notificación recibida en primer plano:", payload);
+        
+        // Show the notification as a green Toast inside the app!
+        showToast(`🔔 ${payload.notification.title} - ${payload.notification.body}`);
+    });
+}
 // ==========================================
 // TAB 4: MI HORARIO
 // ==========================================

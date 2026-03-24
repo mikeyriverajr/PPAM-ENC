@@ -4,186 +4,276 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin - PPAM</title>
+  
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+
   <style>
-      body { background-color: #f0f2f5; font-family: sans-serif; margin: 0; padding: 20px; }
-      .admin-container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-      input, select, button { width: 100%; padding: 10px; margin: 8px 0 15px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; font-size: 14px; }
-      button { background-color: #5d7aa9; color: white; border: none; font-weight: bold; cursor: pointer; transition: background 0.3s; }
-      button:hover { background-color: #4a638b; }
-      .success { color: green; margin-top: 10px; text-align: center; font-size: 0.9em; min-height: 1.2em; }
-      .error { color: red; margin-top: 10px; text-align: center; font-size: 0.9em; min-height: 1.2em; }
-      label { font-weight: bold; display: block; margin-top: 5px; font-size: 0.9em; color: #444; }
-      .modal { display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
-      .modal-content { background-color: #fefefe; margin: 10% auto; padding: 20px; border: 1px solid #888; width: 90%; max-width: 600px; border-radius: 10px; }
-      .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; margin-top: -10px; }
-      .close:hover, .close:focus { color: black; text-decoration: none; }
-      .tabs { display: flex; border-bottom: 2px solid #ddd; margin-bottom: 20px; overflow-x: auto; }
-      .tab { padding: 10px 20px; cursor: pointer; color: #666; font-weight: bold; white-space: nowrap; border-bottom: 3px solid transparent; }
-      .tab.active { border-bottom: 3px solid #5d7aa9; color: #5d7aa9; }
+      /* BASE STYLES & LAYOUT */
+      body { background-color: #f4f6f8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 15px 0; color: #333; }
+      .admin-container { max-width: 1000px; width: 95%; margin: 0 auto; }
+      
+      /* OVERLAYS & LOGIN */
+      #login-section { background: white; padding: 40px 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); max-width: 400px; margin: 10vh auto; text-align: center; }
+      #login-section input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; transition: border-color 0.3s; }
+      #login-section input:focus { outline: none; border-color: #5d7aa9; }
+      #login-section button { width: 100%; padding: 12px; margin-top: 10px; background-color: #5d7aa9; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 16px; transition: background-color 0.3s; }
+      #login-section button:hover { background-color: #4a638b; }
+      
+      /* HEADER & TABS */
+      .header { background-color: #5d7aa9; padding: 20px; border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+      .header h2 { margin: 0; font-size: 1.3em; display:flex; align-items:center; gap:10px; color: white; }
+      #admin-header-name { font-size: 0.7em; font-weight: normal; color: rgba(255,255,255,0.8); border-left: 1px solid rgba(255,255,255,0.3); padding-left: 10px; }
+      .btn-logout { background: transparent; color: white; border: 1px solid rgba(255,255,255,0.4); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.9em; transition: all 0.2s; font-weight: 600; }
+      .btn-logout:hover { background: rgba(255,255,255,0.1); border-color: white; }
+
+      .tabs { display: flex; background: #fff; border-radius: 0 0 12px 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); margin-bottom: 25px; overflow-x: auto; }
+      .tab { padding: 15px 20px; cursor: pointer; color: #777; font-weight: 600; flex: 1; text-align: center; border-bottom: 3px solid transparent; font-size: 0.95em; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; }
+      .tab:hover { color: #333; background: #fafafa; }
+      .tab.active { color: #5d7aa9; border-bottom: 3px solid #5d7aa9; background: #fff; }
+      
       .tab-content { display: none; }
       .tab-content.active { display: block; }
-      table { width:100%; border-collapse:collapse; text-align:left; font-size:0.9em; margin-top: 10px; }
-      th, td { padding: 10px; border: 1px solid #ddd; }
-      th { background: #f8f9fa; color: #333; }
-      .badge-green { background:#28a745; color:white; padding:2px 6px; border-radius:10px; font-size:0.8em; margin-left:5px; }
-      .badge-red { background:#dc3545; color:white; padding:2px 6px; border-radius:10px; font-size:0.8em; margin-left:5px; }
+
+      /* FORMS & INPUTS */
+      .form-group { margin-bottom: 20px; }
+      .form-group label { display: block; font-weight: 600; margin-bottom: 8px; color: #444; font-size: 0.9em; }
+      .form-group input, .form-group select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 15px; background: #fff; }
+      .form-group input:focus, .form-group select:focus { outline: none; border-color: #5d7aa9; }
+      
+      .search-box { width: 100%; padding: 14px 14px 14px 45px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 15px; margin-bottom: 15px; transition: border-color 0.3s; }
+      .search-box:focus { outline: none; border-color: #5d7aa9; }
+      .search-wrapper { position: relative; }
+      .search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #999; }
+
+      /* PANELS & CARDS */
+      .panel { background: white; padding: 25px; border-radius: 12px; border: 1px solid #eaeaea; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
+      .pub-card { background: white; padding: 15px 20px; margin-bottom: 10px; border: 1px solid #eaeaea; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; transition: box-shadow 0.2s; }
+      .pub-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+      
+      /* MODERN DATA TABLE */
+      table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; border-radius: 8px; overflow: hidden; border: 1px solid #eaeaea; }
+      th, td { padding: 14px 15px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+      th { background-color: #f8f9fa; color: #555; font-weight: 600; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.5px; }
+      tr:last-child td { border-bottom: none; }
+      tr:hover td { background-color: #fafafa; }
+      
+      .badge-green { background: #e6f4ea; color: #28a745; padding: 4px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 600; margin-left: 5px; }
+      .badge-red { background: #fdeadd; color: #dc3545; padding: 4px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 600; margin-left: 5px; }
+
+      /* BUTTONS */
+      .btn-action { padding: 8px 15px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.85em; transition: opacity 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+      .btn-action:hover { opacity: 0.9; }
+      .btn-danger { background-color: #dc3545; color: white; }
+      .btn-success { background-color: #28a745; color: white; }
+      .btn-primary { background-color: #5d7aa9; color: white; }
+      .btn-info { background-color: #17a2b8; color: white; }
+      .btn-secondary { background-color: #6c757d; color: white; }
+
+      /* SHIFT EDIT MODAL */
+      .modal { display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); align-items: center; justify-content: center; backdrop-filter: blur(3px); }
+      .modal-content { background-color: #fff; padding: 25px; width: 90%; max-width: 500px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto; }
+      .close-modal { color: #999; float: right; font-size: 24px; font-weight: bold; cursor: pointer; transition: color 0.2s; }
+      .close-modal:hover { color: #333; }
+
+      /* TOASTS & CONFIRMS */
+      #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 10002; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+      .toast { background: white; color: #333; padding: 15px 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); font-weight: 500; display: flex; align-items: center; gap: 12px; animation: slideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; border-left: 4px solid #5d7aa9; min-width: 250px; pointer-events: auto; }
+      .toast.success { border-left-color: #28a745; }
+      .toast.error { border-left-color: #dc3545; }
+      @keyframes slideIn { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+      @keyframes fadeOutToast { to { opacity: 0; transform: translateY(10px); } }
+
+      #custom-confirm { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10003; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
+      .confirm-box { background: white; padding: 30px; border-radius: 12px; max-width: 350px; width: 90%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.25); animation: popIn 0.3s ease-out forwards; }
+      .confirm-box p { margin: 0 0 25px 0; color: #333; font-size: 1.05em; line-height: 1.4; font-weight: 500; }
+      .confirm-btns { display: flex; gap: 10px; justify-content: center; }
+      .confirm-btns button { flex: 1; padding: 12px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 1em; transition: background 0.2s; }
+      .btn-confirm-cancel { background: #f0f0f0; color: #555; }
+      .btn-confirm-cancel:hover { background: #e4e4e4; }
+      .btn-confirm-ok { background: #dc3545; color: white; }
+      .btn-confirm-ok:hover { opacity: 0.9; }
+      @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
   </style>
 </head>
 <body>
 
-<div class="admin-container" id="login-section">
-  <div style="text-align: center; margin-bottom: 20px;">
-    <h2 style="color: #5d7aa9; margin-bottom: 5px;">Panel de Administración</h2>
-    <p style="color: #666; margin-top: 0;">Ingresa tu usuario para continuar</p>
-  </div>
-  <input type="text" id="admin-user" placeholder="Usuario o Correo">
-  <input type="password" id="admin-pass" placeholder="Contraseña">
-  <button onclick="adminLogin()">Ingresar</button>
-  <p class="error" id="login-error"></p>
-</div>
-
-<div class="admin-container" id="dashboard-section" style="display: none;">
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom: 1px solid #eee; padding-bottom: 15px;">
-    <h2 style="margin: 0; color: #333;">Panel Principal <span id="admin-header-name" style="font-size:0.6em; font-weight:normal; margin-left:15px; color:#666;"></span></h2>
-    <button onclick="logout()" style="width:auto; background:#dc3545; padding:8px 15px; margin: 0;">Salir</button>
-  </div>
-  
-  <div class="tabs">
-      <div class="tab active" onclick="switchAdminTab('users')" id="tab-btn-users">👥 Directorio</div>
-      <div class="tab" onclick="switchAdminTab('locations')" id="tab-btn-locations">📍 Ubicaciones</div>
-      <div class="tab" onclick="switchAdminTab('schedule')" id="tab-btn-schedule">⚙️ Generador</div>
-  </div>
-  
-  <div id="tab-users" class="tab-content active">
-    <div style="display:flex; gap:20px; flex-wrap: wrap;">
-      <div style="flex:1; min-width: 300px; background:#f9f9f9; padding:20px; border-radius:8px; border:1px solid #ddd;">
-        <h3 id="pub-form-title" style="margin-top:0; color:#333;">Nuevo Publicador</h3>
-        <input type="hidden" id="pub-id"> 
-        
-        <div style="display:flex; gap:10px;">
-          <div style="flex:1;"><label>Nombre</label><input type="text" id="pub-firstname" placeholder="ej. Juan"></div>
-          <div style="flex:1;"><label>Apellido</label><input type="text" id="pub-lastname" placeholder="ej. Pérez"></div>
-        </div>
-        
-        <label>Sexo</label>
-        <select id="pub-gender"><option value="H">Hombre (H)</option><option value="M">Mujer (M)</option></select>
-
-        <label>Compañero Preferido</label>
-        <select id="pub-partner"><option value="">Ninguno</option></select>
-        
-        <div id="pub-hardpair-container" style="display:none; margin-top:10px; margin-bottom: 15px; align-items:center; gap:8px;">
-            <input type="checkbox" id="pub-hardpair" style="width:auto; margin:0; cursor:pointer;">
-            <label for="pub-hardpair" style="margin:0; font-weight:normal; cursor:pointer; font-size: 0.85em; color: #555;">Asignar estrictamente juntos</label>
-        </div>
-
-        <hr style="margin:20px 0; border:0; border-top:1px solid #ddd;">
-        
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h4 style="margin:0; color:#5d7aa9;">Cuenta de Acceso</h4>
-            <button id="btn-unlink" onclick="unlinkAccount()" style="width:auto; background:#dc3545; padding:4px 10px; font-size:0.8em; margin:0; display:none;">Desvincular Cuenta</button>
-        </div>
-        <p id="account-status-msg" style="font-size:0.85em; color:#666; margin-top:5px; margin-bottom:15px;">Opcional al crear un usuario nuevo.</p>
-
-        <label>Usuario (Sin espacios)</label><input type="text" id="pub-username" placeholder="ej. juanperez">
-        <label>Contraseña Temporal</label><input type="text" id="pub-password" placeholder="Mínimo 6 caracteres">
-        <label>Rol de Usuario</label><select id="pub-role"><option value="user">Publicador</option><option value="admin">Administrador</option></select>
-        
-        <div style="display: flex; gap: 10px; margin-top: 15px;">
-          <button id="btn-delete-pub" onclick="deletePublisher()" style="background:#dc3545; flex: 1; display: none; margin: 0;">Eliminar</button>
-          <button onclick="savePublisher()" style="background:#28a745; flex: 2; margin: 0;">Guardar Datos</button>
-        </div>
-        <button id="btn-cancel-pub" onclick="clearPublisherForm()" style="margin-top:10px; background:#6c757d; display: none;">Cancelar Edición</button>
-        
-        <p class="success" id="pub-msg"></p><p class="error" id="pub-error"></p>
-      </div>
-
-      <div style="flex:1; min-width: 300px;">
-          <h3 style="margin-top:0; color:#333;">Directorio</h3>
-          <input type="text" id="pub-search" placeholder="🔍 Buscar por nombre..." onkeyup="filterPublishers()" style="margin-bottom:15px;">
-          <div id="publishers-list" style="max-height:600px; overflow-y:auto; padding-right:5px;"><p style="color: #666;">Cargando directorio...</p></div>
+  <div id="toast-container"></div>
+  <div id="custom-confirm">
+    <div class="confirm-box">
+      <p id="confirm-msg">¿Estás seguro?</p>
+      <div class="confirm-btns">
+        <button class="btn-confirm-cancel" id="btn-confirm-cancel">Cancelar</button>
+        <button class="btn-confirm-ok" id="btn-confirm-ok">Aceptar</button>
       </div>
     </div>
   </div>
 
-  <div id="tab-locations" class="tab-content">
-      <div style="margin-bottom:20px; text-align:right;">
-          <button onclick="openLocationModal()" style="width:auto; background:#28a745; padding: 10px 20px;">+ Nueva Ubicación</button>
-      </div>
-      <div id="locations-list"><p style="color: #666;">Cargando ubicaciones...</p></div>
+  <div class="admin-container" id="login-section">
+    <h2 style="color: #333; margin-bottom: 5px;">Panel de Administración</h2>
+    <p style="color: #666; font-size: 0.95em; margin-bottom: 25px; margin-top: 0;">Ingresa tu usuario para continuar</p>
+    <input type="text" id="admin-user" placeholder="Usuario o Correo">
+    <input type="password" id="admin-pass" placeholder="Contraseña">
+    <button onclick="adminLogin()">Ingresar</button>
+    <p id="login-error" style="color: #dc3545; font-size: 0.9em; margin-top: 15px;"></p>
   </div>
 
-  <div id="location-modal" class="modal">
-      <div class="modal-content">
-          <span class="close" onclick="closeLocationModal()">×</span>
-          <h3 id="loc-modal-title" style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px;">Nueva Ubicación</h3>
-          <input type="hidden" id="loc-id">
-          <label>Nombre de la Ubicación</label><input type="text" id="loc-name" placeholder="Ej. Costanera">
-          <label>Capacidad (personas por turno)</label><input type="number" id="loc-capacity" value="2" min="1">
-          <h4 style="margin-top: 20px; margin-bottom: 10px; color: #5d7aa9;">Plantillas de Turnos</h4>
-          <div id="shifts-container" style="background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee; max-height: 250px; overflow-y: auto;"></div>
-          <div style="margin-top:20px; display: flex; justify-content: flex-end; gap: 10px;">
-              <button id="btn-delete-loc" onclick="deleteLocation()" style="width:auto; background:#dc3545; margin: 0; display:none;">Eliminar</button>
-              <button onclick="saveLocation()" style="width:auto; background:#28a745; margin: 0;">Guardar Ubicación</button>
+  <div class="admin-container" id="dashboard-section" style="display: none;">
+    <div class="header">
+      <h2>PPAM Admin <span id="admin-header-name"></span></h2>
+      <button class="btn-logout" onclick="logout()">Salir</button>
+    </div>
+    
+    <div class="tabs">
+        <div class="tab active" onclick="switchAdminTab('users')" id="tab-btn-users"><span class="material-symbols-outlined">group</span> Directorio</div>
+        <div class="tab" onclick="switchAdminTab('locations')" id="tab-btn-locations"><span class="material-symbols-outlined">location_on</span> Ubicaciones</div>
+        <div class="tab" onclick="switchAdminTab('schedule')" id="tab-btn-schedule"><span class="material-symbols-outlined">calendar_month</span> Generador</div>
+    </div>
+    
+    <div id="tab-users" class="tab-content active">
+      <div style="display:flex; gap:25px; flex-wrap: wrap;">
+        <div class="panel" style="flex:1; min-width: 300px; background:#fcfcfc;">
+          <h3 id="pub-form-title" style="margin-top:0; color:#333;">Nuevo Publicador</h3>
+          <input type="hidden" id="pub-id"> 
+          
+          <div style="display:flex; gap:10px;">
+            <div class="form-group" style="flex:1; margin-bottom: 10px;"><label>Nombre</label><input type="text" id="pub-firstname" placeholder="ej. Juan"></div>
+            <div class="form-group" style="flex:1; margin-bottom: 10px;"><label>Apellido</label><input type="text" id="pub-lastname" placeholder="ej. Pérez"></div>
           </div>
-          <p id="loc-msg" class="success"></p><p id="loc-error" class="error"></p>
-      </div>
-  </div>
-  
-  <div id="tab-schedule" class="tab-content">
-      <div style="background:#f9f9f9; padding:20px; border-radius:8px; border: 1px solid #ddd;">
-          <h3 style="margin-top: 0; color: #5d7aa9;">Gestión del Programa Mensual</h3>
-          <p style="color: #555; font-size: 0.9em;">Genera un mes nuevo automáticamente o edita uno que ya fue publicado.</p>
-          <label>Mes Objetivo</label>
-          <select id="gen-month" onchange="checkMonthStatus()">
-              <option value="2026-03">Marzo 2026</option>
-              <option value="2026-04">Abril 2026</option>
-              <option value="2026-05">Mayo 2026</option>
-          </select>
-          <div style="display:flex; gap:10px; margin-top:15px; flex-wrap: wrap;">
-              <button id="btn-gen-draft" onclick="generateDraft()" style="flex:1; min-width: 200px; display:none;">1. Generar Borrador Nuevo</button>
-              <button id="btn-load-month" onclick="loadPublishedMonth()" style="flex:1; min-width: 200px; background:#17a2b8; display:none;">2. Cargar Mes Publicado</button>
+          
+          <div class="form-group" style="margin-bottom: 10px;">
+            <label>Sexo</label>
+            <select id="pub-gender"><option value="H">Hombre (H)</option><option value="M">Mujer (M)</option></select>
           </div>
-          <div id="container-delete-month" style="text-align:right; margin-top:20px; border-top: 1px solid #ddd; padding-top: 15px; display:none;">
-              <button onclick="deletePublishedMonth()" style="width:auto; background:#dc3545; font-size:0.85em; padding:8px 15px;">⚠️ Eliminar Mes Completo</button>
-          </div>
-      </div>
-      <div id="schedule-preview-container" style="display:none; margin-top:20px;">
-          <h3 style="display:flex; justify-content:space-between; align-items:center;">
-            Vista Previa del Programa
-            <span style="font-size: 0.6em; color: #666; font-weight: normal;">Haz clic en 'Editar' para modificar manualmente.</span>
-          </h3>
-          <div style="overflow-x:auto;">
-              <table id="preview-table"><thead id="preview-head"></thead><tbody id="preview-body"></tbody></table>
-          </div>
-          <div style="margin-top:20px; text-align:right;">
-             <button id="btn-publish-bottom" onclick="publishSchedule()" style="background:#28a745; width:auto; padding:10px 30px;">Guardar / Publicar</button>
-          </div>
-      </div>
-  </div>
 
-  <div id="shift-edit-modal" class="modal">
-    <div class="modal-content">
-        <span class="close" onclick="closeShiftEditModal()">×</span>
-        <h3 id="shift-modal-title" style="margin-top: 0; color: #5d7aa9; border-bottom: 1px solid #eee; padding-bottom: 10px;">Editar Turno</h3>
-        <div style="margin-bottom: 15px;">
-            <strong>Actualmente asignados (<span id="shift-modal-count">0</span>):</strong>
-            <div id="shift-modal-assigned" style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;"></div>
+          <div class="form-group" style="margin-bottom: 10px;">
+            <label>Compañero Preferido</label>
+            <select id="pub-partner"><option value="">Ninguno</option></select>
+          </div>
+          
+          <div id="pub-hardpair-container" style="display:none; margin-bottom: 20px; align-items:center; gap:8px;">
+              <input type="checkbox" id="pub-hardpair" style="width:16px; height:16px; margin:0; cursor:pointer;">
+              <label for="pub-hardpair" style="margin:0; font-weight:normal; cursor:pointer; font-size: 0.9em; color: #444;">Asignar estrictamente juntos</label>
+          </div>
+
+          <hr style="margin:25px 0; border:0; border-top:1px solid #e0e0e0;">
+          
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+              <h4 style="margin:0; color:#5d7aa9;">Cuenta de Acceso</h4>
+              <button id="btn-unlink" onclick="unlinkAccount()" class="btn-action btn-danger" style="padding:4px 10px; font-size:0.75em; display:none;">Desvincular Cuenta</button>
+          </div>
+          <p id="account-status-msg" style="font-size:0.85em; color:#666; margin-top:0; margin-bottom:15px;">Opcional al crear un usuario nuevo.</p>
+
+          <div class="form-group" style="margin-bottom: 10px;"><label>Usuario (Sin espacios)</label><input type="text" id="pub-username" placeholder="ej. juanperez"></div>
+          <div class="form-group" style="margin-bottom: 10px;"><label>Contraseña Temporal</label><input type="text" id="pub-password" placeholder="Mínimo 6 caracteres"></div>
+          <div class="form-group"><label>Rol de Usuario</label><select id="pub-role"><option value="user">Publicador</option><option value="admin">Administrador</option></select></div>
+          
+          <div style="display: flex; gap: 10px; margin-top: 25px;">
+            <button id="btn-delete-pub" onclick="deletePublisher()" class="btn-action btn-danger" style="flex: 1; display: none;"><span class="material-symbols-outlined">delete</span> Eliminar</button>
+            <button onclick="savePublisher()" class="btn-action btn-success" style="flex: 2;"><span class="material-symbols-outlined">save</span> Guardar Datos</button>
+          </div>
+          <button id="btn-cancel-pub" onclick="clearPublisherForm()" class="btn-action btn-secondary" style="width: 100%; margin-top: 10px; display: none;">Cancelar Edición</button>
         </div>
-        <hr style="border:0; border-top:1px solid #ddd; margin: 15px 0;">
-        <div style="margin-bottom: 10px;">
-            <strong>Añadir Publicador Manualmente:</strong>
-            <div style="display:flex; gap: 10px; margin-top: 5px; align-items: center;">
-                <select id="shift-add-select" style="margin:0; flex:1;"></select>
-                <button id="shift-add-btn" style="margin:0; width:auto; background:#17a2b8; padding:10px 15px;">Añadir</button>
+
+        <div class="panel" style="flex:1; min-width: 300px;">
+            <h3 style="margin-top:0; color:#333;">Directorio</h3>
+            <div class="search-wrapper">
+                <span class="material-symbols-outlined search-icon">search</span>
+                <input type="text" id="pub-search" class="search-box" placeholder="Buscar por nombre..." onkeyup="filterPublishers()">
+            </div>
+            <div id="publishers-list" style="max-height:650px; overflow-y:auto; padding-right:5px;"><p style="color: #666; text-align: center;">Cargando directorio...</p></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab-locations" class="tab-content">
+        <div style="margin-bottom:20px; text-align:right;">
+            <button onclick="openLocationModal()" class="btn-action btn-success" style="padding: 10px 20px;"><span class="material-symbols-outlined">add</span> Nueva Ubicación</button>
+        </div>
+        <div id="locations-list"><p style="color: #666; text-align: center;">Cargando ubicaciones...</p></div>
+    </div>
+
+    <div id="location-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closeLocationModal()"><span class="material-symbols-outlined">close</span></span>
+            <h3 id="loc-modal-title" style="margin-top: 0; border-bottom: 1px solid #f0f0f0; padding-bottom: 15px;">Nueva Ubicación</h3>
+            <input type="hidden" id="loc-id">
+            <div class="form-group"><label>Nombre de la Ubicación</label><input type="text" id="loc-name" placeholder="Ej. Costanera"></div>
+            <div class="form-group"><label>Capacidad (personas por turno)</label><input type="number" id="loc-capacity" value="2" min="1"></div>
+            
+            <h4 style="margin-top: 25px; margin-bottom: 10px; color: #5d7aa9;">Plantillas de Turnos</h4>
+            <div id="shifts-container" style="background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee; max-height: 250px; overflow-y: auto;"></div>
+            
+            <div style="margin-top:25px; display: flex; justify-content: flex-end; gap: 10px;">
+                <button id="btn-delete-loc" onclick="deleteLocation()" class="btn-action btn-danger" style="display:none;">Eliminar</button>
+                <button onclick="saveLocation()" class="btn-action btn-success">Guardar Ubicación</button>
             </div>
         </div>
     </div>
+    
+    <div id="tab-schedule" class="tab-content">
+        <div class="panel" style="background:#fcfcfc;">
+            <h3 style="margin-top: 0; color: #5d7aa9; display: flex; align-items: center; gap: 8px;"><span class="material-symbols-outlined">auto_awesome</span> Gestión del Programa Mensual</h3>
+            <p style="color: #666; font-size: 0.95em;">Genera un mes nuevo automáticamente o edita uno que ya fue publicado.</p>
+            
+            <div class="form-group" style="max-width: 400px; margin-top: 20px;">
+                <label>Seleccionar Mes Objetivo</label>
+                <select id="gen-month" onchange="checkMonthStatus()">
+                    <option value="2026-03">Marzo 2026</option>
+                    <option value="2026-04">Abril 2026</option>
+                    <option value="2026-05">Mayo 2026</option>
+                </select>
+            </div>
+            
+            <div style="display:flex; gap:15px; margin-top:20px; flex-wrap: wrap;">
+                <button id="btn-gen-draft" onclick="generateDraft()" class="btn-action btn-primary" style="flex:1; min-width: 200px; padding: 12px; font-size: 1em; display:none;"><span class="material-symbols-outlined">magic_button</span> 1. Generar Borrador Nuevo</button>
+                <button id="btn-load-month" onclick="loadPublishedMonth()" class="btn-action btn-info" style="flex:1; min-width: 200px; padding: 12px; font-size: 1em; display:none;"><span class="material-symbols-outlined">download</span> 2. Cargar Mes Publicado</button>
+            </div>
+            
+            <div id="container-delete-month" style="text-align:right; margin-top:25px; border-top: 1px solid #eee; padding-top: 20px; display:none;">
+                <button onclick="deletePublishedMonth()" class="btn-action btn-danger"><span class="material-symbols-outlined">delete_forever</span> Eliminar Mes Completo</button>
+            </div>
+        </div>
+        
+        <div id="schedule-preview-container" class="panel" style="display:none; margin-top:25px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 15px;">
+                <h3 style="margin:0; color:#333;">Vista Previa del Programa</h3>
+                <span style="font-size: 0.85em; color: #666;">Haz clic en 'Editar' para modificar manualmente.</span>
+            </div>
+            <div style="overflow-x:auto;">
+                <table id="preview-table"><thead id="preview-head"></thead><tbody id="preview-body"></tbody></table>
+            </div>
+            <div style="margin-top:25px; text-align:right;">
+               <button id="btn-publish-bottom" onclick="publishSchedule()" class="btn-action btn-success" style="padding:12px 30px; font-size: 1em;"><span class="material-symbols-outlined">cloud_upload</span> Guardar y Publicar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="shift-edit-modal" class="modal">
+      <div class="modal-content">
+          <span class="close-modal" onclick="closeShiftEditModal()"><span class="material-symbols-outlined">close</span></span>
+          <h3 id="shift-modal-title" style="margin-top: 0; color: #5d7aa9; border-bottom: 1px solid #f0f0f0; padding-bottom: 15px; text-transform: capitalize;">Editar Turno</h3>
+          
+          <div style="margin-bottom: 20px;">
+              <strong style="color: #444;">Actualmente asignados (<span id="shift-modal-count">0</span>):</strong>
+              <div id="shift-modal-assigned" style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;"></div>
+          </div>
+          
+          <hr style="border:0; border-top:1px solid #eee; margin: 20px 0;">
+          
+          <div style="margin-bottom: 10px;">
+              <strong style="color: #444; display:block; margin-bottom: 8px;">Añadir Publicador Manualmente:</strong>
+              <div style="display:flex; gap: 10px; align-items: center;">
+                  <select id="shift-add-select" style="margin:0; flex:1; padding: 10px; border-radius: 6px; border: 1px solid #ddd;"></select>
+                  <button id="shift-add-btn" class="btn-action btn-info" style="margin:0; padding:10px 15px;"><span class="material-symbols-outlined">person_add</span> Añadir</button>
+              </div>
+          </div>
+      </div>
+    </div>
   </div>
-</div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="app-admin.js"></script>
+<script src="app-admin.js?v=2"></script>
 </body>
 </html>

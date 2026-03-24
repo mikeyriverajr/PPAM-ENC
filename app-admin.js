@@ -16,7 +16,7 @@ const secondaryApp = firebase.initializeApp(firebaseConfig, "Secondary");
 const secondaryAuth = secondaryApp.auth();
 
 // ==========================================
-// CUSTOM POPUPS & FORMATTERS
+// POPUPS & FORMATTERS
 // ==========================================
 function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');
@@ -45,7 +45,6 @@ function showConfirm(message, okText = "Aceptar", okColor = "#dc3545") {
 }
 
 const formatDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
 function formatSpanishDate(dateStr) {
     if (!dateStr) return "";
     const parts = dateStr.split('-');
@@ -58,7 +57,7 @@ function formatSpanishDate(dateStr) {
 }
 
 // ==========================================
-// THE GATEKEEPER 
+// GATEKEEPER 
 // ==========================================
 auth.onAuthStateChanged(async user => {
   if (user) {
@@ -97,7 +96,6 @@ function adminLogin() {
   if (!input.includes('@')) { email = input.toLowerCase().replace(/\s+/g, '') + '@ppam.app'; }
   auth.signInWithEmailAndPassword(email, pass).catch(e => { errorDiv.innerText = "Error: Verifica tu usuario o contraseña."; });
 }
-
 function logout() { auth.signOut(); }
 
 function switchAdminTab(tabId) {
@@ -111,10 +109,11 @@ function switchAdminTab(tabId) {
 }
 
 // ==========================================
-// TAB 1: DIRECTORIO 
+// TAB 1: DIRECTORIO (UPGRADED)
 // ==========================================
 let allPublishers = []; 
 let currentLinkedUserDocId = null; 
+let currentAbsences = [];
 
 document.addEventListener("DOMContentLoaded", function() {
     const partnerSelect = document.getElementById('pub-partner');
@@ -141,16 +140,121 @@ async function loadPublishers() {
       const card = document.createElement('div');
       card.className = 'pub-card';
       const genderIcon = pub.gender === 'M' ? 'woman' : 'man';
-      const partnerText = pub.partnerName ? `Compañero: ${pub.partnerName}` : 'Sin compañero preferido';
+      const statusBadge = pub.status === 'Entrenamiento' ? `<span class="badge-warning">Entrenamiento</span>` : '';
       const hardPairBadge = pub.hardPair ? `<span class="badge-red">Estricto</span>` : '';
       card.innerHTML = `
-        <div><h4 class="pub-name" style="margin:0 0 5px 0; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="color:#5d7aa9;">${genderIcon}</span> ${pub.firstName} ${pub.lastName} ${hardPairBadge}</h4><p style="margin:0; font-size:0.85em; color:#666; margin-left: 30px;">${partnerText}</p></div>
+        <div><h4 class="pub-name" style="margin:0 0 5px 0; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="color:#5d7aa9;">${genderIcon}</span> ${pub.firstName} ${pub.lastName} ${statusBadge} ${hardPairBadge}</h4>
+        <p style="margin:0; font-size:0.85em; color:#666; margin-left: 30px;">Turnos al mes: ${pub.maxShifts || '5'} | Compañero: ${pub.partnerName || 'Ninguno'}</p></div>
         <button onclick='editPublisher("${pub.id}")' class="btn-action btn-primary">Editar</button>
       `;
       listDiv.appendChild(card);
       partnerSelect.innerHTML += `<option value="${pub.id}">${pub.firstName} ${pub.lastName}</option>`;
     });
   } catch (error) { listDiv.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar.</p>'; }
+}
+
+async function buildAdminAvailabilityForm(pubAvailability = []) {
+  const container = document.getElementById('admin-avail-container');
+  try {
+    const locSnapshot = await db.collection('locations').where('isActive', '==', true).get();
+    const daysOrder = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    const grouped = { 'Lunes': [], 'Martes': [], 'Miércoles': [], 'Jueves': [], 'Viernes': [], 'Sábado': [], 'Domingo': [] };
+    locSnapshot.forEach(doc => {
+      const loc = doc.data();
+      (loc.templates || []).forEach(t => {
+        if (grouped[t.day] !== undefined) grouped[t.day].push({ name: loc.name, time: `${t.startTime}-${t.endTime}`, val: `${loc.name}_${t.day}_${t.startTime}` });
+      });
+    });
+    container.innerHTML = '';
+    let hasShifts = false;
+    daysOrder.forEach(day => {
+      if (grouped[day].length > 0) {
+        hasShifts = true; grouped[day].sort((a, b) => a.time.localeCompare(b.time));
+        const div = document.createElement('div'); div.className = 'admin-avail-day';
+        let html = `<h5>${day}</h5>`;
+        grouped[day].forEach(s => {
+          const isChecked = pubAvailability.includes(s.val) ? 'checked' : '';
+          html += `<div class="admin-avail-check"><input type="checkbox" id="admin-chk-${s.val}" class="admin-avail-checkbox" value="${s.val}" ${isChecked}><label for="admin-chk-${s.val}">${s.name} (${s.time})</label></div>`;
+        });
+        div.innerHTML = html; container.appendChild(div);
+      }
+    });
+    if (!hasShifts) container.innerHTML = '<p style="text-align:center; color:#666; font-size:0.85em;">No hay ubicaciones activas en el sistema.</p>';
+  } catch (error) { container.innerHTML = '<p style="color:red; font-size:0.8em;">Error al cargar turnos.</p>'; }
+}
+
+function renderAbsences() {
+    const list = document.getElementById('absences-list');
+    list.innerHTML = '';
+    currentAbsences.forEach((abs, index) => {
+        list.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#f9f9f9; border:1px solid #ddd; padding:8px; border-radius:4px; font-size:0.9em;">
+            <span>📅 ${formatSpanishDate(abs.start)} - ${formatSpanishDate(abs.end)}</span>
+            <button onclick="removeAbsence(${index})" class="btn-action btn-danger" style="padding:4px;"><span class="material-symbols-outlined" style="font-size:16px;">close</span></button>
+        </div>`;
+    });
+}
+function addAbsence() {
+    const s = document.getElementById('abs-start').value; const e = document.getElementById('abs-end').value;
+    if(!s || !e) { showToast("Selecciona fecha de inicio y fin.", "error"); return; }
+    if(s > e) { showToast("La fecha de fin no puede ser anterior al inicio.", "error"); return; }
+    currentAbsences.push({start: s, end: e});
+    document.getElementById('abs-start').value = ''; document.getElementById('abs-end').value = '';
+    renderAbsences();
+}
+function removeAbsence(index) { currentAbsences.splice(index, 1); renderAbsences(); }
+
+async function editPublisher(id) {
+  const pub = allPublishers.find(p => p.id === id);
+  if (!pub) return;
+  document.getElementById('pub-form-title').innerText = 'Editar Publicador';
+  document.getElementById('pub-id').value = pub.id;
+  document.getElementById('pub-firstname').value = pub.firstName || '';
+  document.getElementById('pub-lastname').value = pub.lastName || '';
+  document.getElementById('pub-gender').value = pub.gender || 'H';
+  document.getElementById('pub-status').value = pub.status || 'Aprobado';
+  document.getElementById('pub-max').value = pub.maxShifts || '5';
+  document.getElementById('pub-partner').value = pub.partner || '';
+  document.getElementById('pub-hardpair-container').style.display = pub.partner ? 'flex' : 'none';
+  document.getElementById('pub-hardpair').checked = pub.hardPair || false;
+  
+  // Contacts
+  document.getElementById('pub-phone').value = pub.phone || '';
+  document.getElementById('pub-email').value = pub.notificationEmail || '';
+  document.getElementById('pub-emerg-name').value = pub.emergencyName || '';
+  document.getElementById('pub-emerg-phone').value = pub.emergencyPhone || '';
+
+  // Availability & Absences
+  buildAdminAvailabilityForm(pub.availability || []);
+  currentAbsences = pub.absences || [];
+  renderAbsences();
+
+  document.getElementById('btn-cancel-pub').style.display = 'block';
+  document.getElementById('btn-delete-pub').style.display = 'inline-flex';
+  
+  const userQuery = await db.collection('users').where('publisherId', '==', id).get();
+  if (!userQuery.empty) {
+     const userDoc = userQuery.docs[0];
+     currentLinkedUserDocId = userDoc.id;
+     const userData = userDoc.data();
+     document.getElementById('pub-username').value = userData.username || '';
+     document.getElementById('pub-password').value = '';
+     document.getElementById('pub-username').disabled = true;
+     document.getElementById('pub-password').disabled = true;
+     document.getElementById('pub-role').value = userData.role || 'user';
+     document.getElementById('pub-password').placeholder = "Cuenta vinculada";
+     document.getElementById('account-status-msg').innerText = "✅ Este publicador ya tiene cuenta vinculada.";
+     document.getElementById('btn-unlink').style.display = 'inline-flex';
+  } else {
+     currentLinkedUserDocId = null;
+     document.getElementById('pub-username').value = '';
+     document.getElementById('pub-password').value = '';
+     document.getElementById('pub-username').disabled = false;
+     document.getElementById('pub-password').disabled = false;
+     document.getElementById('pub-role').value = 'user';
+     document.getElementById('pub-password').placeholder = "Mínimo 6 caracteres";
+     document.getElementById('account-status-msg').innerText = "Opcional al crear un usuario nuevo.";
+     document.getElementById('btn-unlink').style.display = 'none';
+  }
 }
 
 async function savePublisher() {
@@ -160,6 +264,14 @@ async function savePublisher() {
   const gender = document.getElementById('pub-gender').value;
   const partnerId = document.getElementById('pub-partner').value;
   const hardPair = document.getElementById('pub-hardpair').checked;
+  const status = document.getElementById('pub-status').value;
+  const maxShifts = parseInt(document.getElementById('pub-max').value) || 5;
+  const phone = document.getElementById('pub-phone').value.trim();
+  const notificationEmail = document.getElementById('pub-email').value.trim();
+  const emergencyName = document.getElementById('pub-emerg-name').value.trim();
+  const emergencyPhone = document.getElementById('pub-emerg-phone').value.trim();
+  const availability = Array.from(document.querySelectorAll('.admin-avail-checkbox:checked')).map(cb => cb.value);
+
   const username = document.getElementById('pub-username').value.trim();
   const password = document.getElementById('pub-password').value;
   const role = document.getElementById('pub-role').value;
@@ -170,7 +282,8 @@ async function savePublisher() {
   const email = username ? username.toLowerCase().replace(/\s+/g, '') + '@ppam.app' : '';
   let partnerName = "";
   if (partnerId) { const pObj = allPublishers.find(p => p.id === partnerId); if (pObj) partnerName = `${pObj.firstName} ${pObj.lastName}`; }
-  const pubData = { firstName, lastName, gender, partner: partnerId, partnerName, hardPair };
+  
+  const pubData = { firstName, lastName, gender, status, partner: partnerId, partnerName, hardPair, maxShifts, phone, notificationEmail, emergencyName, emergencyPhone, availability, absences: currentAbsences };
 
   try {
     if (id) {
@@ -198,58 +311,13 @@ async function savePublisher() {
   } catch (error) { showToast('Error: ' + error.message, 'error'); }
 }
 
-async function editPublisher(id) {
-  const pub = allPublishers.find(p => p.id === id);
-  if (!pub) return;
-  document.getElementById('pub-form-title').innerText = 'Editar Publicador';
-  document.getElementById('pub-id').value = pub.id;
-  document.getElementById('pub-firstname').value = pub.firstName || '';
-  document.getElementById('pub-lastname').value = pub.lastName || '';
-  document.getElementById('pub-gender').value = pub.gender || 'H';
-  document.getElementById('pub-partner').value = pub.partner || '';
-  
-  document.getElementById('pub-hardpair-container').style.display = pub.partner ? 'flex' : 'none';
-  document.getElementById('pub-hardpair').checked = pub.hardPair || false;
-  
-  document.getElementById('btn-cancel-pub').style.display = 'inline-flex';
-  document.getElementById('btn-delete-pub').style.display = 'inline-flex';
-  
-  const userQuery = await db.collection('users').where('publisherId', '==', id).get();
-  if (!userQuery.empty) {
-     const userDoc = userQuery.docs[0];
-     currentLinkedUserDocId = userDoc.id;
-     const userData = userDoc.data();
-     document.getElementById('pub-username').value = userData.username || '';
-     document.getElementById('pub-password').value = '';
-     document.getElementById('pub-username').disabled = true;
-     document.getElementById('pub-password').disabled = true;
-     document.getElementById('pub-role').value = userData.role || 'user';
-     document.getElementById('pub-password').placeholder = "Cuenta vinculada";
-     document.getElementById('account-status-msg').innerText = "✅ Este publicador ya tiene cuenta vinculada.";
-     document.getElementById('btn-unlink').style.display = 'inline-flex';
-  } else {
-     currentLinkedUserDocId = null;
-     document.getElementById('pub-username').value = '';
-     document.getElementById('pub-password').value = '';
-     document.getElementById('pub-username').disabled = false;
-     document.getElementById('pub-password').disabled = false;
-     document.getElementById('pub-role').value = 'user';
-     document.getElementById('pub-password').placeholder = "Mínimo 6 caracteres";
-     document.getElementById('account-status-msg').innerText = "Opcional al crear un usuario nuevo.";
-     document.getElementById('btn-unlink').style.display = 'none';
-  }
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
 async function unlinkAccount() {
   if (!currentLinkedUserDocId) return;
   const isConfirmed = await showConfirm("¿Estás seguro de desvincular esta cuenta? Esto borrará su acceso actual.", "Sí, Desvincular");
   if (!isConfirmed) return;
-  
   try {
       await db.collection('users').doc(currentLinkedUserDocId).delete();
       showToast("Cuenta desvínculada. Asigna nuevos datos y haz clic en Guardar.", "info");
-      
       currentLinkedUserDocId = null;
       document.getElementById('pub-username').disabled = false;
       document.getElementById('pub-password').disabled = false;
@@ -265,7 +333,6 @@ async function deletePublisher() {
   if (!id) return;
   const isConfirmed = await showConfirm("¿Estás seguro de eliminar este publicador de la congregación?", "Eliminar Publicador");
   if (!isConfirmed) return;
-
   try {
     await db.collection('publishers').doc(id).delete();
     const userQuery = await db.collection('users').where('publisherId', '==', id).get();
@@ -281,9 +348,15 @@ function clearPublisherForm() {
   document.getElementById('pub-firstname').value = '';
   document.getElementById('pub-lastname').value = '';
   document.getElementById('pub-gender').value = 'H';
+  document.getElementById('pub-status').value = 'Aprobado';
+  document.getElementById('pub-max').value = '5';
   document.getElementById('pub-partner').value = '';
   document.getElementById('pub-hardpair-container').style.display = 'none';
   document.getElementById('pub-hardpair').checked = false;
+  document.getElementById('pub-phone').value = '';
+  document.getElementById('pub-email').value = '';
+  document.getElementById('pub-emerg-name').value = '';
+  document.getElementById('pub-emerg-phone').value = '';
   document.getElementById('pub-username').value = '';
   document.getElementById('pub-password').value = '';
   document.getElementById('pub-username').disabled = false;
@@ -294,6 +367,9 @@ function clearPublisherForm() {
   document.getElementById('btn-delete-pub').style.display = 'none';
   document.getElementById('btn-unlink').style.display = 'none';
   currentLinkedUserDocId = null;
+  currentAbsences = [];
+  renderAbsences();
+  document.getElementById('admin-avail-container').innerHTML = '<p style="text-align:center; font-size:0.9em; color:#666;">Selecciona o crea un publicador para editar su rutina.</p>';
   document.getElementById('account-status-msg').innerText = "Opcional al crear un usuario nuevo.";
 }
 
@@ -304,7 +380,7 @@ function filterPublishers() {
 }
 
 // ==========================================
-// TAB 2: LOCATIONS LOGIC
+// TAB 2: LOCATIONS (QUICK BUILDER & STATUS)
 // ==========================================
 async function loadLocations() {
   const listDiv = document.getElementById('locations-list');
@@ -318,8 +394,10 @@ async function loadLocations() {
       const card = document.createElement('div');
       card.className = 'pub-card';
       const shiftsSummary = (loc.templates || []).map(t => `${t.day} ${t.startTime}-${t.endTime}`).join(', ');
+      const statusBadge = loc.isActive !== false ? '<span class="badge-green">Activa</span>' : '<span class="badge-gray">Inactiva</span>';
       card.innerHTML = `
-        <div><h4 style="margin:0 0 5px 0; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="color:#dc3545;">location_on</span> ${loc.name} <span class="badge-green" style="font-weight:normal;">Cap: ${loc.capacity}</span></h4><p style="margin:0; font-size:0.85em; color:#666; margin-left: 30px;">Turnos: ${shiftsSummary || 'Ninguno'}</p></div>
+        <div><h4 style="margin:0 0 5px 0; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="color:#dc3545;">location_on</span> ${loc.name} <span style="font-size:0.8em; color:#666; font-weight:normal;">(Cap: ${loc.capacity})</span> ${statusBadge}</h4>
+        <p style="margin:0; font-size:0.85em; color:#666; margin-left: 30px;">Turnos: ${shiftsSummary || 'Ninguno'}</p></div>
         <button onclick='editLocation("${doc.id}")' class="btn-action btn-primary">Editar</button>
       `;
       listDiv.appendChild(card);
@@ -329,21 +407,54 @@ async function loadLocations() {
 
 function openLocationModal() {
   document.getElementById('location-modal').style.display = 'flex';
-  document.getElementById('loc-id').value = ''; document.getElementById('loc-name').value = ''; document.getElementById('loc-capacity').value = '2';
+  document.getElementById('loc-id').value = ''; document.getElementById('loc-name').value = ''; 
+  document.getElementById('loc-capacity').value = '2'; document.getElementById('loc-status').value = 'true';
   document.getElementById('loc-modal-title').innerText = 'Nueva Ubicación';
   document.getElementById('btn-delete-loc').style.display = 'none';
-  document.getElementById('shifts-container').innerHTML = `<button onclick="addShiftRow()" class="btn-action btn-info" style="margin-bottom:15px;"><span class="material-symbols-outlined">add</span> Agregar Turno</button><div id="shifts-rows-wrapper"></div>`;
-  addShiftRow(); 
+  document.getElementById('shifts-container').innerHTML = '';
 }
 function closeLocationModal() { document.getElementById('location-modal').style.display = 'none'; }
 
+function executeQuickBuild() {
+    const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    const startStr = document.getElementById('qb-start').value;
+    const endStr = document.getElementById('qb-end').value;
+    const durHours = parseInt(document.getElementById('qb-duration').value);
+    
+    if(!startStr || !endStr || !durHours) { showToast("Completa los datos del generador rápido.", "error"); return; }
+    
+    const selectedDays = days.filter(d => document.getElementById('qb-' + d).checked);
+    if(selectedDays.length === 0) { showToast("Selecciona al menos un día.", "error"); return; }
+    
+    const [startH, startM] = startStr.split(':').map(Number);
+    const [endH, endM] = endStr.split(':').map(Number);
+    let startMinTotal = startH * 60 + startM;
+    const endMinTotal = endH * 60 + endM;
+    const durMins = durHours * 60;
+    
+    let generatedCount = 0;
+    selectedDays.forEach(day => {
+        let currentMins = startMinTotal;
+        while(currentMins + durMins <= endMinTotal) {
+            const sh = String(Math.floor(currentMins / 60)).padStart(2, '0');
+            const sm = String(currentMins % 60).padStart(2, '0');
+            const eh = String(Math.floor((currentMins + durMins) / 60)).padStart(2, '0');
+            const em = String((currentMins + durMins) % 60).padStart(2, '0');
+            addShiftRow(day, `${sh}:${sm}`, `${eh}:${em}`);
+            currentMins += durMins;
+            generatedCount++;
+        }
+    });
+    showToast(`Se agregaron ${generatedCount} turnos a la lista.`);
+}
+
 function addShiftRow(day = 'Lunes', start = '08:00', end = '10:00') {
-  const container = document.getElementById('shifts-rows-wrapper') || document.getElementById('shifts-container');
+  const container = document.getElementById('shifts-container');
   const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
   const row = document.createElement('div'); row.style.cssText = "display:flex; gap:10px; margin-bottom:10px; align-items:center;";
   row.className = 'shift-row';
   let options = days.map(d => `<option value="${d}" ${d === day ? 'selected' : ''}>${d}</option>`).join('');
-  row.innerHTML = `<select class="shift-day form-group" style="margin:0; flex:2; padding:10px;">${options}</select><input type="time" class="shift-start form-group" value="${start}" style="margin:0; flex:1; padding:10px;"><input type="time" class="shift-end form-group" value="${end}" style="margin:0; flex:1; padding:10px;"><button onclick="this.parentElement.remove()" class="btn-action btn-danger" style="margin:0;"><span class="material-symbols-outlined" style="font-size:18px;">close</span></button>`;
+  row.innerHTML = `<select class="shift-day form-group" style="margin:0; flex:2; padding:10px;">${options}</select><input type="time" class="shift-start form-group" value="${start}" style="margin:0; flex:1; padding:10px;"><input type="time" class="shift-end form-group" value="${end}" style="margin:0; flex:1; padding:10px;"><button onclick="this.parentElement.remove()" class="btn-action btn-danger" style="margin:0; padding:10px;"><span class="material-symbols-outlined" style="font-size:18px;">delete</span></button>`;
   container.appendChild(row);
 }
 
@@ -351,10 +462,13 @@ async function saveLocation() {
   const id = document.getElementById('loc-id').value;
   const name = document.getElementById('loc-name').value.trim();
   const capacity = parseInt(document.getElementById('loc-capacity').value) || 2;
+  const isActive = document.getElementById('loc-status').value === 'true';
   if (!name) { showToast("El nombre es obligatorio", "error"); return; }
+  
   const templates = [];
   document.querySelectorAll('.shift-row').forEach(row => { templates.push({ day: row.querySelector('.shift-day').value, startTime: row.querySelector('.shift-start').value, endTime: row.querySelector('.shift-end').value }); });
-  const locationData = { name, capacity, isActive: true, templates };
+  
+  const locationData = { name, capacity, isActive, templates };
   try {
     if (id) await db.collection('locations').doc(id).update(locationData);
     else await db.collection('locations').add(locationData);
@@ -371,16 +485,16 @@ async function editLocation(id) {
   try {
     const doc = await db.collection('locations').doc(id).get();
     const loc = doc.data();
-    document.getElementById('loc-name').value = loc.name; document.getElementById('loc-capacity').value = loc.capacity;
-    document.getElementById('shifts-container').innerHTML = `<button onclick="addShiftRow()" class="btn-action btn-info" style="margin-bottom:15px;"><span class="material-symbols-outlined">add</span> Agregar Turno</button><div id="shifts-rows-wrapper"></div>`;
+    document.getElementById('loc-name').value = loc.name; 
+    document.getElementById('loc-capacity').value = loc.capacity;
+    document.getElementById('loc-status').value = loc.isActive !== false ? 'true' : 'false';
     if (loc.templates && loc.templates.length > 0) loc.templates.forEach(t => addShiftRow(t.day, t.startTime, t.endTime));
-    else addShiftRow();
   } catch (error) { showToast('Error al cargar ubicación.', "error"); }
 }
 
 async function deleteLocation() {
   const id = document.getElementById('loc-id').value;
-  const isConfirmed = await showConfirm("¿Estás seguro de eliminar esta ubicación y sus turnos?", "Eliminar Ubicación");
+  const isConfirmed = await showConfirm("¿Estás seguro de eliminar esta ubicación y sus turnos de plantilla?", "Eliminar Ubicación");
   if (!isConfirmed) return;
   await db.collection('locations').doc(id).delete();
   showToast("Ubicación eliminada.");
@@ -388,7 +502,7 @@ async function deleteLocation() {
 }
 
 // ==========================================
-// TAB 3: SCHEDULE GENERATOR & EDITOR
+// TAB 3: GENERATOR (WITH ABSENCE/TRAINEE LOGIC)
 // ==========================================
 let draftSchedule = []; 
 
@@ -416,6 +530,7 @@ async function generateDraft() {
     const targetYear = parseInt(targetYearStr);
     const targetMonthIndex = parseInt(targetMonthStr) - 1; 
 
+    // FEATURE 2: ONLY PULL ACTIVE LOCATIONS
     const locsSnap = await db.collection('locations').where('isActive', '==', true).get();
     const locations = []; locsSnap.forEach(d => { let l=d.data(); l.id=d.id; locations.push(l); });
 
@@ -440,6 +555,7 @@ async function generateDraft() {
       });
     }
 
+    // Assigning Pools
     allPublishers.forEach(pub => {
       const avail = pub.availability || [];
       shiftTasks.forEach(task => { if (avail.includes(task.availKey)) task.pool.push(pub); });
@@ -449,8 +565,18 @@ async function generateDraft() {
 
     let assignedCounts = {}; let assignedDates = {};  
 
+    function isAbsent(pub, dateString) {
+        if (!pub.absences) return false;
+        return pub.absences.some(abs => dateString >= abs.start && dateString <= abs.end);
+    }
+
     function canAssign(pubId, dateObj, dateString) {
       let pub = allPublishers.find(p => p.id === pubId);
+      
+      // FEATURE 3 & 5: Skip Trainees and Vacations entirely during auto-gen!
+      if (pub.status === 'Entrenamiento') return false;
+      if (isAbsent(pub, dateString)) return false;
+      
       let limit = pub.maxShifts ? parseInt(pub.maxShifts) : 5;
       if ((assignedCounts[pubId] || 0) >= limit) return false; 
       if (assignedDates[pubId] && assignedDates[pubId].has(dateString)) return false; 
@@ -533,8 +659,6 @@ async function loadPublishedMonth() {
 
 async function deletePublishedMonth() {
   const monthVal = document.getElementById('gen-month').value; 
-  
-  // FIX 1: Only ONE scary warning
   const isConfirmed = await showConfirm(`⚠️ PELIGRO: Estás a punto de ELIMINAR todo el mes de ${monthVal}.\n\nEsta acción no se puede deshacer y todos perderán sus asignaciones. ¿Eliminar mes?`, "Eliminar Todo el Mes", "#dc3545");
   if (!isConfirmed) return;
 
@@ -559,10 +683,14 @@ function renderPreviewTable() {
   tbody.innerHTML = '';
   
   draftSchedule.forEach((shift, index) => {
-    const names = shift.assigned.map(p => `${p.firstName} ${p.lastName}`).join(', ');
-    const row = document.createElement('tr');
+    let namesHtml = '';
+    shift.assigned.forEach(p => {
+        const warn = p.status === 'Entrenamiento' ? `<span class="material-symbols-outlined" style="font-size:14px; color:#ffc107; vertical-align:-2px;" title="En Entrenamiento">warning</span>` : '';
+        namesHtml += `${p.firstName} ${p.lastName} ${warn}, `;
+    });
+    namesHtml = namesHtml.slice(0, -2); // remove last comma
     
-    // Status text color based on capacity
+    const row = document.createElement('tr');
     const isFull = shift.assigned.length >= shift.capacity;
     const statusColor = isFull ? '#28a745' : '#dc3545';
     
@@ -570,7 +698,7 @@ function renderPreviewTable() {
       <td style="text-transform: capitalize; font-weight: 500; min-width: 140px;">${formatSpanishDate(shift.dateString)}</td>
       <td><strong>${shift.location}</strong><br><span style="color:#666; font-size:0.9em;">${shift.time}</span></td>
       <td style="color:${statusColor};">
-        ${names || 'Nadie disponible'} <br>
+        ${namesHtml || 'Nadie disponible'} <br>
         <span style="font-size:0.85em; opacity: 0.8;">(${shift.assigned.length}/${shift.capacity})</span>
       </td>
       <td style="width: 100px; text-align: right;"><button onclick="openShiftEditModal(${index})" class="btn-action btn-info"><span class="material-symbols-outlined" style="font-size:18px;">edit</span> Editar</button></td>
@@ -595,20 +723,35 @@ function openShiftEditModal(shiftIndex) {
   const assignedContainer = document.getElementById('shift-modal-assigned');
   assignedContainer.innerHTML = '';
   shift.assigned.forEach(pub => {
-    assignedContainer.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#f9f9f9; padding:12px; border-radius:8px; border:1px solid #eee;"><span>${pub.firstName} ${pub.lastName}</span><button onclick="manualRemove(${shiftIndex}, '${pub.id}')" class="btn-action btn-danger" style="padding:6px 12px;">Quitar</button></div>`;
+    const warn = pub.status === 'Entrenamiento' ? `<span class="badge-warning">Trainee</span>` : '';
+    assignedContainer.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#f9f9f9; padding:12px; border-radius:8px; border:1px solid #eee;"><span>${pub.firstName} ${pub.lastName} ${warn}</span><button onclick="manualRemove(${shiftIndex}, '${pub.id}')" class="btn-action btn-danger" style="padding:6px 12px;">Quitar</button></div>`;
   });
   
   const select = document.getElementById('shift-add-select');
   let optionsHtml = `<option value="">Seleccionar publicador...</option>`;
-  let availableHtml = `<optgroup label="✅ Disponibles">`; let unavailableHtml = `<optgroup label="⚠️ No Disponibles">`;
+  let availableHtml = `<optgroup label="✅ Disponibles (Aprobados)">`; 
+  let traineeHtml = `<optgroup label="⚠️ En Entrenamiento (Asignar Manualmente)">`; 
+  let unavailableHtml = `<optgroup label="❌ No Disponibles / Ausentes">`;
   
   const sortedPubs = [...allPublishers].sort((a,b) => a.firstName.localeCompare(b.firstName));
   sortedPubs.forEach(pub => {
     if(shift.assigned.find(p => p.id === pub.id)) return;
-    if(shift.pool.find(p => p.id === pub.id)) { availableHtml += `<option value="${pub.id}">✅ ${pub.firstName} ${pub.lastName}</option>`; } 
-    else { unavailableHtml += `<option value="${pub.id}">⚠️ ${pub.firstName} ${pub.lastName}</option>`; }
+    
+    // Check if they are absent on this specific day
+    let isAway = false;
+    if(pub.absences) { isAway = pub.absences.some(abs => shift.dateString >= abs.start && shift.dateString <= abs.end); }
+
+    if (isAway) {
+        unavailableHtml += `<option value="${pub.id}">✈️ ${pub.firstName} ${pub.lastName} (Vacaciones)</option>`;
+    } else if (pub.status === 'Entrenamiento') {
+        traineeHtml += `<option value="${pub.id}">⚠️ ${pub.firstName} ${pub.lastName}</option>`;
+    } else if(shift.pool.find(p => p.id === pub.id)) { 
+        availableHtml += `<option value="${pub.id}">✅ ${pub.firstName} ${pub.lastName}</option>`; 
+    } else { 
+        unavailableHtml += `<option value="${pub.id}">❌ ${pub.firstName} ${pub.lastName}</option>`; 
+    }
   });
-  select.innerHTML = optionsHtml + availableHtml + `</optgroup>` + unavailableHtml + `</optgroup>`;
+  select.innerHTML = optionsHtml + availableHtml + `</optgroup>` + traineeHtml + `</optgroup>` + unavailableHtml + `</optgroup>`;
   document.getElementById('shift-add-btn').onclick = () => manualAdd(shiftIndex);
 }
 
@@ -625,6 +768,10 @@ async function manualAdd(shiftIndex) {
   }
   
   let trackers = recalculateTrackers(); let warnings = [];
+  
+  if (pub.status === 'Entrenamiento') warnings.push("Está En Entrenamiento. Asegúrate de asignarlo con un capacitador.");
+  if (pub.absences && pub.absences.some(abs => shift.dateString >= abs.start && shift.dateString <= abs.end)) warnings.push("✈️ Está marcado como AUSENTE (Vacaciones) en esta fecha.");
+
   let limit = pub.maxShifts ? parseInt(pub.maxShifts) : 5;
   if ((trackers.counts[pub.id] || 0) >= limit) warnings.push(`Ya tiene límite de ${limit} turnos.`);
   if (trackers.dates[pub.id] && trackers.dates[pub.id].has(shift.dateString)) warnings.push("Ya asignado hoy.");
@@ -633,7 +780,7 @@ async function manualAdd(shiftIndex) {
   if (trackers.dates[pub.id] && (trackers.dates[pub.id].has(formatDate(prevDate)) || trackers.dates[pub.id].has(formatDate(nextDate)))) { warnings.push("Trabajará día consecutivo."); }
   
   if(warnings.length > 0) { 
-      const forceWarn = await showConfirm(`⚠️ ADVERTENCIA:\n` + warnings.map(w=>"- "+w).join("\n") + "\n\n¿Forzar asignación?", "Asignar de todos modos");
+      const forceWarn = await showConfirm(`⚠️ ADVERTENCIA:\n` + warnings.map(w=>"- "+w).join("\n") + "\n\n¿Asignar de todos modos?", "Asignar");
       if(!forceWarn) return; 
   }
   

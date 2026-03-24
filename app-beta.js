@@ -12,12 +12,13 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+const messaging = firebase.messaging(); // Initialize Messaging
 
 let publisherCache = {}; 
 let currentUserPublisherId = null;
-let currentPubData = null; // Store full publisher doc to check status/absences
+let currentPubData = null; 
 let originalProfileData = {};
-let myAbsences = []; // Local state for vacation manager
+let myAbsences = []; 
 
 function openFullSchedule() { document.getElementById('full-schedule-modal').style.display = 'flex'; }
 function closeFullSchedule() { document.getElementById('full-schedule-modal').style.display = 'none'; }
@@ -74,7 +75,6 @@ auth.onAuthStateChanged(async user => {
         const userData = userDoc.data();
         currentUserPublisherId = userData.publisherId;
         
-        // Fetch specific publisher data to check Trainee status & absences
         const pubDoc = await db.collection('publishers').doc(currentUserPublisherId).get();
         if(pubDoc.exists) {
             currentPubData = pubDoc.data();
@@ -181,6 +181,32 @@ async function changeProfilePassword() {
       if(error.code === 'auth/requires-recent-login') { showToast("Cierra sesión y vuelve a ingresar antes de cambiar tu contraseña.", "error"); } 
       else { showToast("Error: " + error.message, "error"); }
   }
+}
+
+// ==========================================
+// PUSH NOTIFICATIONS (PHASE 2)
+// ==========================================
+async function enablePushNotifications() {
+    try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            const token = await messaging.getToken({ vapidKey: 'BCsvQHZK5ybZnRx28iqE5hLKOJeAmIuvNUA62-zJmLxRuJOHySmGeWIRIcN9qMx2-OjGmjlAm09montphPtiBgw' });
+            if (token) {
+                // Save token to this publisher's document
+                await db.collection('publishers').doc(currentUserPublisherId).update({ fcmToken: token });
+                showToast("¡Notificaciones activadas con éxito!");
+                document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#28a745;">Activadas</span>';
+                document.getElementById('btn-enable-push').style.display = 'none';
+            } else {
+                showToast("No se pudo generar el token de notificación.", "error");
+            }
+        } else {
+            showToast("Permiso denegado para notificaciones.", "error");
+        }
+    } catch (error) {
+        console.error("FCM Error:", error);
+        showToast("Error al activar notificaciones. Asegúrate de estar en HTTPS o en un celular.", "error");
+    }
 }
 
 let allShiftsData = []; 
@@ -294,7 +320,6 @@ async function loadAvailableShifts() {
   const container = document.getElementById('open-shifts-container');
   const banner = document.getElementById('trainee-warning');
   
-  // TRAINEE CHECK
   const isTrainee = currentPubData.status === 'Entrenamiento';
   banner.style.display = isTrainee ? 'flex' : 'none';
   
@@ -323,7 +348,6 @@ async function loadAvailableShifts() {
       const card = document.createElement('div');
       card.className = 'shift-card open';
       
-      // If Trainee, button is disabled gray. If Approved, button is green.
       const actionButton = isTrainee 
         ? `<button disabled class="btn-action" style="background:#e9ecef; color:#888; cursor:not-allowed; border: 1px solid #ddd;">Requiere Aprobación</button>`
         : `<button onclick="claimShift('${shift.id}', '${shift.date}', '${shift.time}', ${capacity})" class="btn-action btn-success"><span class="material-symbols-outlined" style="font-size:18px;">add</span> Tomar Turno</button>`;
@@ -458,6 +482,12 @@ async function loadProfileForm() {
   try {
     const pub = currentPubData;
     
+    // Check Notification Permission on load
+    if (Notification.permission === 'granted' && pub.fcmToken) {
+        document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#28a745;">Activadas</span>';
+        document.getElementById('btn-enable-push').style.display = 'none';
+    }
+
     document.getElementById('prof-phone').value = pub.phone || '';
     document.getElementById('prof-email').value = pub.notificationEmail || '';
     document.getElementById('prof-emerg-name').value = pub.emergencyName || '';
@@ -477,7 +507,6 @@ async function loadProfileForm() {
 
     document.getElementById('prof-hardpair-container').style.display = pub.partner ? 'flex' : 'none';
 
-    // Load absences
     myAbsences = pub.absences || [];
     renderMyAbsences();
 
@@ -542,7 +571,6 @@ async function saveProfile() {
         hard: profileData.hardPair, abs: JSON.stringify(myAbsences)
     };
     
-    // Update local cache so rules don't break
     currentPubData = { ...currentPubData, ...profileData };
     checkProfileChanges();
     showToast("¡Perfil y ausencias actualizados con éxito!");

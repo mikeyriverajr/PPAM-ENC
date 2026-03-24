@@ -17,8 +17,16 @@ const secondaryAuth = secondaryApp.auth();
 
 const formatDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
+function formatSpanishDate(dateStr) {
+    const [y, m, d] = dateStr.split('-');
+    const dateObj = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+    const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    return `${days[dateObj.getDay()]} ${parseInt(d)} de ${months[dateObj.getMonth()]}`;
+}
+
 // ==========================================
-// THE GATEKEEPER (SECURITY & LOGIN)
+// THE GATEKEEPER 
 // ==========================================
 auth.onAuthStateChanged(async user => {
   if (user) {
@@ -30,9 +38,16 @@ auth.onAuthStateChanged(async user => {
       if (isDbAdmin || isOriginalAdmin) {
         document.getElementById('login-section').style.display = 'none';
         document.getElementById('dashboard-section').style.display = 'block';
+        
+        if(isDbAdmin) {
+             const pubDoc = await db.collection('publishers').doc(userDoc.data().publisherId).get();
+             if(pubDoc.exists) document.getElementById('admin-header-name').innerText = `| Conectado: ${pubDoc.data().firstName}`;
+        } else {
+             document.getElementById('admin-header-name').innerText = `| Conectado: ${user.email}`;
+        }
+        
         loadPublishers(); 
       } else {
-        // They are just a publisher trying to sneak in! Kick them out.
         auth.signOut();
         document.getElementById('login-error').innerText = "Acceso Denegado: Esta cuenta no tiene permisos de Administrador.";
       }
@@ -52,7 +67,6 @@ function adminLogin() {
   const errorDiv = document.getElementById('login-error');
   errorDiv.innerText = "";
   
-  // Smart Login: Allows your real email OR their simple username
   let email = input;
   if (!input.includes('@')) {
       email = input.toLowerCase().replace(/\s+/g, '') + '@ppam.app';
@@ -74,10 +88,21 @@ function switchAdminTab(tabId) {
 }
 
 // ==========================================
-// TAB 1: DIRECTORIO LOGIC
+// TAB 1: DIRECTORIO 
 // ==========================================
 let allPublishers = []; 
 let currentLinkedUserDocId = null; 
+
+// Dynamic listener for strict pair
+document.addEventListener("DOMContentLoaded", function() {
+    const partnerSelect = document.getElementById('pub-partner');
+    if(partnerSelect) {
+        partnerSelect.addEventListener('change', function() {
+            document.getElementById('pub-hardpair-container').style.display = this.value ? 'flex' : 'none';
+            if(!this.value) document.getElementById('pub-hardpair').checked = false;
+        });
+    }
+});
 
 async function loadPublishers() {
   const listDiv = document.getElementById('publishers-list');
@@ -86,7 +111,7 @@ async function loadPublishers() {
   try {
     const snapshot = await db.collection('publishers').orderBy('firstName').get();
     allPublishers = [];
-    partnerSelect.innerHTML = '<option value="">Ninguna (Soltero/a)</option>';
+    partnerSelect.innerHTML = '<option value="">Ninguno</option>';
     if (snapshot.empty) { listDiv.innerHTML = '<p style="color:#666;">No hay publicadores registrados.</p>'; return; }
     listDiv.innerHTML = '';
     snapshot.forEach(doc => {
@@ -95,9 +120,10 @@ async function loadPublishers() {
       card.className = 'pub-card';
       card.style.cssText = "background:white; padding:15px; margin-bottom:10px; border:1px solid #ddd; border-radius:5px; display:flex; justify-content:space-between; align-items:center;";
       const genderIcon = pub.gender === 'M' ? '👩🏽' : '👨🏽';
-      const partnerText = pub.partnerName ? `Pareja: ${pub.partnerName}` : 'Sin pareja asignada';
+      const partnerText = pub.partnerName ? `Compañero: ${pub.partnerName}` : 'Sin compañero preferido';
+      const hardPairBadge = pub.hardPair ? `<span class="badge-red">Estricto</span>` : '';
       card.innerHTML = `
-        <div><h4 class="pub-name" style="margin:0 0 5px 0;">${genderIcon} ${pub.firstName} ${pub.lastName}</h4><p style="margin:0; font-size:0.85em; color:#666;">${partnerText}</p></div>
+        <div><h4 class="pub-name" style="margin:0 0 5px 0;">${genderIcon} ${pub.firstName} ${pub.lastName} ${hardPairBadge}</h4><p style="margin:0; font-size:0.85em; color:#666;">${partnerText}</p></div>
         <button onclick='editPublisher("${pub.id}")' style="width:auto; background:#5d7aa9; padding:5px 15px; margin:0;">Editar</button>
       `;
       listDiv.appendChild(card);
@@ -131,16 +157,12 @@ async function savePublisher() {
   try {
     if (id) {
       await db.collection('publishers').doc(id).update(pubData);
-      
-      // If we are creating a new account for an existing publisher
       if (email && password && !usernameIsDisabled) {
         if (password.length < 6) { errorP.innerText = 'Contraseña requiere 6+ caracteres.'; setTimeout(() => { clearPublisherForm(); loadPublishers(); }, 2500); return; }
         const userCred = await secondaryAuth.createUserWithEmailAndPassword(email, password);
         await db.collection('users').doc(userCred.user.uid).set({ publisherId: id, role: role, username: username, requirePasswordChange: true });
         await secondaryAuth.signOut();
-      } 
-      // If the account already exists, just update their role!
-      else if (currentLinkedUserDocId) {
+      } else if (currentLinkedUserDocId) {
         await db.collection('users').doc(currentLinkedUserDocId).update({ role: role });
       }
       msgP.innerText = 'Actualizado exitosamente.';
@@ -167,7 +189,11 @@ async function editPublisher(id) {
   document.getElementById('pub-lastname').value = pub.lastName || '';
   document.getElementById('pub-gender').value = pub.gender || 'H';
   document.getElementById('pub-partner').value = pub.partner || '';
+  
+  // Dynamic handling of strict container
+  document.getElementById('pub-hardpair-container').style.display = pub.partner ? 'flex' : 'none';
   document.getElementById('pub-hardpair').checked = pub.hardPair || false;
+  
   document.getElementById('btn-cancel-pub').style.display = 'block';
   document.getElementById('btn-delete-pub').style.display = 'block';
   
@@ -235,6 +261,7 @@ function clearPublisherForm() {
   document.getElementById('pub-lastname').value = '';
   document.getElementById('pub-gender').value = 'H';
   document.getElementById('pub-partner').value = '';
+  document.getElementById('pub-hardpair-container').style.display = 'none';
   document.getElementById('pub-hardpair').checked = false;
   document.getElementById('pub-username').value = '';
   document.getElementById('pub-password').value = '';
@@ -506,7 +533,7 @@ function renderPreviewTable() {
   draftSchedule.forEach((shift, index) => {
     const names = shift.assigned.map(p => `${p.firstName} ${p.lastName}`).join(', ');
     const row = document.createElement('tr');
-    row.innerHTML = `<td>${shift.dateString}</td><td>${shift.location}</td><td>${shift.time}</td>
+    row.innerHTML = `<td><span style="text-transform: capitalize;">${formatSpanishDate(shift.dateString)}</span></td><td>${shift.location}</td><td>${shift.time}</td>
       <td style="color:${shift.assigned.length < shift.capacity ? '#dc3545' : '#28a745'}; font-weight:bold;">${names || 'Nadie disponible'} (${shift.assigned.length}/${shift.capacity})</td>
       <td><button onclick="openShiftEditModal(${index})" style="background:#17a2b8; padding:5px 10px; margin:0; width:auto;">Editar</button></td>`;
     tbody.appendChild(row);
@@ -523,7 +550,7 @@ function recalculateTrackers() {
 function openShiftEditModal(shiftIndex) {
   const shift = draftSchedule[shiftIndex];
   document.getElementById('shift-edit-modal').style.display = 'block';
-  document.getElementById('shift-modal-title').innerText = `${shift.dateString} | ${shift.location} | ${shift.time}`;
+  document.getElementById('shift-modal-title').innerText = `${formatSpanishDate(shift.dateString)} | ${shift.location} | ${shift.time}`;
   document.getElementById('shift-modal-count').innerText = `${shift.assigned.length}/${shift.capacity}`;
   const assignedContainer = document.getElementById('shift-modal-assigned');
   assignedContainer.innerHTML = '';
@@ -564,7 +591,7 @@ function manualRemove(shiftIndex, pubId) {
   let shift = draftSchedule[shiftIndex]; let pub = shift.assigned.find(p => p.id === pubId);
   if(pub.hardPair && pub.partner && shift.assigned.find(p => p.id === pub.partner)) { if(!confirm(`⚠️ Separando Pareja Estricta. ¿Continuar?`)) return; }
   let partnerOf = shift.assigned.find(p => p.hardPair && p.partner === pubId);
-  if(partnerOf) { if(!confirm(`⚠️ Quitando a pareja de ${partnerOf.firstName}. ¿Continuar?`)) return; }
+  if(partnerOf) { if(!confirm(`⚠️ Quitando a compañero de ${partnerOf.firstName}. ¿Continuar?`)) return; }
   shift.assigned = shift.assigned.filter(p => p.id !== pubId);
   renderPreviewTable(); openShiftEditModal(shiftIndex); 
 }

@@ -184,19 +184,32 @@ async function changeProfilePassword() {
 }
 
 // ==========================================
-// PUSH NOTIFICATIONS (PHASE 2)
+// PUSH NOTIFICATIONS & CACHE CLEANUP
 // ==========================================
+
+// THE HUNTER-KILLER SCRIPT: Destroys old rogue caching service workers
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        for(let registration of registrations) {
+            // If it's NOT our specific Firebase messaging worker, kill it.
+            if (!registration.active || !registration.active.scriptURL.includes('firebase-messaging-sw.js')) {
+                console.log("Rogue Service Worker detected and destroyed.");
+                registration.unregister();
+            }
+        }
+    });
+}
+
 async function enablePushNotifications() {
     try {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
             
-            // THE FIX: Manually register the Service Worker so it respects the GitHub Subfolder
             const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
             
             const token = await messaging.getToken({ 
                 vapidKey: 'BCsvQHZK5ybZnRx28iqE5hLKOJeAmIuvNUA62-zJmLxRuJOHySmGeWIRIcN9qMx2-OjGmjlAm09montphPtiBgw',
-                serviceWorkerRegistration: registration // Tell Firebase to use the one we just found
+                serviceWorkerRegistration: registration 
             });
             
             if (token) {

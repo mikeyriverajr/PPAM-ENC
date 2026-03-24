@@ -34,9 +34,9 @@
 <div class="admin-container" id="login-section">
   <div style="text-align: center; margin-bottom: 20px;">
     <h2 style="color: #5d7aa9; margin-bottom: 5px;">Panel de Administración</h2>
-    <p style="color: #666; margin-top: 0;">Ingresa tu correo admin para continuar</p>
+    <p style="color: #666; margin-top: 0;">Ingresa tu usuario para continuar</p>
   </div>
-  <input type="text" id="admin-user" placeholder="Correo electrónico admin">
+  <input type="text" id="admin-user" placeholder="Usuario o Correo">
   <input type="password" id="admin-pass" placeholder="Contraseña">
   <button onclick="adminLogin()">Ingresar</button>
   <p class="error" id="login-error"></p>
@@ -44,7 +44,7 @@
 
 <div class="admin-container" id="dashboard-section" style="display: none;">
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom: 1px solid #eee; padding-bottom: 15px;">
-    <h2 style="margin: 0; color: #333;">PPAM Dashboard</h2>
+    <h2 style="margin: 0; color: #333;">Panel Principal <span id="admin-header-name" style="font-size:0.6em; font-weight:normal; margin-left:15px; color:#666;"></span></h2>
     <button onclick="logout()" style="width:auto; background:#dc3545; padding:8px 15px; margin: 0;">Salir</button>
   </div>
   
@@ -65,15 +65,15 @@
           <div style="flex:1;"><label>Apellido</label><input type="text" id="pub-lastname" placeholder="ej. Pérez"></div>
         </div>
         
-        <label>Género</label>
-        <select id="pub-gender"><option value="H">Hermano (H)</option><option value="M">Hermana (M)</option></select>
+        <label>Sexo</label>
+        <select id="pub-gender"><option value="H">Hombre (H)</option><option value="M">Mujer (M)</option></select>
 
-        <label>Pareja Preferida (Opcional)</label>
-        <select id="pub-partner"><option value="">Cargando publicadores...</option></select>
+        <label>Compañero Preferido</label>
+        <select id="pub-partner"><option value="">Ninguno</option></select>
         
-        <div style="margin-top:10px; margin-bottom: 15px; display:flex; align-items:center; gap:8px;">
+        <div id="pub-hardpair-container" style="display:none; margin-top:10px; margin-bottom: 15px; align-items:center; gap:8px;">
             <input type="checkbox" id="pub-hardpair" style="width:auto; margin:0; cursor:pointer;">
-            <label for="pub-hardpair" style="margin:0; font-weight:normal; cursor:pointer; font-size: 0.85em; color: #555;">Asignar estrictamente juntos (Hard Pair)</label>
+            <label for="pub-hardpair" style="margin:0; font-weight:normal; cursor:pointer; font-size: 0.85em; color: #555;">Asignar estrictamente juntos</label>
         </div>
 
         <hr style="margin:20px 0; border:0; border-top:1px solid #ddd;">
@@ -85,12 +85,12 @@
         <p id="account-status-msg" style="font-size:0.85em; color:#666; margin-top:5px; margin-bottom:15px;">Opcional al crear un usuario nuevo.</p>
 
         <label>Usuario (Sin espacios)</label><input type="text" id="pub-username" placeholder="ej. juanperez">
-        <label>Contraseña Temporal</label><input type="text" id="pub-password" placeholder="Mínimo 6 caracteres (ej. ppam2026)">
-        <label>Rol de Usuario</label><select id="pub-role"><option value="user">Publicador Normal</option><option value="admin">Administrador</option></select>
+        <label>Contraseña Temporal</label><input type="text" id="pub-password" placeholder="Mínimo 6 caracteres">
+        <label>Rol de Usuario</label><select id="pub-role"><option value="user">Publicador</option><option value="admin">Administrador</option></select>
         
         <div style="display: flex; gap: 10px; margin-top: 15px;">
           <button id="btn-delete-pub" onclick="deletePublisher()" style="background:#dc3545; flex: 1; display: none; margin: 0;">Eliminar</button>
-          <button onclick="savePublisher()" style="background:#28a745; flex: 2; margin: 0;">Guardar Publicador</button>
+          <button onclick="savePublisher()" style="background:#28a745; flex: 2; margin: 0;">Guardar Datos</button>
         </div>
         <button id="btn-cancel-pub" onclick="clearPublisherForm()" style="margin-top:10px; background:#6c757d; display: none;">Cancelar Edición</button>
         

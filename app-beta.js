@@ -17,13 +17,59 @@ let publisherCache = {};
 let currentUserPublisherId = null;
 let originalProfileData = {};
 
+// ==========================================
+// NEW: CUSTOM POPUP SYSTEM LOGIC
+// ==========================================
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    // Choose icon based on type
+    let icon = '✅';
+    if (type === 'error') icon = '❌';
+    else if (type === 'info') icon = 'ℹ️';
+
+    toast.innerHTML = `<span class="toast-icon">${icon}</span> <span>${message}</span>`;
+    container.appendChild(toast);
+
+    // Auto remove after 3 seconds
+    setTimeout(() => {
+        toast.style.animation = 'fadeOutToast 0.3s forwards';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+function showConfirm(message, okText = "Aceptar", okColor = "#dc3545") {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('custom-confirm');
+        const msgEl = document.getElementById('confirm-msg');
+        const btnCancel = document.getElementById('btn-confirm-cancel');
+        const btnOk = document.getElementById('btn-confirm-ok');
+
+        msgEl.innerText = message;
+        btnOk.innerText = okText;
+        btnOk.style.background = okColor;
+
+        modal.style.display = 'flex';
+
+        const cleanup = () => {
+            modal.style.display = 'none';
+            btnCancel.onclick = null;
+            btnOk.onclick = null;
+        };
+
+        btnCancel.onclick = () => { cleanup(); resolve(false); };
+        btnOk.onclick = () => { cleanup(); resolve(true); };
+    });
+}
+
 // --- DATE FORMATTERS ---
 const getTodayString = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-// FIX 3: Bulletproof Spanish Date Formatter
 function formatSpanishDate(dateStr) {
     if (!dateStr) return "";
     const parts = dateStr.split('-');
@@ -58,7 +104,7 @@ auth.onAuthStateChanged(async user => {
             const pubSnap = await db.collection('publishers').get();
             pubSnap.forEach(d => { publisherCache[d.id] = `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(); });
             
-            document.getElementById('header-user-name').innerText = publisherCache[currentUserPublisherId] || "";
+            document.getElementById('header-user-name').innerText = `| ${publisherCache[currentUserPublisherId] || ""}`;
             
             loadShifts(); loadMyShifts(); loadAvailableShifts(); loadAvailabilityForm(); loadProfileForm(); 
         }
@@ -110,7 +156,10 @@ async function submitForcedPassword() {
       document.getElementById('app-content').style.display = 'block';
       const pubSnap = await db.collection('publishers').get();
       pubSnap.forEach(d => { publisherCache[d.id] = `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(); });
-      document.getElementById('header-user-name').innerText = publisherCache[currentUserPublisherId] || "";
+      document.getElementById('header-user-name').innerText = `| ${publisherCache[currentUserPublisherId] || ""}`;
+      
+      showToast("¡Contraseña creada exitosamente!");
+      
       loadShifts(); loadMyShifts(); loadAvailableShifts(); loadAvailabilityForm(); loadProfileForm(); 
   } catch (error) {
       if(error.code === 'auth/requires-recent-login') { err.innerText = "Por favor cierra sesión y vuelve a ingresar para cambiar tu contraseña."; } 
@@ -121,25 +170,25 @@ async function submitForcedPassword() {
 function checkPasswordChange() {
     const p = document.getElementById('prof-new-pass').value;
     const btn = document.getElementById('btn-update-pass');
-    if (p.length >= 6) { btn.disabled = false; btn.style.background = '#6c757d'; btn.style.cursor = 'pointer'; } 
-    else { btn.disabled = true; btn.style.background = '#ccc'; btn.style.cursor = 'not-allowed'; }
+    if (p.length >= 6) { btn.disabled = false; } 
+    else { btn.disabled = true; }
 }
 
 async function changeProfilePassword() {
   const p = document.getElementById('prof-new-pass').value;
-  const msg = document.getElementById('prof-pass-msg');
-  msg.innerText = "";
   if (p.length < 6) return;
 
   try {
       await auth.currentUser.updatePassword(p);
-      msg.innerText = "¡Contraseña actualizada con éxito!"; msg.style.color = "green";
+      showToast("¡Contraseña actualizada con éxito!");
       document.getElementById('prof-new-pass').value = '';
       checkPasswordChange(); 
-      setTimeout(() => msg.innerText = "", 3000);
   } catch (error) {
-      if(error.code === 'auth/requires-recent-login') { msg.innerText = "Error: Cierra sesión y vuelve a ingresar antes de cambiar tu contraseña."; msg.style.color = "red"; } 
-      else { msg.innerText = "Error: " + error.message; msg.style.color = "red"; }
+      if(error.code === 'auth/requires-recent-login') { 
+          showToast("Por seguridad, cierra sesión y vuelve a ingresar antes de cambiar tu contraseña.", "error"); 
+      } else { 
+          showToast("Error: " + error.message, "error"); 
+      }
   }
 }
 
@@ -149,27 +198,30 @@ async function changeProfilePassword() {
 let allShiftsData = []; 
 async function loadShifts() {
   const container = document.getElementById('schedule-container');
-  container.innerHTML = '<p style="text-align:center;">Cargando programa...</p>';
+  container.innerHTML = '<p style="text-align:center; color:#666;">Cargando programa...</p>';
   try {
     const shiftsSnapshot = await db.collection('shifts').orderBy('date').get();
     container.innerHTML = ''; allShiftsData = [];
     shiftsSnapshot.forEach(doc => { let shift = doc.data(); shift.id = doc.id; allShiftsData.push(shift); });
     renderAllShifts(allShiftsData);
-  } catch (error) { container.innerHTML = '<p style="color:red; text-align:center;">Error al cargar.</p>'; }
+  } catch (error) { container.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar el programa.</p>'; }
 }
 
 function renderAllShifts(shifts) {
   const container = document.getElementById('schedule-container');
   container.innerHTML = '';
-  if(shifts.length === 0) { container.innerHTML = '<p style="text-align:center;">No se encontraron turnos.</p>'; return; }
+  if(shifts.length === 0) { container.innerHTML = '<p style="text-align:center; color:#666;">No hay turnos programados.</p>'; return; }
   shifts.forEach(shift => {
     const participantNames = (shift.participants || []).map(id => publisherCache[id] || 'Desconocido');
     const shiftCard = document.createElement('div');
-    shiftCard.style.cssText = "background:white; padding:15px; margin-bottom:15px; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1);";
+    shiftCard.className = 'shift-card';
     shiftCard.innerHTML = `
-      <h3 style="margin: 0 0 8px 0; color: #5d7aa9; border-bottom: 1px solid #eee; padding-bottom: 8px; text-transform: capitalize;">📅 ${formatSpanishDate(shift.date)} | ⏰ ${shift.time}</h3>
-      <p style="margin: 8px 0;"><strong>📍 Lugar:</strong> <span class="loc-text">${shift.location}</span></p>
-      <p style="margin: 8px 0;"><strong>👥 Publicadores:</strong> <span class="pub-text">${participantNames.join(', ')}</span></p>
+      <div class="shift-card-header">
+        <h4 class="shift-card-title">${formatSpanishDate(shift.date)}</h4>
+        <span class="shift-card-time">${shift.time}</span>
+      </div>
+      <p class="shift-card-detail">📍 <strong>${shift.location}</strong></p>
+      <p class="shift-card-detail">👥 ${participantNames.join(', ')}</p>
     `;
     container.appendChild(shiftCard);
   });
@@ -188,8 +240,8 @@ function filterAllShifts() {
 let myCurrentShifts = []; 
 async function loadMyShifts() {
   if (!currentUserPublisherId) return;
-  const container = document.getElementById('tab-mine');
-  container.innerHTML = '<p style="text-align:center;">Buscando tus turnos...</p>';
+  const container = document.getElementById('mine-container');
+  container.innerHTML = '<p style="text-align:center; color:#666;">Buscando tus turnos...</p>';
   try {
     const todayStr = getTodayString();
     const shiftsSnapshot = await db.collection('shifts').where('participants', 'array-contains', currentUserPublisherId).get();
@@ -201,33 +253,38 @@ async function loadMyShifts() {
     });
     
     if (myCurrentShifts.length === 0) {
-      container.innerHTML = `<div style="background:white; padding:20px; text-align:center; border-radius:8px;"><h3 style="color:#666;">Sin turnos próximos asignados</h3></div>`;
+      container.innerHTML = `<div style="text-align:center; padding: 30px 10px; background: white; border-radius: 10px; border: 1px dashed #ccc;"><p style="color:#666; margin:0;">No tienes próximos turnos asignados.</p></div>`;
       return;
     }
     
-    container.innerHTML = '<h3 style="margin-top:0; color:#333; margin-bottom: 15px;">Tus Próximos Turnos</h3>';
+    container.innerHTML = '';
     myCurrentShifts.sort((a, b) => new Date(a.date) - new Date(b.date));
 
     myCurrentShifts.forEach(shift => {
       const others = (shift.participants || []).filter(id => id !== currentUserPublisherId).map(id => publisherCache[id] || 'Desconocido');
       const partnerText = others.length > 0 ? others.join(', ') : 'Solo/a';
       const shiftCard = document.createElement('div');
-      shiftCard.style.cssText = "background:white; padding:15px; margin-bottom:15px; border-radius:8px; border-left: 5px solid #28a745; box-shadow:0 1px 3px rgba(0,0,0,0.1); display:flex; justify-content:space-between; align-items:center;";
+      shiftCard.className = 'shift-card mine';
       shiftCard.innerHTML = `
-        <div><h4 style="margin: 0 0 8px 0; color: #28a745; text-transform: capitalize;">📅 ${formatSpanishDate(shift.date)} | ⏰ ${shift.time}</h4>
-        <p style="margin: 5px 0;"><strong>📍 Lugar:</strong> ${shift.location}</p>
-        <p style="margin: 5px 0;"><strong>👥 Con:</strong> ${partnerText}</p></div>
-        <button onclick="attemptCancel('${shift.id}', '${shift.date}', '${shift.time}', '${shift.location}')" class="btn-action btn-danger">Cancelar</button>
+        <div class="shift-card-header">
+          <h4 class="shift-card-title">${formatSpanishDate(shift.date)}</h4>
+          <span class="shift-card-time">${shift.time}</span>
+        </div>
+        <p class="shift-card-detail">📍 <strong>${shift.location}</strong></p>
+        <p class="shift-card-detail">👥 Con: ${partnerText}</p>
+        <div class="card-actions">
+           <button onclick="attemptCancel('${shift.id}', '${shift.date}', '${shift.time}', '${shift.location}')" class="btn-action btn-danger">Cancelar Turno</button>
+        </div>
       `;
       container.appendChild(shiftCard);
     });
-  } catch (error) { container.innerHTML = '<p style="color:red; text-align:center;">Error al cargar.</p>'; }
+  } catch (error) { container.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar tus turnos.</p>'; }
 }
 
 async function loadAvailableShifts() {
   if (!currentUserPublisherId) return;
   const container = document.getElementById('open-shifts-container');
-  container.innerHTML = '<p style="text-align:center;">Buscando espacios libres...</p>';
+  container.innerHTML = '<p style="text-align:center; color:#666;">Buscando espacios libres...</p>';
   try {
     const todayStr = getTodayString();
     const shiftsSnapshot = await db.collection('shifts').orderBy('date').get();
@@ -241,7 +298,7 @@ async function loadAvailableShifts() {
       }
     });
 
-    if (openShifts.length === 0) { container.innerHTML = '<p style="text-align:center; color:#666;">No hay espacios libres en este momento.</p>'; return; }
+    if (openShifts.length === 0) { container.innerHTML = '<div style="text-align:center; padding: 30px 10px; background: white; border-radius: 10px; border: 1px dashed #ccc;"><p style="color:#666; margin:0;">No hay turnos libres en este momento.</p></div>'; return; }
 
     container.innerHTML = '';
     openShifts.forEach(shift => {
@@ -249,27 +306,38 @@ async function loadAvailableShifts() {
       const capacity = shift.capacity || 2;
       const availableSpots = capacity - (shift.participants || []).length;
       const card = document.createElement('div');
-      card.style.cssText = "background:white; padding:15px; margin-bottom:15px; border-radius:8px; border-left: 5px solid #17a2b8; box-shadow:0 1px 3px rgba(0,0,0,0.1); display:flex; justify-content:space-between; align-items:center;";
+      card.className = 'shift-card open';
       card.innerHTML = `
-        <div><h4 style="margin: 0 0 8px 0; color: #17a2b8; text-transform: capitalize;">📅 ${formatSpanishDate(shift.date)} | ⏰ ${shift.time}</h4>
-        <p style="margin: 5px 0;"><strong>📍 Lugar:</strong> ${shift.location}</p>
-        <p style="margin: 5px 0; font-size:0.9em;"><strong>👥 Actuales:</strong> ${names}</p>
-        <p style="margin: 5px 0; font-size:0.8em; color:#666;">Lugares libres: ${availableSpots}</p></div>
-        <button onclick="claimShift('${shift.id}', '${shift.date}', '${shift.time}', ${capacity})" class="btn-action btn-success">+ Tomar Turno</button>
+        <div class="shift-card-header">
+          <h4 class="shift-card-title" style="color:#28a745;">${formatSpanishDate(shift.date)}</h4>
+          <span class="shift-card-time">${shift.time}</span>
+        </div>
+        <p class="shift-card-detail">📍 <strong>${shift.location}</strong></p>
+        <p class="shift-card-detail">👥 Actuales: ${names}</p>
+        <p style="margin: 5px 0; font-size:0.85em; color:#666;">Lugares libres: <strong>${availableSpots}</strong></p>
+        <div class="card-actions">
+           <button onclick="claimShift('${shift.id}', '${shift.date}', '${shift.time}', ${capacity})" class="btn-action btn-success">Tomar Turno</button>
+        </div>
       `;
       container.appendChild(card);
     });
-  } catch (error) { container.innerHTML = '<p style="color:red; text-align:center;">Error al cargar espacios.</p>'; }
+  } catch (error) { container.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar espacios libres.</p>'; }
 }
 
 async function attemptCancel(shiftId, dateStr, timeStr, locationName) {
   const startTime = timeStr.split('-')[0]; 
   const shiftDateTime = new Date(`${dateStr}T${startTime}:00`);
   const now = new Date();
+  
   if (((shiftDateTime - now) / (1000 * 60 * 60)) < 24) {
-      alert("⚠️ No puedes cancelar con menos de 24 horas. Comunícate directamente con los hermanos de la PPAM."); return;
+      showToast("No puedes cancelar con menos de 24 horas. Comunícate con los encargados.", "error"); 
+      return;
   }
-  if(!confirm("¿Deseas cancelar este turno?")) return;
+  
+  // USE NEW CUSTOM CONFIRM
+  const isConfirmed = await showConfirm(`¿Estás seguro de que deseas cancelar tu turno el ${formatSpanishDate(dateStr)}?`, "Cancelar Turno", "#dc3545");
+  if(!isConfirmed) return;
+
   try {
     const shiftRef = db.collection('shifts').doc(shiftId);
     const docSnap = await shiftRef.get();
@@ -280,9 +348,11 @@ async function attemptCancel(shiftId, dateStr, timeStr, locationName) {
        type: 'cancel', shiftId: shiftId, publisherId: currentUserPublisherId, publisherName: publisherCache[currentUserPublisherId],
        message: `Canceló su turno el ${dateStr} a las ${timeStr} en ${locationName}`, timestamp: new Date(), relatedUsers: currentParticipants 
     });
-    alert("Turno cancelado.");
+    
+    showToast("Turno cancelado exitosamente.");
+    
     loadMyShifts(); loadAvailableShifts(); loadShifts(); 
-  } catch (err) { alert("Error al cancelar: " + err.message); }
+  } catch (err) { showToast("Error al cancelar: " + err.message, "error"); }
 }
 
 async function claimShift(shiftId, dateStr, timeStr, capacity) {
@@ -290,20 +360,34 @@ async function claimShift(shiftId, dateStr, timeStr, capacity) {
   for (let s of myCurrentShifts) {
     if (s.date === dateStr) {
       const [myStart, myEnd] = s.time.split('-');
-      if (newStart < myEnd && myStart < newEnd) { alert(`⚠️ Se superpone con un turno que ya tienes.`); return; }
+      if (newStart < myEnd && myStart < newEnd) { 
+          showToast("Este horario se superpone con un turno que ya tienes.", "error"); 
+          return; 
+      }
     }
   }
-  if(!confirm("¿Deseas anotarte en este turno?")) return;
+  
+  // USE NEW CUSTOM CONFIRM
+  const isConfirmed = await showConfirm(`¿Deseas anotarte para este turno el ${formatSpanishDate(dateStr)}?`, "Tomar Turno", "#28a745");
+  if(!isConfirmed) return;
+
   try {
     const shiftRef = db.collection('shifts').doc(shiftId);
     const docSnap = await shiftRef.get();
     let currentParticipants = docSnap.data().participants || [];
-    if (currentParticipants.length >= capacity) { alert("Alguien más acaba de tomar este lugar."); loadAvailableShifts(); return; }
+    if (currentParticipants.length >= capacity) { 
+        showToast("Alguien más acaba de tomar este lugar.", "error"); 
+        loadAvailableShifts(); 
+        return; 
+    }
+    
     currentParticipants.push(currentUserPublisherId);
     await shiftRef.update({ participants: currentParticipants });
-    alert("¡Turno agregado!");
+    
+    showToast("¡Turno agregado con éxito!");
+    
     loadMyShifts(); loadAvailableShifts(); loadShifts(); 
-  } catch (err) { alert("Error al tomar turno: " + err.message); }
+  } catch (err) { showToast("Error al tomar turno: " + err.message, "error"); }
 }
 
 // ==========================================
@@ -335,21 +419,19 @@ async function loadAvailabilityForm() {
         div.innerHTML = html; container.appendChild(div);
       }
     });
-    if (!hasShifts) container.innerHTML = '<p style="text-align:center;">No hay ubicaciones.</p>';
+    if (!hasShifts) container.innerHTML = '<p style="text-align:center; color:#666;">No hay ubicaciones configuradas.</p>';
   } catch (error) {}
 }
 
 async function saveAvailability() {
   if (!currentUserPublisherId) return;
-  const msgP = document.getElementById('avail-msg'); msgP.innerText = 'Guardando...'; msgP.style.color = '#5d7aa9';
   const selected = Array.from(document.querySelectorAll('.avail-checkbox:checked')).map(cb => cb.value);
   try {
     await db.collection('publishers').doc(currentUserPublisherId).update({ availability: selected });
-    msgP.innerText = '¡Guardado!'; msgP.style.color = 'green'; setTimeout(() => msgP.innerText = '', 3000);
-  } catch (error) { msgP.innerText = 'Error al guardar.'; msgP.style.color = 'red'; }
+    showToast("¡Horario guardado con éxito!");
+  } catch (error) { showToast("Error al guardar tu horario.", "error"); }
 }
 
-// FIX 2: Connect the Partner Checkbox
 function handlePartnerChange() {
     const val = document.getElementById('prof-partner').value;
     document.getElementById('prof-hardpair-container').style.display = val ? 'flex' : 'none';
@@ -384,7 +466,6 @@ async function loadProfileForm() {
 
     document.getElementById('prof-hardpair-container').style.display = pub.partner ? 'flex' : 'none';
 
-    // FIX 1: Safely convert MaxShifts to a string so it matches the dropdown value exactly!
     originalProfileData = {
       phone: pub.phone || '', 
       email: pub.notificationEmail || '', 
@@ -395,10 +476,7 @@ async function loadProfileForm() {
       hard: pub.hardPair || false
     };
 
-    // Ensure button is disabled on fresh load
     document.getElementById('btn-save-profile').disabled = true;
-    document.getElementById('btn-save-profile').style.background = '#ccc';
-    document.getElementById('btn-save-profile').style.cursor = 'not-allowed';
 
   } catch (error) { console.error("Error loading profile:", error); }
 }
@@ -418,9 +496,9 @@ function checkProfileChanges() {
     const btn = document.getElementById('btn-save-profile');
     
     if (hasChanged) {
-        btn.disabled = false; btn.style.background = '#28a745'; btn.style.cursor = 'pointer';
+        btn.disabled = false;
     } else {
-        btn.disabled = true; btn.style.background = '#ccc'; btn.style.cursor = 'not-allowed';
+        btn.disabled = true; 
     }
 }
 
@@ -429,12 +507,15 @@ async function saveProfile() {
   
   const emailVal = document.getElementById('prof-email').value.trim();
   if (emailVal) {
-      if (!emailVal.includes('@') || !emailVal.includes('.')) { alert("Por favor, ingresa un correo válido."); return; }
-      if (emailVal.toLowerCase().endsWith('@jwpub.org')) { alert("Por motivos de seguridad, no se permiten correos @jwpub.org. Usa un correo personal."); return; }
+      if (!emailVal.includes('@') || !emailVal.includes('.')) { 
+          showToast("Por favor, ingresa un correo electrónico válido.", "error"); 
+          return; 
+      }
+      if (emailVal.toLowerCase().endsWith('@jwpub.org')) { 
+          showToast("No se permiten correos @jwpub.org. Usa un correo personal.", "error"); 
+          return; 
+      }
   }
-
-  const msgP = document.getElementById('prof-msg');
-  msgP.innerText = 'Guardando...'; msgP.style.color = '#5d7aa9';
 
   const partnerId = document.getElementById('prof-partner').value;
   let partnerName = "";
@@ -460,9 +541,8 @@ async function saveProfile() {
     };
     checkProfileChanges();
 
-    msgP.innerText = '¡Perfil actualizado con éxito!'; msgP.style.color = 'green';
-    setTimeout(() => { msgP.innerText = ''; }, 3000);
+    showToast("¡Perfil actualizado con éxito!");
   } catch (error) { 
-    msgP.innerText = 'Error al guardar.'; msgP.style.color = 'red'; 
+    showToast("Error al guardar perfil.", "error");
   }
 }

@@ -15,14 +15,46 @@ const db = firebase.firestore();
 const secondaryApp = firebase.initializeApp(firebaseConfig, "Secondary");
 const secondaryAuth = secondaryApp.auth();
 
+// ==========================================
+// CUSTOM POPUPS & FORMATTERS
+// ==========================================
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    let icon = 'check_circle'; let iconColor = '#28a745';
+    if (type === 'error') { icon = 'cancel'; iconColor = '#dc3545'; }
+    else if (type === 'info') { icon = 'info'; iconColor = '#17a2b8'; }
+    toast.innerHTML = `<span class="material-symbols-outlined" style="color: ${iconColor}; font-size: 24px;">${icon}</span> <span>${message}</span>`;
+    container.appendChild(toast);
+    setTimeout(() => { toast.style.animation = 'fadeOutToast 0.3s forwards'; setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
+function showConfirm(message, okText = "Aceptar", okColor = "#dc3545") {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('custom-confirm');
+        const msgEl = document.getElementById('confirm-msg');
+        const btnCancel = document.getElementById('btn-confirm-cancel');
+        const btnOk = document.getElementById('btn-confirm-ok');
+        msgEl.innerText = message; btnOk.innerText = okText; btnOk.style.background = okColor;
+        modal.style.display = 'flex';
+        const cleanup = () => { modal.style.display = 'none'; btnCancel.onclick = null; btnOk.onclick = null; };
+        btnCancel.onclick = () => { cleanup(); resolve(false); };
+        btnOk.onclick = () => { cleanup(); resolve(true); };
+    });
+}
+
 const formatDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 function formatSpanishDate(dateStr) {
-    const [y, m, d] = dateStr.split('-');
-    const dateObj = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+    if (!dateStr) return "";
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr; 
+    const y = parseInt(parts[0]); const m = parseInt(parts[1]) - 1; const d = parseInt(parts[2]);
+    const dateObj = new Date(y, m, d);
     const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
     const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-    return `${days[dateObj.getDay()]} ${parseInt(d)} de ${months[dateObj.getMonth()]}`;
+    return `${days[dateObj.getDay()]} ${d} de ${months[dateObj.getMonth()]}`;
 }
 
 // ==========================================
@@ -38,23 +70,18 @@ auth.onAuthStateChanged(async user => {
       if (isDbAdmin || isOriginalAdmin) {
         document.getElementById('login-section').style.display = 'none';
         document.getElementById('dashboard-section').style.display = 'block';
-        
         if(isDbAdmin) {
              const pubDoc = await db.collection('publishers').doc(userDoc.data().publisherId).get();
              if(pubDoc.exists) document.getElementById('admin-header-name').innerText = `| Conectado: ${pubDoc.data().firstName}`;
         } else {
              document.getElementById('admin-header-name').innerText = `| Conectado: ${user.email}`;
         }
-        
         loadPublishers(); 
       } else {
         auth.signOut();
         document.getElementById('login-error').innerText = "Acceso Denegado: Esta cuenta no tiene permisos de Administrador.";
       }
-    } catch (e) {
-      console.error(e);
-      auth.signOut();
-    }
+    } catch (e) { console.error(e); auth.signOut(); }
   } else {
     document.getElementById('login-section').style.display = 'block';
     document.getElementById('dashboard-section').style.display = 'none';
@@ -66,12 +93,8 @@ function adminLogin() {
   const pass = document.getElementById('admin-pass').value;
   const errorDiv = document.getElementById('login-error');
   errorDiv.innerText = "";
-  
   let email = input;
-  if (!input.includes('@')) {
-      email = input.toLowerCase().replace(/\s+/g, '') + '@ppam.app';
-  }
-
+  if (!input.includes('@')) { email = input.toLowerCase().replace(/\s+/g, '') + '@ppam.app'; }
   auth.signInWithEmailAndPassword(email, pass).catch(e => { errorDiv.innerText = "Error: Verifica tu usuario o contraseña."; });
 }
 
@@ -93,7 +116,6 @@ function switchAdminTab(tabId) {
 let allPublishers = []; 
 let currentLinkedUserDocId = null; 
 
-// Dynamic listener for strict pair
 document.addEventListener("DOMContentLoaded", function() {
     const partnerSelect = document.getElementById('pub-partner');
     if(partnerSelect) {
@@ -107,29 +129,28 @@ document.addEventListener("DOMContentLoaded", function() {
 async function loadPublishers() {
   const listDiv = document.getElementById('publishers-list');
   const partnerSelect = document.getElementById('pub-partner');
-  listDiv.innerHTML = '<p style="color:#666;">Cargando directorio...</p>';
+  listDiv.innerHTML = '<p style="color:#666; text-align:center;">Cargando directorio...</p>';
   try {
     const snapshot = await db.collection('publishers').orderBy('firstName').get();
     allPublishers = [];
     partnerSelect.innerHTML = '<option value="">Ninguno</option>';
-    if (snapshot.empty) { listDiv.innerHTML = '<p style="color:#666;">No hay publicadores registrados.</p>'; return; }
+    if (snapshot.empty) { listDiv.innerHTML = '<p style="color:#666; text-align:center;">No hay publicadores registrados.</p>'; return; }
     listDiv.innerHTML = '';
     snapshot.forEach(doc => {
       const pub = doc.data(); pub.id = doc.id; allPublishers.push(pub);
       const card = document.createElement('div');
       card.className = 'pub-card';
-      card.style.cssText = "background:white; padding:15px; margin-bottom:10px; border:1px solid #ddd; border-radius:5px; display:flex; justify-content:space-between; align-items:center;";
-      const genderIcon = pub.gender === 'M' ? '👩🏽' : '👨🏽';
+      const genderIcon = pub.gender === 'M' ? 'woman' : 'man';
       const partnerText = pub.partnerName ? `Compañero: ${pub.partnerName}` : 'Sin compañero preferido';
       const hardPairBadge = pub.hardPair ? `<span class="badge-red">Estricto</span>` : '';
       card.innerHTML = `
-        <div><h4 class="pub-name" style="margin:0 0 5px 0;">${genderIcon} ${pub.firstName} ${pub.lastName} ${hardPairBadge}</h4><p style="margin:0; font-size:0.85em; color:#666;">${partnerText}</p></div>
-        <button onclick='editPublisher("${pub.id}")' style="width:auto; background:#5d7aa9; padding:5px 15px; margin:0;">Editar</button>
+        <div><h4 class="pub-name" style="margin:0 0 5px 0; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="color:#5d7aa9;">${genderIcon}</span> ${pub.firstName} ${pub.lastName} ${hardPairBadge}</h4><p style="margin:0; font-size:0.85em; color:#666; margin-left: 30px;">${partnerText}</p></div>
+        <button onclick='editPublisher("${pub.id}")' class="btn-action btn-primary">Editar</button>
       `;
       listDiv.appendChild(card);
       partnerSelect.innerHTML += `<option value="${pub.id}">${pub.firstName} ${pub.lastName}</option>`;
     });
-  } catch (error) { listDiv.innerHTML = '<p class="error">Error al cargar.</p>'; }
+  } catch (error) { listDiv.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar.</p>'; }
 }
 
 async function savePublisher() {
@@ -143,11 +164,8 @@ async function savePublisher() {
   const password = document.getElementById('pub-password').value;
   const role = document.getElementById('pub-role').value;
   const usernameIsDisabled = document.getElementById('pub-username').disabled;
-  const msgP = document.getElementById('pub-msg');
-  const errorP = document.getElementById('pub-error');
   
-  msgP.innerText = ''; errorP.innerText = '';
-  if (!firstName || !lastName) { errorP.innerText = 'El nombre y apellido son obligatorios.'; return; }
+  if (!firstName || !lastName) { showToast('El nombre y apellido son obligatorios.', 'error'); return; }
 
   const email = username ? username.toLowerCase().replace(/\s+/g, '') + '@ppam.app' : '';
   let partnerName = "";
@@ -158,26 +176,26 @@ async function savePublisher() {
     if (id) {
       await db.collection('publishers').doc(id).update(pubData);
       if (email && password && !usernameIsDisabled) {
-        if (password.length < 6) { errorP.innerText = 'Contraseña requiere 6+ caracteres.'; setTimeout(() => { clearPublisherForm(); loadPublishers(); }, 2500); return; }
+        if (password.length < 6) { showToast('Contraseña requiere 6+ caracteres.', 'error'); return; }
         const userCred = await secondaryAuth.createUserWithEmailAndPassword(email, password);
         await db.collection('users').doc(userCred.user.uid).set({ publisherId: id, role: role, username: username, requirePasswordChange: true });
         await secondaryAuth.signOut();
       } else if (currentLinkedUserDocId) {
         await db.collection('users').doc(currentLinkedUserDocId).update({ role: role });
       }
-      msgP.innerText = 'Actualizado exitosamente.';
+      showToast('Publicador actualizado exitosamente.');
     } else {
       const newPubRef = await db.collection('publishers').add(pubData);
       if (email && password) {
-        if (password.length < 6) { errorP.innerText = 'Contraseña requiere 6+ caracteres.'; setTimeout(() => { clearPublisherForm(); loadPublishers(); }, 2500); return; }
+        if (password.length < 6) { showToast('Contraseña requiere 6+ caracteres.', 'error'); return; }
         const userCred = await secondaryAuth.createUserWithEmailAndPassword(email, password);
         await db.collection('users').doc(userCred.user.uid).set({ publisherId: newPubRef.id, role: role, username: username, requirePasswordChange: true });
         await secondaryAuth.signOut();
       }
-      msgP.innerText = 'Creado exitosamente.';
+      showToast('Publicador creado exitosamente.');
     }
-    setTimeout(() => { clearPublisherForm(); loadPublishers(); }, 1500);
-  } catch (error) { errorP.innerText = 'Error: ' + error.message; }
+    setTimeout(() => { clearPublisherForm(); loadPublishers(); }, 1000);
+  } catch (error) { showToast('Error: ' + error.message, 'error'); }
 }
 
 async function editPublisher(id) {
@@ -190,12 +208,11 @@ async function editPublisher(id) {
   document.getElementById('pub-gender').value = pub.gender || 'H';
   document.getElementById('pub-partner').value = pub.partner || '';
   
-  // Dynamic handling of strict container
   document.getElementById('pub-hardpair-container').style.display = pub.partner ? 'flex' : 'none';
   document.getElementById('pub-hardpair').checked = pub.hardPair || false;
   
-  document.getElementById('btn-cancel-pub').style.display = 'block';
-  document.getElementById('btn-delete-pub').style.display = 'block';
+  document.getElementById('btn-cancel-pub').style.display = 'inline-flex';
+  document.getElementById('btn-delete-pub').style.display = 'inline-flex';
   
   const userQuery = await db.collection('users').where('publisherId', '==', id).get();
   if (!userQuery.empty) {
@@ -208,8 +225,8 @@ async function editPublisher(id) {
      document.getElementById('pub-password').disabled = true;
      document.getElementById('pub-role').value = userData.role || 'user';
      document.getElementById('pub-password').placeholder = "Cuenta vinculada";
-     document.getElementById('account-status-msg').innerText = "✅ Este publicador ya tiene cuenta vinculada. Si olvidó su contraseña, debes Desvincularla para crearle una nueva.";
-     document.getElementById('btn-unlink').style.display = 'inline-block';
+     document.getElementById('account-status-msg').innerText = "✅ Este publicador ya tiene cuenta vinculada.";
+     document.getElementById('btn-unlink').style.display = 'inline-flex';
   } else {
      currentLinkedUserDocId = null;
      document.getElementById('pub-username').value = '';
@@ -226,11 +243,12 @@ async function editPublisher(id) {
 
 async function unlinkAccount() {
   if (!currentLinkedUserDocId) return;
-  if (!confirm("⚠️ ¿Estás seguro de desvincular esta cuenta? Esto borrará su acceso actual. Podrás asignarle un nuevo usuario y contraseña temporal inmediatamente.")) return;
+  const isConfirmed = await showConfirm("¿Estás seguro de desvincular esta cuenta? Esto borrará su acceso actual.", "Sí, Desvincular");
+  if (!isConfirmed) return;
   
   try {
       await db.collection('users').doc(currentLinkedUserDocId).delete();
-      alert("Cuenta desvinculada. El formulario se ha desbloqueado. Por favor, asígnale un nuevo usuario (ej. juanperez2) y una contraseña temporal nueva (ej. ppam2026), y haz clic en Guardar.");
+      showToast("Cuenta desvínculada. Asigna nuevos datos y haz clic en Guardar.", "info");
       
       currentLinkedUserDocId = null;
       document.getElementById('pub-username').disabled = false;
@@ -239,19 +257,22 @@ async function unlinkAccount() {
       document.getElementById('pub-password').placeholder = "Ingresa contraseña temporal";
       document.getElementById('account-status-msg').innerText = "⚠️ Cuenta desvinculada. Crea los nuevos datos de acceso.";
       document.getElementById('btn-unlink').style.display = 'none';
-  } catch(e) { alert("Error al desvincular: " + e.message); }
+  } catch(e) { showToast("Error al desvincular.", "error"); }
 }
 
 async function deletePublisher() {
   const id = document.getElementById('pub-id').value;
   if (!id) return;
-  if (!confirm('¿Estás seguro de eliminar este publicador?')) return;
+  const isConfirmed = await showConfirm("¿Estás seguro de eliminar este publicador de la congregación?", "Eliminar Publicador");
+  if (!isConfirmed) return;
+
   try {
     await db.collection('publishers').doc(id).delete();
     const userQuery = await db.collection('users').where('publisherId', '==', id).get();
     userQuery.forEach(async (doc) => { await db.collection('users').doc(doc.id).delete(); });
+    showToast("Publicador eliminado.");
     clearPublisherForm(); loadPublishers();
-  } catch (error) { document.getElementById('pub-error').innerText = "Error: " + error.message; }
+  } catch (error) { showToast("Error: " + error.message, "error"); }
 }
 
 function clearPublisherForm() {
@@ -274,8 +295,6 @@ function clearPublisherForm() {
   document.getElementById('btn-unlink').style.display = 'none';
   currentLinkedUserDocId = null;
   document.getElementById('account-status-msg').innerText = "Opcional al crear un usuario nuevo.";
-  document.getElementById('pub-msg').innerText = '';
-  document.getElementById('pub-error').innerText = '';
 }
 
 function filterPublishers() {
@@ -289,31 +308,31 @@ function filterPublishers() {
 // ==========================================
 async function loadLocations() {
   const listDiv = document.getElementById('locations-list');
-  listDiv.innerHTML = '<p style="color:#666;">Cargando ubicaciones...</p>';
+  listDiv.innerHTML = '<p style="color:#666; text-align:center;">Cargando ubicaciones...</p>';
   try {
     const snapshot = await db.collection('locations').get();
-    if (snapshot.empty) { listDiv.innerHTML = '<p style="color:#666;">No hay ubicaciones registradas.</p>'; return; }
+    if (snapshot.empty) { listDiv.innerHTML = '<p style="color:#666; text-align:center;">No hay ubicaciones registradas.</p>'; return; }
     listDiv.innerHTML = '';
     snapshot.forEach(doc => {
       const loc = doc.data();
       const card = document.createElement('div');
-      card.style.cssText = "background:white; padding:15px; margin-bottom:10px; border:1px solid #ddd; border-radius:5px; display:flex; justify-content:space-between; align-items:center;";
+      card.className = 'pub-card';
       const shiftsSummary = (loc.templates || []).map(t => `${t.day} ${t.startTime}-${t.endTime}`).join(', ');
       card.innerHTML = `
-        <div><h4 style="margin:0 0 5px 0;">${loc.name} (Capacidad: ${loc.capacity})</h4><p style="margin:0; font-size:0.85em; color:#666;">Turnos: ${shiftsSummary || 'Ninguno'}</p></div>
-        <button onclick='editLocation("${doc.id}")' style="width:auto; background:#5d7aa9; padding:5px 15px; margin:0;">Editar</button>
+        <div><h4 style="margin:0 0 5px 0; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="color:#dc3545;">location_on</span> ${loc.name} <span class="badge-green" style="font-weight:normal;">Cap: ${loc.capacity}</span></h4><p style="margin:0; font-size:0.85em; color:#666; margin-left: 30px;">Turnos: ${shiftsSummary || 'Ninguno'}</p></div>
+        <button onclick='editLocation("${doc.id}")' class="btn-action btn-primary">Editar</button>
       `;
       listDiv.appendChild(card);
     });
-  } catch (error) { listDiv.innerHTML = '<p class="error">Error al cargar ubicaciones.</p>'; }
+  } catch (error) { listDiv.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar ubicaciones.</p>'; }
 }
 
 function openLocationModal() {
-  document.getElementById('location-modal').style.display = 'block';
+  document.getElementById('location-modal').style.display = 'flex';
   document.getElementById('loc-id').value = ''; document.getElementById('loc-name').value = ''; document.getElementById('loc-capacity').value = '2';
   document.getElementById('loc-modal-title').innerText = 'Nueva Ubicación';
   document.getElementById('btn-delete-loc').style.display = 'none';
-  document.getElementById('shifts-container').innerHTML = `<button onclick="addShiftRow()" style="width:auto; background:#17a2b8; padding:5px 10px; font-size:0.9em; margin-bottom:10px;">+ Agregar Turno</button><div id="shifts-rows-wrapper"></div>`;
+  document.getElementById('shifts-container').innerHTML = `<button onclick="addShiftRow()" class="btn-action btn-info" style="margin-bottom:15px;"><span class="material-symbols-outlined">add</span> Agregar Turno</button><div id="shifts-rows-wrapper"></div>`;
   addShiftRow(); 
 }
 function closeLocationModal() { document.getElementById('location-modal').style.display = 'none'; }
@@ -324,7 +343,7 @@ function addShiftRow(day = 'Lunes', start = '08:00', end = '10:00') {
   const row = document.createElement('div'); row.style.cssText = "display:flex; gap:10px; margin-bottom:10px; align-items:center;";
   row.className = 'shift-row';
   let options = days.map(d => `<option value="${d}" ${d === day ? 'selected' : ''}>${d}</option>`).join('');
-  row.innerHTML = `<select class="shift-day" style="margin:0; flex:2;">${options}</select><input type="time" class="shift-start" value="${start}" style="margin:0; flex:1;"><input type="time" class="shift-end" value="${end}" style="margin:0; flex:1;"><button onclick="this.parentElement.remove()" style="margin:0; width:auto; background:#dc3545; padding:8px 12px;">X</button>`;
+  row.innerHTML = `<select class="shift-day form-group" style="margin:0; flex:2; padding:10px;">${options}</select><input type="time" class="shift-start form-group" value="${start}" style="margin:0; flex:1; padding:10px;"><input type="time" class="shift-end form-group" value="${end}" style="margin:0; flex:1; padding:10px;"><button onclick="this.parentElement.remove()" class="btn-action btn-danger" style="margin:0;"><span class="material-symbols-outlined" style="font-size:18px;">close</span></button>`;
   container.appendChild(row);
 }
 
@@ -332,36 +351,39 @@ async function saveLocation() {
   const id = document.getElementById('loc-id').value;
   const name = document.getElementById('loc-name').value.trim();
   const capacity = parseInt(document.getElementById('loc-capacity').value) || 2;
-  if (!name) return;
+  if (!name) { showToast("El nombre es obligatorio", "error"); return; }
   const templates = [];
   document.querySelectorAll('.shift-row').forEach(row => { templates.push({ day: row.querySelector('.shift-day').value, startTime: row.querySelector('.shift-start').value, endTime: row.querySelector('.shift-end').value }); });
   const locationData = { name, capacity, isActive: true, templates };
   try {
     if (id) await db.collection('locations').doc(id).update(locationData);
     else await db.collection('locations').add(locationData);
+    showToast("Ubicación guardada.");
     closeLocationModal(); loadLocations();
-  } catch (error) { alert('Error: ' + error.message); }
+  } catch (error) { showToast('Error: ' + error.message, "error"); }
 }
 
 async function editLocation(id) {
   openLocationModal();
   document.getElementById('loc-modal-title').innerText = 'Editar Ubicación';
   document.getElementById('loc-id').value = id;
-  document.getElementById('btn-delete-loc').style.display = 'inline-block';
+  document.getElementById('btn-delete-loc').style.display = 'inline-flex';
   try {
     const doc = await db.collection('locations').doc(id).get();
     const loc = doc.data();
     document.getElementById('loc-name').value = loc.name; document.getElementById('loc-capacity').value = loc.capacity;
-    document.getElementById('shifts-container').innerHTML = `<button onclick="addShiftRow()" style="width:auto; background:#17a2b8; padding:5px 10px; font-size:0.9em; margin-bottom:10px;">+ Agregar Turno</button><div id="shifts-rows-wrapper"></div>`;
+    document.getElementById('shifts-container').innerHTML = `<button onclick="addShiftRow()" class="btn-action btn-info" style="margin-bottom:15px;"><span class="material-symbols-outlined">add</span> Agregar Turno</button><div id="shifts-rows-wrapper"></div>`;
     if (loc.templates && loc.templates.length > 0) loc.templates.forEach(t => addShiftRow(t.day, t.startTime, t.endTime));
     else addShiftRow();
-  } catch (error) { alert('Error al cargar.'); }
+  } catch (error) { showToast('Error al cargar ubicación.', "error"); }
 }
 
 async function deleteLocation() {
   const id = document.getElementById('loc-id').value;
-  if (!confirm('¿Estás seguro de eliminar esta ubicación?')) return;
+  const isConfirmed = await showConfirm("¿Estás seguro de eliminar esta ubicación y sus turnos?", "Eliminar Ubicación");
+  if (!isConfirmed) return;
   await db.collection('locations').doc(id).delete();
+  showToast("Ubicación eliminada.");
   closeLocationModal(); loadLocations();
 }
 
@@ -379,14 +401,14 @@ async function checkMonthStatus() {
 
     try {
         const snap = await db.collection('shifts').where('date', '>=', `${monthVal}-01`).where('date', '<=', `${monthVal}-31`).limit(1).get();
-        if (!snap.empty) { btnGen.style.display = 'none'; btnLoad.style.display = 'inline-block'; containerDel.style.display = 'block';
-        } else { btnGen.style.display = 'inline-block'; btnLoad.style.display = 'none'; containerDel.style.display = 'none'; }
+        if (!snap.empty) { btnGen.style.display = 'none'; btnLoad.style.display = 'inline-flex'; containerDel.style.display = 'block';
+        } else { btnGen.style.display = 'inline-flex'; btnLoad.style.display = 'none'; containerDel.style.display = 'none'; }
     } catch(e) { console.error("Error:", e); }
 }
 
 async function generateDraft() {
   const btn = document.getElementById('btn-gen-draft');
-  btn.innerText = "Calculando..."; btn.disabled = true;
+  btn.innerHTML = `<span class="material-symbols-outlined">hourglass_empty</span> Calculando...`; btn.disabled = true;
 
   try {
     const monthVal = document.getElementById('gen-month').value; 
@@ -469,10 +491,10 @@ async function generateDraft() {
 
     draftSchedule = shiftTasks.sort((a,b) => a.dateObj - b.dateObj); 
     renderPreviewTable();
-    document.getElementById('btn-publish-bottom').innerText = "Guardar Nuevo Programa";
+    showToast("Borrador generado. Revisa y haz clic en Guardar.");
 
-  } catch (error) { alert("Error al generar: " + error.message); } 
-  finally { btn.innerText = "1. Generar Borrador Nuevo"; btn.disabled = false; }
+  } catch (error) { showToast("Error al generar: " + error.message, "error"); } 
+  finally { btn.innerHTML = `<span class="material-symbols-outlined">magic_button</span> 1. Generar Borrador Nuevo`; btn.disabled = false; }
 }
 
 async function loadPublishedMonth() {
@@ -482,7 +504,7 @@ async function loadPublishedMonth() {
 
   try {
     const shiftsSnap = await db.collection('shifts').where('date', '>=', startDate).where('date', '<=', endDate).get();
-    if (shiftsSnap.empty) { alert("No hay turnos publicados para este mes."); return; }
+    if (shiftsSnap.empty) { showToast("No hay turnos publicados para este mes.", "info"); return; }
     draftSchedule = [];
     
     shiftsSnap.forEach(doc => {
@@ -505,37 +527,54 @@ async function loadPublishedMonth() {
     });
     draftSchedule.sort((a,b) => a.dateObj - b.dateObj);
     renderPreviewTable();
-    document.getElementById('btn-publish-bottom').innerText = "Guardar Cambios";
-  } catch (error) { alert("Error al cargar: " + error.message); }
+    showToast("Mes cargado correctamente.");
+  } catch (error) { showToast("Error al cargar: " + error.message, "error"); }
 }
 
 async function deletePublishedMonth() {
   const monthVal = document.getElementById('gen-month').value; 
-  if (!confirm(`⚠️ PELIGRO: Estás a punto de ELIMINAR todo el mes de ${monthVal}.\n\n¿Estás seguro?`)) return;
-  if (!confirm(`⚠️ ÚLTIMA ADVERTENCIA: Esta acción no se puede deshacer.\n\n¿Proceder?`)) return;
+  
+  // FIX 1: Only ONE scary warning
+  const isConfirmed = await showConfirm(`⚠️ PELIGRO: Estás a punto de ELIMINAR todo el mes de ${monthVal}.\n\nEsta acción no se puede deshacer y todos perderán sus asignaciones. ¿Eliminar mes?`, "Eliminar Todo el Mes", "#dc3545");
+  if (!isConfirmed) return;
+
   try {
       const shiftsSnap = await db.collection('shifts').where('date', '>=', `${monthVal}-01`).where('date', '<=', `${monthVal}-31`).get();
-      if (shiftsSnap.empty) { alert("No hay turnos para eliminar."); return; }
+      if (shiftsSnap.empty) { showToast("No hay turnos para eliminar en este mes.", "info"); return; }
+      
       const batch = db.batch();
       shiftsSnap.forEach(doc => batch.delete(doc.ref));
       await batch.commit();
-      alert("Mes eliminado con éxito.");
+      
+      showToast("Mes eliminado con éxito.");
       document.getElementById('schedule-preview-container').style.display = 'none';
       draftSchedule = []; checkMonthStatus(); 
-  } catch(e) { alert("Error al eliminar: " + e.message); }
+  } catch(e) { showToast("Error al eliminar: " + e.message, "error"); }
 }
 
 function renderPreviewTable() {
   document.getElementById('schedule-preview-container').style.display = 'block';
   const tbody = document.getElementById('preview-body');
-  document.getElementById('preview-head').innerHTML = `<tr><th>Fecha</th><th>Lugar</th><th>Horario</th><th>Asignados</th><th>Acción</th></tr>`;
+  document.getElementById('preview-head').innerHTML = `<tr><th>Fecha</th><th>Lugar / Hora</th><th>Asignados</th><th>Acción</th></tr>`;
   tbody.innerHTML = '';
+  
   draftSchedule.forEach((shift, index) => {
     const names = shift.assigned.map(p => `${p.firstName} ${p.lastName}`).join(', ');
     const row = document.createElement('tr');
-    row.innerHTML = `<td><span style="text-transform: capitalize;">${formatSpanishDate(shift.dateString)}</span></td><td>${shift.location}</td><td>${shift.time}</td>
-      <td style="color:${shift.assigned.length < shift.capacity ? '#dc3545' : '#28a745'}; font-weight:bold;">${names || 'Nadie disponible'} (${shift.assigned.length}/${shift.capacity})</td>
-      <td><button onclick="openShiftEditModal(${index})" style="background:#17a2b8; padding:5px 10px; margin:0; width:auto;">Editar</button></td>`;
+    
+    // Status text color based on capacity
+    const isFull = shift.assigned.length >= shift.capacity;
+    const statusColor = isFull ? '#28a745' : '#dc3545';
+    
+    row.innerHTML = `
+      <td style="text-transform: capitalize; font-weight: 500; min-width: 140px;">${formatSpanishDate(shift.dateString)}</td>
+      <td><strong>${shift.location}</strong><br><span style="color:#666; font-size:0.9em;">${shift.time}</span></td>
+      <td style="color:${statusColor};">
+        ${names || 'Nadie disponible'} <br>
+        <span style="font-size:0.85em; opacity: 0.8;">(${shift.assigned.length}/${shift.capacity})</span>
+      </td>
+      <td style="width: 100px; text-align: right;"><button onclick="openShiftEditModal(${index})" class="btn-action btn-info"><span class="material-symbols-outlined" style="font-size:18px;">edit</span> Editar</button></td>
+    `;
     tbody.appendChild(row);
   });
 }
@@ -549,17 +588,20 @@ function recalculateTrackers() {
 
 function openShiftEditModal(shiftIndex) {
   const shift = draftSchedule[shiftIndex];
-  document.getElementById('shift-edit-modal').style.display = 'block';
-  document.getElementById('shift-modal-title').innerText = `${formatSpanishDate(shift.dateString)} | ${shift.location} | ${shift.time}`;
+  document.getElementById('shift-edit-modal').style.display = 'flex';
+  document.getElementById('shift-modal-title').innerText = `${formatSpanishDate(shift.dateString)} | ${shift.time}`;
   document.getElementById('shift-modal-count').innerText = `${shift.assigned.length}/${shift.capacity}`;
+  
   const assignedContainer = document.getElementById('shift-modal-assigned');
   assignedContainer.innerHTML = '';
   shift.assigned.forEach(pub => {
-    assignedContainer.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#f1f1f1; padding:8px; border-radius:5px;"><span>${pub.firstName} ${pub.lastName}</span><button onclick="manualRemove(${shiftIndex}, '${pub.id}')" style="margin:0; width:auto; background:#dc3545; padding:5px 10px;">Quitar</button></div>`;
+    assignedContainer.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#f9f9f9; padding:12px; border-radius:8px; border:1px solid #eee;"><span>${pub.firstName} ${pub.lastName}</span><button onclick="manualRemove(${shiftIndex}, '${pub.id}')" class="btn-action btn-danger" style="padding:6px 12px;">Quitar</button></div>`;
   });
+  
   const select = document.getElementById('shift-add-select');
   let optionsHtml = `<option value="">Seleccionar publicador...</option>`;
   let availableHtml = `<optgroup label="✅ Disponibles">`; let unavailableHtml = `<optgroup label="⚠️ No Disponibles">`;
+  
   const sortedPubs = [...allPublishers].sort((a,b) => a.firstName.localeCompare(b.firstName));
   sortedPubs.forEach(pub => {
     if(shift.assigned.find(p => p.id === pub.id)) return;
@@ -572,41 +614,66 @@ function openShiftEditModal(shiftIndex) {
 
 function closeShiftEditModal() { document.getElementById('shift-edit-modal').style.display = 'none'; }
 
-function manualAdd(shiftIndex) {
+async function manualAdd(shiftIndex) {
   const pubId = document.getElementById('shift-add-select').value;
   if(!pubId) return;
   let shift = draftSchedule[shiftIndex]; let pub = allPublishers.find(p => p.id === pubId);
-  if(shift.assigned.length >= shift.capacity) { if(!confirm("⚠️ Turno lleno. ¿Forzar adición?")) return; }
+  
+  if(shift.assigned.length >= shift.capacity) { 
+      const force = await showConfirm("⚠️ El turno ya alcanzó su capacidad máxima. ¿Forzar adición?", "Forzar");
+      if(!force) return; 
+  }
+  
   let trackers = recalculateTrackers(); let warnings = [];
   let limit = pub.maxShifts ? parseInt(pub.maxShifts) : 5;
   if ((trackers.counts[pub.id] || 0) >= limit) warnings.push(`Ya tiene límite de ${limit} turnos.`);
   if (trackers.dates[pub.id] && trackers.dates[pub.id].has(shift.dateString)) warnings.push("Ya asignado hoy.");
+  
   let shiftDate = new Date(shift.dateObj); let prevDate = new Date(shiftDate); prevDate.setDate(prevDate.getDate() - 1); let nextDate = new Date(shiftDate); nextDate.setDate(nextDate.getDate() + 1);
   if (trackers.dates[pub.id] && (trackers.dates[pub.id].has(formatDate(prevDate)) || trackers.dates[pub.id].has(formatDate(nextDate)))) { warnings.push("Trabajará día consecutivo."); }
-  if(warnings.length > 0) { if(!confirm(`⚠️ ADVERTENCIA:\n` + warnings.map(w=>"- "+w).join("\n") + "\n\n¿Forzar asignación?")) return; }
+  
+  if(warnings.length > 0) { 
+      const forceWarn = await showConfirm(`⚠️ ADVERTENCIA:\n` + warnings.map(w=>"- "+w).join("\n") + "\n\n¿Forzar asignación?", "Asignar de todos modos");
+      if(!forceWarn) return; 
+  }
+  
   shift.assigned.push(pub); renderPreviewTable(); openShiftEditModal(shiftIndex); 
 }
 
-function manualRemove(shiftIndex, pubId) {
+async function manualRemove(shiftIndex, pubId) {
   let shift = draftSchedule[shiftIndex]; let pub = shift.assigned.find(p => p.id === pubId);
-  if(pub.hardPair && pub.partner && shift.assigned.find(p => p.id === pub.partner)) { if(!confirm(`⚠️ Separando Pareja Estricta. ¿Continuar?`)) return; }
+  
+  if(pub.hardPair && pub.partner && shift.assigned.find(p => p.id === pub.partner)) { 
+      const confirm1 = await showConfirm(`⚠️ Estás separando a una pareja estricta. ¿Continuar?`, "Separar");
+      if(!confirm1) return; 
+  }
+  
   let partnerOf = shift.assigned.find(p => p.hardPair && p.partner === pubId);
-  if(partnerOf) { if(!confirm(`⚠️ Quitando a compañero de ${partnerOf.firstName}. ¿Continuar?`)) return; }
+  if(partnerOf) { 
+      const confirm2 = await showConfirm(`⚠️ Estás quitando al compañero de ${partnerOf.firstName} (Pareja Estricta). ¿Continuar?`, "Quitar");
+      if(!confirm2) return; 
+  }
+  
   shift.assigned = shift.assigned.filter(p => p.id !== pubId);
   renderPreviewTable(); openShiftEditModal(shiftIndex); 
 }
 
 async function publishSchedule() {
   if (draftSchedule.length === 0) return;
-  if (!confirm('¿Guardar cambios?')) return;
-  const btn = document.getElementById('btn-publish-bottom'); btn.innerText = "Guardando..."; btn.disabled = true;
+  const isConfirmed = await showConfirm('¿Estás seguro de guardar y publicar este programa?', 'Guardar Programa', '#28a745');
+  if (!isConfirmed) return;
+  
+  const btn = document.getElementById('btn-publish-bottom'); 
+  btn.innerHTML = `<span class="material-symbols-outlined">sync</span> Guardando...`; btn.disabled = true;
+  
   try {
     for (const shift of draftSchedule) {
       if (shift.docId) { await db.collection('shifts').doc(shift.docId).update({ participants: shift.assigned.map(p => p.id) }); } 
       else { await db.collection('shifts').add({ date: shift.dateString, location: shift.location, time: shift.time, capacity: shift.capacity, participants: shift.assigned.map(p => p.id) }); }
     }
-    alert('¡Programa guardado!'); document.getElementById('schedule-preview-container').style.display = 'none';
+    showToast('¡Programa guardado y publicado exitosamente!'); 
+    document.getElementById('schedule-preview-container').style.display = 'none';
     draftSchedule = []; checkMonthStatus(); 
-  } catch (error) { alert("Error: " + error.message); } 
-  finally { btn.innerText = "Guardar / Publicar"; btn.disabled = false; }
+  } catch (error) { showToast("Error: " + error.message, "error"); } 
+  finally { btn.innerHTML = `<span class="material-symbols-outlined">cloud_upload</span> Guardar y Publicar`; btn.disabled = false; }
 }

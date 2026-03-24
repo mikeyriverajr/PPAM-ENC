@@ -109,11 +109,12 @@ function switchAdminTab(tabId) {
 }
 
 // ==========================================
-// TAB 1: DIRECTORIO (UPGRADED)
+// TAB 1: DIRECTORIO 
 // ==========================================
 let allPublishers = []; 
 let currentLinkedUserDocId = null; 
 let currentAbsences = [];
+let currentViewId = null;
 
 document.addEventListener("DOMContentLoaded", function() {
     const partnerSelect = document.getElementById('pub-partner');
@@ -139,19 +140,55 @@ async function loadPublishers() {
       const pub = doc.data(); pub.id = doc.id; allPublishers.push(pub);
       const card = document.createElement('div');
       card.className = 'pub-card';
+      card.onclick = () => viewPublisher(pub.id);
+      
       const genderIcon = pub.gender === 'M' ? 'woman' : 'man';
       const statusBadge = pub.status === 'Entrenamiento' ? `<span class="badge-warning">Entrenamiento</span>` : '';
-      const hardPairBadge = pub.hardPair ? `<span class="badge-red">Estricto</span>` : '';
+      const hardPairBadge = pub.hardPair ? `<span class="badge-red">Pareja Estricta</span>` : '';
       card.innerHTML = `
         <div><h4 class="pub-name" style="margin:0 0 5px 0; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="color:#5d7aa9;">${genderIcon}</span> ${pub.firstName} ${pub.lastName} ${statusBadge} ${hardPairBadge}</h4>
         <p style="margin:0; font-size:0.85em; color:#666; margin-left: 30px;">Turnos al mes: ${pub.maxShifts || '5'} | Compañero: ${pub.partnerName || 'Ninguno'}</p></div>
-        <button onclick='editPublisher("${pub.id}")' class="btn-action btn-primary">Editar</button>
+        <span class="material-symbols-outlined" style="color:#ccc;">chevron_right</span>
       `;
       listDiv.appendChild(card);
       partnerSelect.innerHTML += `<option value="${pub.id}">${pub.firstName} ${pub.lastName}</option>`;
     });
   } catch (error) { listDiv.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar.</p>'; }
 }
+
+function viewPublisher(id) {
+    const pub = allPublishers.find(p => p.id === id);
+    if(!pub) return;
+    currentViewId = id;
+    
+    document.getElementById('view-pub-name').innerHTML = `<span class="material-symbols-outlined" style="color:#5d7aa9; font-size:32px;">${pub.gender === 'M' ? 'woman' : 'man'}</span> ${pub.firstName} ${pub.lastName}`;
+    document.getElementById('view-pub-status').innerHTML = pub.status === 'Entrenamiento' ? '<span style="color:#856404; font-weight:bold;">⚠️ Entrenamiento</span>' : '✅ Aprobado';
+    document.getElementById('view-pub-max').innerText = `${pub.maxShifts || 5} turnos`;
+    document.getElementById('view-pub-partner').innerText = pub.partnerName ? `${pub.partnerName} ${pub.hardPair ? '(Estricto)' : ''}` : 'Ninguno';
+    
+    document.getElementById('view-pub-phone').innerText = pub.phone || '-';
+    document.getElementById('view-pub-email').innerText = pub.notificationEmail || '-';
+    document.getElementById('view-pub-ename').innerText = pub.emergencyName || '-';
+    document.getElementById('view-pub-ephone').innerText = pub.emergencyPhone || '-';
+    
+    document.getElementById('pub-view-modal').style.display = 'flex';
+}
+
+function closePubViewModal() { document.getElementById('pub-view-modal').style.display = 'none'; currentViewId = null; }
+
+function switchToEditPub() {
+    if(!currentViewId) return;
+    closePubViewModal();
+    editPublisher(currentViewId);
+}
+
+async function openNewPublisherModal() {
+    clearPublisherForm();
+    await buildAdminAvailabilityForm([]);
+    document.getElementById('pub-edit-modal').style.display = 'flex';
+}
+
+function closePubEditModal() { document.getElementById('pub-edit-modal').style.display = 'none'; }
 
 async function buildAdminAvailabilityForm(pubAvailability = []) {
   const container = document.getElementById('admin-avail-container');
@@ -174,22 +211,22 @@ async function buildAdminAvailabilityForm(pubAvailability = []) {
         let html = `<h5>${day}</h5>`;
         grouped[day].forEach(s => {
           const isChecked = pubAvailability.includes(s.val) ? 'checked' : '';
-          html += `<div class="admin-avail-check"><input type="checkbox" id="admin-chk-${s.val}" class="admin-avail-checkbox" value="${s.val}" ${isChecked}><label for="admin-chk-${s.val}">${s.name} (${s.time})</label></div>`;
+          html += `<div class="admin-avail-check"><input type="checkbox" id="admin-chk-${s.val}" class="admin-avail-checkbox" value="${s.val}" ${isChecked} style="width:16px; height:16px; accent-color:#5d7aa9; cursor:pointer;"><label for="admin-chk-${s.val}" style="cursor:pointer;">${s.name} (${s.time})</label></div>`;
         });
         div.innerHTML = html; container.appendChild(div);
       }
     });
     if (!hasShifts) container.innerHTML = '<p style="text-align:center; color:#666; font-size:0.85em;">No hay ubicaciones activas en el sistema.</p>';
-  } catch (error) { container.innerHTML = '<p style="color:red; font-size:0.8em;">Error al cargar turnos.</p>'; }
+  } catch (error) { container.innerHTML = '<p style="color:red; font-size:0.8em;">Error al cargar disponibilidad.</p>'; }
 }
 
 function renderAbsences() {
     const list = document.getElementById('absences-list');
     list.innerHTML = '';
     currentAbsences.forEach((abs, index) => {
-        list.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#f9f9f9; border:1px solid #ddd; padding:8px; border-radius:4px; font-size:0.9em;">
-            <span>📅 ${formatSpanishDate(abs.start)} - ${formatSpanishDate(abs.end)}</span>
-            <button onclick="removeAbsence(${index})" class="btn-action btn-danger" style="padding:4px;"><span class="material-symbols-outlined" style="font-size:16px;">close</span></button>
+        list.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#f9f9f9; border:1px solid #ddd; padding:10px; border-radius:6px; font-size:0.9em;">
+            <span><strong style="color:#dc3545;">✈️ Ausente:</strong> ${formatSpanishDate(abs.start)} - ${formatSpanishDate(abs.end)}</span>
+            <button type="button" onclick="removeAbsence(${index})" class="btn-action btn-danger" style="padding:4px 8px;"><span class="material-symbols-outlined" style="font-size:16px;">close</span></button>
         </div>`;
     });
 }
@@ -217,18 +254,15 @@ async function editPublisher(id) {
   document.getElementById('pub-hardpair-container').style.display = pub.partner ? 'flex' : 'none';
   document.getElementById('pub-hardpair').checked = pub.hardPair || false;
   
-  // Contacts
   document.getElementById('pub-phone').value = pub.phone || '';
   document.getElementById('pub-email').value = pub.notificationEmail || '';
   document.getElementById('pub-emerg-name').value = pub.emergencyName || '';
   document.getElementById('pub-emerg-phone').value = pub.emergencyPhone || '';
 
-  // Availability & Absences
-  buildAdminAvailabilityForm(pub.availability || []);
+  await buildAdminAvailabilityForm(pub.availability || []);
   currentAbsences = pub.absences || [];
   renderAbsences();
 
-  document.getElementById('btn-cancel-pub').style.display = 'block';
   document.getElementById('btn-delete-pub').style.display = 'inline-flex';
   
   const userQuery = await db.collection('users').where('publisherId', '==', id).get();
@@ -255,6 +289,8 @@ async function editPublisher(id) {
      document.getElementById('account-status-msg').innerText = "Opcional al crear un usuario nuevo.";
      document.getElementById('btn-unlink').style.display = 'none';
   }
+  
+  document.getElementById('pub-edit-modal').style.display = 'flex';
 }
 
 async function savePublisher() {
@@ -307,7 +343,8 @@ async function savePublisher() {
       }
       showToast('Publicador creado exitosamente.');
     }
-    setTimeout(() => { clearPublisherForm(); loadPublishers(); }, 1000);
+    closePubEditModal();
+    setTimeout(() => { loadPublishers(); }, 500);
   } catch (error) { showToast('Error: ' + error.message, 'error'); }
 }
 
@@ -338,7 +375,8 @@ async function deletePublisher() {
     const userQuery = await db.collection('users').where('publisherId', '==', id).get();
     userQuery.forEach(async (doc) => { await db.collection('users').doc(doc.id).delete(); });
     showToast("Publicador eliminado.");
-    clearPublisherForm(); loadPublishers();
+    closePubEditModal();
+    loadPublishers();
   } catch (error) { showToast("Error: " + error.message, "error"); }
 }
 
@@ -363,13 +401,11 @@ function clearPublisherForm() {
   document.getElementById('pub-password').disabled = false;
   document.getElementById('pub-role').disabled = false;
   document.getElementById('pub-password').placeholder = "Mínimo 6 caracteres";
-  document.getElementById('btn-cancel-pub').style.display = 'none';
   document.getElementById('btn-delete-pub').style.display = 'none';
   document.getElementById('btn-unlink').style.display = 'none';
   currentLinkedUserDocId = null;
   currentAbsences = [];
   renderAbsences();
-  document.getElementById('admin-avail-container').innerHTML = '<p style="text-align:center; font-size:0.9em; color:#666;">Selecciona o crea un publicador para editar su rutina.</p>';
   document.getElementById('account-status-msg').innerText = "Opcional al crear un usuario nuevo.";
 }
 
@@ -380,7 +416,7 @@ function filterPublishers() {
 }
 
 // ==========================================
-// TAB 2: LOCATIONS (QUICK BUILDER & STATUS)
+// TAB 2: LOCATIONS (QUICK BUILDER FIX)
 // ==========================================
 async function loadLocations() {
   const listDiv = document.getElementById('locations-list');
@@ -419,7 +455,7 @@ function executeQuickBuild() {
     const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
     const startStr = document.getElementById('qb-start').value;
     const endStr = document.getElementById('qb-end').value;
-    const durHours = parseInt(document.getElementById('qb-duration').value);
+    const durHours = parseFloat(document.getElementById('qb-duration').value);
     
     if(!startStr || !endStr || !durHours) { showToast("Completa los datos del generador rápido.", "error"); return; }
     
@@ -430,7 +466,7 @@ function executeQuickBuild() {
     const [endH, endM] = endStr.split(':').map(Number);
     let startMinTotal = startH * 60 + startM;
     const endMinTotal = endH * 60 + endM;
-    const durMins = durHours * 60;
+    const durMins = Math.floor(durHours * 60);
     
     let generatedCount = 0;
     selectedDays.forEach(day => {
@@ -454,7 +490,7 @@ function addShiftRow(day = 'Lunes', start = '08:00', end = '10:00') {
   const row = document.createElement('div'); row.style.cssText = "display:flex; gap:10px; margin-bottom:10px; align-items:center;";
   row.className = 'shift-row';
   let options = days.map(d => `<option value="${d}" ${d === day ? 'selected' : ''}>${d}</option>`).join('');
-  row.innerHTML = `<select class="shift-day form-group" style="margin:0; flex:2; padding:10px;">${options}</select><input type="time" class="shift-start form-group" value="${start}" style="margin:0; flex:1; padding:10px;"><input type="time" class="shift-end form-group" value="${end}" style="margin:0; flex:1; padding:10px;"><button onclick="this.parentElement.remove()" class="btn-action btn-danger" style="margin:0; padding:10px;"><span class="material-symbols-outlined" style="font-size:18px;">delete</span></button>`;
+  row.innerHTML = `<select class="shift-day form-group" style="margin:0; flex:2; padding:10px;">${options}</select><input type="time" class="shift-start form-group" value="${start}" style="margin:0; flex:1; padding:10px;"><input type="time" class="shift-end form-group" value="${end}" style="margin:0; flex:1; padding:10px;"><button type="button" onclick="this.parentElement.remove()" class="btn-action btn-danger" style="margin:0; padding:10px;"><span class="material-symbols-outlined" style="font-size:18px;">delete</span></button>`;
   container.appendChild(row);
 }
 
@@ -502,7 +538,7 @@ async function deleteLocation() {
 }
 
 // ==========================================
-// TAB 3: GENERATOR (WITH ABSENCE/TRAINEE LOGIC)
+// TAB 3: GENERATOR (ABSENCE/TRAINEE LOGIC)
 // ==========================================
 let draftSchedule = []; 
 
@@ -530,7 +566,6 @@ async function generateDraft() {
     const targetYear = parseInt(targetYearStr);
     const targetMonthIndex = parseInt(targetMonthStr) - 1; 
 
-    // FEATURE 2: ONLY PULL ACTIVE LOCATIONS
     const locsSnap = await db.collection('locations').where('isActive', '==', true).get();
     const locations = []; locsSnap.forEach(d => { let l=d.data(); l.id=d.id; locations.push(l); });
 
@@ -555,7 +590,6 @@ async function generateDraft() {
       });
     }
 
-    // Assigning Pools
     allPublishers.forEach(pub => {
       const avail = pub.availability || [];
       shiftTasks.forEach(task => { if (avail.includes(task.availKey)) task.pool.push(pub); });
@@ -573,7 +607,7 @@ async function generateDraft() {
     function canAssign(pubId, dateObj, dateString) {
       let pub = allPublishers.find(p => p.id === pubId);
       
-      // FEATURE 3 & 5: Skip Trainees and Vacations entirely during auto-gen!
+      // TRAINEE & VACATION SKIP LOGIC
       if (pub.status === 'Entrenamiento') return false;
       if (isAbsent(pub, dateString)) return false;
       
@@ -688,7 +722,7 @@ function renderPreviewTable() {
         const warn = p.status === 'Entrenamiento' ? `<span class="material-symbols-outlined" style="font-size:14px; color:#ffc107; vertical-align:-2px;" title="En Entrenamiento">warning</span>` : '';
         namesHtml += `${p.firstName} ${p.lastName} ${warn}, `;
     });
-    namesHtml = namesHtml.slice(0, -2); // remove last comma
+    namesHtml = namesHtml.slice(0, -2); 
     
     const row = document.createElement('tr');
     const isFull = shift.assigned.length >= shift.capacity;
@@ -701,7 +735,7 @@ function renderPreviewTable() {
         ${namesHtml || 'Nadie disponible'} <br>
         <span style="font-size:0.85em; opacity: 0.8;">(${shift.assigned.length}/${shift.capacity})</span>
       </td>
-      <td style="width: 100px; text-align: right;"><button onclick="openShiftEditModal(${index})" class="btn-action btn-info"><span class="material-symbols-outlined" style="font-size:18px;">edit</span> Editar</button></td>
+      <td style="width: 100px; text-align: right;"><button type="button" onclick="openShiftEditModal(${index})" class="btn-action btn-info"><span class="material-symbols-outlined" style="font-size:18px;">edit</span> Editar</button></td>
     `;
     tbody.appendChild(row);
   });
@@ -724,7 +758,7 @@ function openShiftEditModal(shiftIndex) {
   assignedContainer.innerHTML = '';
   shift.assigned.forEach(pub => {
     const warn = pub.status === 'Entrenamiento' ? `<span class="badge-warning">Trainee</span>` : '';
-    assignedContainer.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#f9f9f9; padding:12px; border-radius:8px; border:1px solid #eee;"><span>${pub.firstName} ${pub.lastName} ${warn}</span><button onclick="manualRemove(${shiftIndex}, '${pub.id}')" class="btn-action btn-danger" style="padding:6px 12px;">Quitar</button></div>`;
+    assignedContainer.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#f9f9f9; padding:12px; border-radius:8px; border:1px solid #eee;"><span>${pub.firstName} ${pub.lastName} ${warn}</span><button type="button" onclick="manualRemove(${shiftIndex}, '${pub.id}')" class="btn-action btn-danger" style="padding:6px 12px;">Quitar</button></div>`;
   });
   
   const select = document.getElementById('shift-add-select');
@@ -737,7 +771,6 @@ function openShiftEditModal(shiftIndex) {
   sortedPubs.forEach(pub => {
     if(shift.assigned.find(p => p.id === pub.id)) return;
     
-    // Check if they are absent on this specific day
     let isAway = false;
     if(pub.absences) { isAway = pub.absences.some(abs => shift.dateString >= abs.start && shift.dateString <= abs.end); }
 

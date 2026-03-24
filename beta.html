@@ -224,9 +224,17 @@
     <div id="tab-profile" class="tab-content">
       <div class="profile-panel">
         
+        <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#28a745;">notifications_active</span> Notificaciones Push</h3>
+        <p style="font-size:0.9em; color:#666; margin-top:0;">Recibe alertas instantáneas en tu celular cuando se liberen turnos o haya cambios en tu programa.</p>
+        <div style="background:#f9f9f9; padding:15px; border-radius:8px; border:1px solid #eee; display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+            <span id="push-status-text" style="font-weight:600; color:#555;">Estado: Sin activar</span>
+            <button type="button" id="btn-enable-push" onclick="enablePushNotifications()" class="btn-action btn-success"><span class="material-symbols-outlined">notifications</span> Activar Notificaciones</button>
+        </div>
+
+        <hr class="profile-divider">
         <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#5d7aa9;">contact_page</span> Mis Datos de Contacto</h3>
         <div class="form-group"><label>Teléfono Celular</label><input type="tel" id="prof-phone" oninput="checkProfileChanges()" placeholder="ej. 0981 123 456"></div>
-        <div class="form-group"><label>Correo Electrónico (Notificaciones)</label><input type="email" id="prof-email" oninput="checkProfileChanges()" placeholder="ej. juan@gmail.com"></div>
+        <div class="form-group"><label>Correo Electrónico (Opcional)</label><input type="email" id="prof-email" oninput="checkProfileChanges()" placeholder="ej. juan@gmail.com"></div>
 
         <hr class="profile-divider">
         <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#dc3545;">emergency</span> En Caso de Emergencia</h3>
@@ -283,6 +291,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="app-beta.js?v=6"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
+<script src="app-beta.js?v=7"></script>
 </body>
 </html>

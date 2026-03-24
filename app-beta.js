@@ -17,18 +17,26 @@ let publisherCache = {};
 let currentUserPublisherId = null;
 let originalProfileData = {};
 
-// Helper functions for dates
+// --- DATE FORMATTERS ---
 const getTodayString = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+// FIX 3: Bulletproof Spanish Date Formatter
 function formatSpanishDate(dateStr) {
-    const [y, m, d] = dateStr.split('-');
-    const dateObj = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+    if (!dateStr) return "";
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr; 
+    const y = parseInt(parts[0]);
+    const m = parseInt(parts[1]) - 1;
+    const d = parseInt(parts[2]);
+    const dateObj = new Date(y, m, d);
+    
     const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
     const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-    return `${days[dateObj.getDay()]} ${parseInt(d)} de ${months[dateObj.getMonth()]}`;
+    
+    return `${days[dateObj.getDay()]} ${d} de ${months[dateObj.getMonth()]}`;
 }
 
 auth.onAuthStateChanged(async user => {
@@ -105,7 +113,7 @@ async function submitForcedPassword() {
       document.getElementById('header-user-name').innerText = publisherCache[currentUserPublisherId] || "";
       loadShifts(); loadMyShifts(); loadAvailableShifts(); loadAvailabilityForm(); loadProfileForm(); 
   } catch (error) {
-      if(error.code === 'auth/requires-recent-login') { err.innerText = "Por seguridad, cierra sesión, vuelve a ingresar e inténtalo de nuevo."; } 
+      if(error.code === 'auth/requires-recent-login') { err.innerText = "Por favor cierra sesión y vuelve a ingresar para cambiar tu contraseña."; } 
       else { err.innerText = "Error al actualizar: " + error.message; }
   }
 }
@@ -189,7 +197,7 @@ async function loadMyShifts() {
     shiftsSnapshot.forEach(doc => { 
         let s = doc.data(); 
         s.id = doc.id; 
-        if (s.date >= todayStr) myCurrentShifts.push(s); // Only future & today!
+        if (s.date >= todayStr) myCurrentShifts.push(s); 
     });
     
     if (myCurrentShifts.length === 0) {
@@ -228,7 +236,6 @@ async function loadAvailableShifts() {
       let shift = doc.data(); shift.id = doc.id;
       const capacity = shift.capacity || 2; 
       const participants = shift.participants || [];
-      // Make sure it has space, you aren't in it, and it isn't in the past
       if (participants.length < capacity && !participants.includes(currentUserPublisherId) && shift.date >= todayStr) {
           openShifts.push(shift);
       }
@@ -342,6 +349,14 @@ async function saveAvailability() {
   } catch (error) { msgP.innerText = 'Error al guardar.'; msgP.style.color = 'red'; }
 }
 
+// FIX 2: Connect the Partner Checkbox
+function handlePartnerChange() {
+    const val = document.getElementById('prof-partner').value;
+    document.getElementById('prof-hardpair-container').style.display = val ? 'flex' : 'none';
+    if(!val) document.getElementById('prof-hardpair').checked = false;
+    checkProfileChanges();
+}
+
 async function loadProfileForm() {
   if (!currentUserPublisherId) return;
   try {
@@ -367,21 +382,23 @@ async function loadProfileForm() {
       }
     });
 
-    // Handle initial checkbox visibility
     document.getElementById('prof-hardpair-container').style.display = pub.partner ? 'flex' : 'none';
 
-    // Store original data to check against later
+    // FIX 1: Safely convert MaxShifts to a string so it matches the dropdown value exactly!
     originalProfileData = {
-      phone: pub.phone || '', email: pub.notificationEmail || '', eName: pub.emergencyName || '',
-      ePhone: pub.emergencyPhone || '', max: pub.maxShifts || '5', partner: pub.partner || '', hard: pub.hardPair || false
+      phone: pub.phone || '', 
+      email: pub.notificationEmail || '', 
+      eName: pub.emergencyName || '',
+      ePhone: pub.emergencyPhone || '', 
+      max: (pub.maxShifts || '5').toString(), 
+      partner: pub.partner || '', 
+      hard: pub.hardPair || false
     };
 
-    // Add listener for dynamic partner select
-    partnerSelect.addEventListener('change', function() {
-        document.getElementById('prof-hardpair-container').style.display = this.value ? 'flex' : 'none';
-        if(!this.value) document.getElementById('prof-hardpair').checked = false;
-        checkProfileChanges();
-    });
+    // Ensure button is disabled on fresh load
+    document.getElementById('btn-save-profile').disabled = true;
+    document.getElementById('btn-save-profile').style.background = '#ccc';
+    document.getElementById('btn-save-profile').style.cursor = 'not-allowed';
 
   } catch (error) { console.error("Error loading profile:", error); }
 }
@@ -437,7 +454,6 @@ async function saveProfile() {
   try {
     await db.collection('publishers').doc(currentUserPublisherId).update(profileData);
     
-    // Update original data cache and reset button
     originalProfileData = {
         phone: profileData.phone, email: profileData.notificationEmail, eName: profileData.emergencyName,
         ePhone: profileData.emergencyPhone, max: profileData.maxShifts.toString(), partner: profileData.partner, hard: profileData.hardPair

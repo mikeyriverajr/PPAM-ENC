@@ -66,14 +66,16 @@
       .close-modal { color: #999; float: right; font-size: 24px; font-weight: bold; cursor: pointer; transition: color 0.2s; margin-top: -5px; }
       .close-modal:hover { color: #333; }
 
-      /* QUICK BUILDER CSS (Fixed Layout) */
+      /* QUICK BUILDER CSS (FIXED SPACING) */
       .quick-build-box { background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 20px; }
       .day-checkboxes { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; }
       .day-checkboxes label { background: white; padding: 6px 12px; border: 1px solid #ccc; border-radius: 20px; font-size: 0.85em; cursor: pointer; user-select: none; font-weight: 500; }
       .day-checkboxes input:checked + label { background: #5d7aa9; color: white; border-color: #5d7aa9; }
       .day-checkboxes input { display: none; }
       
-      .qb-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 15px; align-items: end; }
+      .qb-grid { display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; }
+      .qb-grid > div { flex: 1; min-width: 120px; }
+      .qb-grid button { flex: 1; min-width: 120px; height: 44px; }
 
       /* ADMIN AVAILABILITY CSS */
       .admin-avail-day { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
@@ -296,10 +298,10 @@
                 </div>
                 
                 <div class="qb-grid">
-                    <div><label style="font-size:0.85em; color:#555; font-weight: 600;">Hora Inicio</label><input type="time" id="qb-start" value="08:00" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:6px;"></div>
-                    <div><label style="font-size:0.85em; color:#555; font-weight: 600;">Hora Fin</label><input type="time" id="qb-end" value="14:00" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:6px;"></div>
-                    <div><label style="font-size:0.85em; color:#555; font-weight: 600;">Duración (Horas)</label><input type="number" id="qb-duration" value="2" step="0.5" min="0.5" max="12" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:6px;"></div>
-                    <button type="button" onclick="executeQuickBuild()" class="btn-action btn-primary" style="padding:10px; height: 42px;"><span class="material-symbols-outlined">auto_awesome</span> Generar</button>
+                    <div><label style="font-size:0.85em; color:#555; font-weight: 600;">Hora Inicio</label><input type="time" id="qb-start" value="08:00" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:6px; box-sizing:border-box;"></div>
+                    <div><label style="font-size:0.85em; color:#555; font-weight: 600;">Hora Fin</label><input type="time" id="qb-end" value="14:00" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:6px; box-sizing:border-box;"></div>
+                    <div><label style="font-size:0.85em; color:#555; font-weight: 600;">Duración (Horas)</label><input type="number" id="qb-duration" value="2" step="0.5" min="0.5" max="12" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:6px; box-sizing:border-box;"></div>
+                    <button type="button" onclick="executeQuickBuild()" class="btn-action btn-primary"><span class="material-symbols-outlined">auto_awesome</span> Generar</button>
                 </div>
             </div>
             
@@ -384,6 +386,6 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="app-admin.js?v=4"></script>
+<script src="app-admin.js?v=5"></script>
 </body>
 </html>

@@ -18,22 +18,31 @@ let currentUserPublisherId = null;
 let originalProfileData = {};
 
 // ==========================================
-// NEW: CUSTOM POPUP SYSTEM LOGIC
+// MODALS & POPUPS
 // ==========================================
+
+// THE MISSING FUNCTIONS FOR THE FULL SCHEDULE MODAL!
+function openFullSchedule() {
+    document.getElementById('full-schedule-modal').style.display = 'flex';
+}
+
+function closeFullSchedule() {
+    document.getElementById('full-schedule-modal').style.display = 'none';
+}
+
 function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
     
-    // Choose icon based on type
-    let icon = '✅';
-    if (type === 'error') icon = '❌';
-    else if (type === 'info') icon = 'ℹ️';
+    let icon = 'check_circle';
+    let iconColor = '#28a745';
+    if (type === 'error') { icon = 'cancel'; iconColor = '#dc3545'; }
+    else if (type === 'info') { icon = 'info'; iconColor = '#17a2b8'; }
 
-    toast.innerHTML = `<span class="toast-icon">${icon}</span> <span>${message}</span>`;
+    toast.innerHTML = `<span class="material-symbols-outlined" style="color: ${iconColor}; font-size: 24px;">${icon}</span> <span>${message}</span>`;
     container.appendChild(toast);
 
-    // Auto remove after 3 seconds
     setTimeout(() => {
         toast.style.animation = 'fadeOutToast 0.3s forwards';
         setTimeout(() => toast.remove(), 300);
@@ -85,6 +94,9 @@ function formatSpanishDate(dateStr) {
     return `${days[dateObj.getDay()]} ${d} de ${months[dateObj.getMonth()]}`;
 }
 
+// ==========================================
+// AUTHENTICATION & LOGIN
+// ==========================================
 auth.onAuthStateChanged(async user => {
   if (user) {
     document.getElementById('login-overlay').style.display = 'none';
@@ -137,7 +149,7 @@ function switchTab(tabId) {
 }
 
 // ==========================================
-// PASSWORD MANAGEMENT LOGIC
+// PASSWORD LOGIC
 // ==========================================
 async function submitForcedPassword() {
   const p1 = document.getElementById('force-new-pass1').value;
@@ -170,8 +182,7 @@ async function submitForcedPassword() {
 function checkPasswordChange() {
     const p = document.getElementById('prof-new-pass').value;
     const btn = document.getElementById('btn-update-pass');
-    if (p.length >= 6) { btn.disabled = false; } 
-    else { btn.disabled = true; }
+    btn.disabled = p.length < 6;
 }
 
 async function changeProfilePassword() {
@@ -185,7 +196,7 @@ async function changeProfilePassword() {
       checkPasswordChange(); 
   } catch (error) {
       if(error.code === 'auth/requires-recent-login') { 
-          showToast("Por seguridad, cierra sesión y vuelve a ingresar antes de cambiar tu contraseña.", "error"); 
+          showToast("Cierra sesión y vuelve a ingresar antes de cambiar tu contraseña.", "error"); 
       } else { 
           showToast("Error: " + error.message, "error"); 
       }
@@ -193,7 +204,7 @@ async function changeProfilePassword() {
 }
 
 // ==========================================
-// PROGRAMA & TURNOS LOGIC
+// PROGRAMA & TURNOS LOGIC 
 // ==========================================
 let allShiftsData = []; 
 async function loadShifts() {
@@ -217,11 +228,11 @@ function renderAllShifts(shifts) {
     shiftCard.className = 'shift-card';
     shiftCard.innerHTML = `
       <div class="shift-card-header">
-        <h4 class="shift-card-title">${formatSpanishDate(shift.date)}</h4>
-        <span class="shift-card-time">${shift.time}</span>
+        <h4 class="shift-card-title"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px; color: #5d7aa9;">event</span>${formatSpanishDate(shift.date)}</h4>
+        <span class="shift-card-time"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px; color: #666;">schedule</span>${shift.time}</span>
       </div>
-      <p class="shift-card-detail">📍 <strong>${shift.location}</strong></p>
-      <p class="shift-card-detail">👥 ${participantNames.join(', ')}</p>
+      <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545;">location_on</span> <strong>${shift.location}</strong></p>
+      <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> ${participantNames.join(', ')}</p>
     `;
     container.appendChild(shiftCard);
   });
@@ -267,11 +278,11 @@ async function loadMyShifts() {
       shiftCard.className = 'shift-card mine';
       shiftCard.innerHTML = `
         <div class="shift-card-header">
-          <h4 class="shift-card-title">${formatSpanishDate(shift.date)}</h4>
-          <span class="shift-card-time">${shift.time}</span>
+          <h4 class="shift-card-title" style="color:#2c5282;"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">event</span>${formatSpanishDate(shift.date)}</h4>
+          <span class="shift-card-time"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">schedule</span>${shift.time}</span>
         </div>
-        <p class="shift-card-detail">📍 <strong>${shift.location}</strong></p>
-        <p class="shift-card-detail">👥 Con: ${partnerText}</p>
+        <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545;">location_on</span> <strong>${shift.location}</strong></p>
+        <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> Con: ${partnerText}</p>
         <div class="card-actions">
            <button onclick="attemptCancel('${shift.id}', '${shift.date}', '${shift.time}', '${shift.location}')" class="btn-action btn-danger">Cancelar Turno</button>
         </div>
@@ -309,12 +320,12 @@ async function loadAvailableShifts() {
       card.className = 'shift-card open';
       card.innerHTML = `
         <div class="shift-card-header">
-          <h4 class="shift-card-title" style="color:#28a745;">${formatSpanishDate(shift.date)}</h4>
-          <span class="shift-card-time">${shift.time}</span>
+          <h4 class="shift-card-title" style="color:#28a745;"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">event</span>${formatSpanishDate(shift.date)}</h4>
+          <span class="shift-card-time"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">schedule</span>${shift.time}</span>
         </div>
-        <p class="shift-card-detail">📍 <strong>${shift.location}</strong></p>
-        <p class="shift-card-detail">👥 Actuales: ${names}</p>
-        <p style="margin: 5px 0; font-size:0.85em; color:#666;">Lugares libres: <strong>${availableSpots}</strong></p>
+        <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545;">location_on</span> <strong>${shift.location}</strong></p>
+        <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> Actuales: ${names}</p>
+        <p style="margin: 5px 0 0 0; font-size:0.85em; color:#666; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #28a745;">person_add</span> Lugares libres: <strong>${availableSpots}</strong></p>
         <div class="card-actions">
            <button onclick="claimShift('${shift.id}', '${shift.date}', '${shift.time}', ${capacity})" class="btn-action btn-success">Tomar Turno</button>
         </div>
@@ -334,7 +345,6 @@ async function attemptCancel(shiftId, dateStr, timeStr, locationName) {
       return;
   }
   
-  // USE NEW CUSTOM CONFIRM
   const isConfirmed = await showConfirm(`¿Estás seguro de que deseas cancelar tu turno el ${formatSpanishDate(dateStr)}?`, "Cancelar Turno", "#dc3545");
   if(!isConfirmed) return;
 
@@ -350,7 +360,6 @@ async function attemptCancel(shiftId, dateStr, timeStr, locationName) {
     });
     
     showToast("Turno cancelado exitosamente.");
-    
     loadMyShifts(); loadAvailableShifts(); loadShifts(); 
   } catch (err) { showToast("Error al cancelar: " + err.message, "error"); }
 }
@@ -367,7 +376,6 @@ async function claimShift(shiftId, dateStr, timeStr, capacity) {
     }
   }
   
-  // USE NEW CUSTOM CONFIRM
   const isConfirmed = await showConfirm(`¿Deseas anotarte para este turno el ${formatSpanishDate(dateStr)}?`, "Tomar Turno", "#28a745");
   if(!isConfirmed) return;
 
@@ -385,7 +393,6 @@ async function claimShift(shiftId, dateStr, timeStr, capacity) {
     await shiftRef.update({ participants: currentParticipants });
     
     showToast("¡Turno agregado con éxito!");
-    
     loadMyShifts(); loadAvailableShifts(); loadShifts(); 
   } catch (err) { showToast("Error al tomar turno: " + err.message, "error"); }
 }
@@ -493,13 +500,7 @@ function checkProfileChanges() {
     };
     
     const hasChanged = JSON.stringify(currentData) !== JSON.stringify(originalProfileData);
-    const btn = document.getElementById('btn-save-profile');
-    
-    if (hasChanged) {
-        btn.disabled = false;
-    } else {
-        btn.disabled = true; 
-    }
+    document.getElementById('btn-save-profile').disabled = !hasChanged;
 }
 
 async function saveProfile() {

@@ -102,6 +102,7 @@ auth.onAuthStateChanged(async user => {
     document.getElementById('login-overlay').style.display = 'none';
     try {
       const userDoc = await db.collection('users').doc(user.uid).get();
+      
       if (userDoc.exists) {
         const userData = userDoc.data();
         currentUserPublisherId = userData.publisherId;
@@ -120,8 +121,20 @@ auth.onAuthStateChanged(async user => {
             
             loadShifts(); loadMyShifts(); loadAvailableShifts(); loadAvailabilityForm(); loadProfileForm(); 
         }
+      } else {
+        // THE FIX: The Ghost Session Net
+        // The user is authenticated, but their database record was deleted/unlinked by the Admin.
+        console.warn("Cuenta desvinculada. Cerrando sesión por seguridad.");
+        auth.signOut();
+        showToast("Tu cuenta fue modificada o desvinculada por el administrador. Por favor, vuelve a iniciar sesión.", "error");
       }
-    } catch (error) { console.error("Error:", error); }
+      
+    } catch (error) { 
+      console.error("Error:", error);
+      // THE FIX: Connection or Permission Error Net
+      auth.signOut();
+      showToast("Error de conexión. Por favor, vuelve a iniciar sesión.", "error");
+    }
   } else {
     document.getElementById('login-overlay').style.display = 'block';
     document.getElementById('app-content').style.display = 'none';

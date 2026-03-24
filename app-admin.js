@@ -174,12 +174,14 @@ function viewPublisher(id) {
     document.getElementById('pub-view-modal').style.display = 'flex';
 }
 
-function closePubViewModal() { document.getElementById('pub-view-modal').style.display = 'none'; currentViewId = null; }
+function closePubViewModal() { document.getElementById('pub-view-modal').style.display = 'none'; }
 
+// THE BUG FIX: Capture the ID before wiping it!
 function switchToEditPub() {
-    if(!currentViewId) return;
+    const idToEdit = currentViewId;
+    if(!idToEdit) return;
     closePubViewModal();
-    editPublisher(currentViewId);
+    editPublisher(idToEdit);
 }
 
 async function openNewPublisherModal() {
@@ -607,7 +609,6 @@ async function generateDraft() {
     function canAssign(pubId, dateObj, dateString) {
       let pub = allPublishers.find(p => p.id === pubId);
       
-      // TRAINEE & VACATION SKIP LOGIC
       if (pub.status === 'Entrenamiento') return false;
       if (isAbsent(pub, dateString)) return false;
       
@@ -757,7 +758,7 @@ function openShiftEditModal(shiftIndex) {
   const assignedContainer = document.getElementById('shift-modal-assigned');
   assignedContainer.innerHTML = '';
   shift.assigned.forEach(pub => {
-    const warn = pub.status === 'Entrenamiento' ? `<span class="badge-warning">Trainee</span>` : '';
+    const warn = pub.status === 'Entrenamiento' ? `<span class="badge-warning">Entrenamiento</span>` : '';
     assignedContainer.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#f9f9f9; padding:12px; border-radius:8px; border:1px solid #eee;"><span>${pub.firstName} ${pub.lastName} ${warn}</span><button type="button" onclick="manualRemove(${shiftIndex}, '${pub.id}')" class="btn-action btn-danger" style="padding:6px 12px;">Quitar</button></div>`;
   });
   

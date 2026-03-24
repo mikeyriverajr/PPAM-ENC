@@ -190,9 +190,16 @@ async function enablePushNotifications() {
     try {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
-            const token = await messaging.getToken({ vapidKey: 'BCsvQHZK5ybZnRx28iqE5hLKOJeAmIuvNUA62-zJmLxRuJOHySmGeWIRIcN9qMx2-OjGmjlAm09montphPtiBgw' });
+            
+            // THE FIX: Manually register the Service Worker so it respects the GitHub Subfolder
+            const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
+            
+            const token = await messaging.getToken({ 
+                vapidKey: 'BCsvQHZK5ybZnRx28iqE5hLKOJeAmIuvNUA62-zJmLxRuJOHySmGeWIRIcN9qMx2-OjGmjlAm09montphPtiBgw',
+                serviceWorkerRegistration: registration // Tell Firebase to use the one we just found
+            });
+            
             if (token) {
-                // Save token to this publisher's document
                 await db.collection('publishers').doc(currentUserPublisherId).update({ fcmToken: token });
                 showToast("¡Notificaciones activadas con éxito!");
                 document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#28a745;">Activadas</span>';

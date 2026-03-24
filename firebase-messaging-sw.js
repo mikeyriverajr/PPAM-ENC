@@ -15,14 +15,5 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
-// This runs in the background to catch the notification
-messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] Received background message ', payload);
-  const notificationTitle = payload.notification.title;
-  const notificationOptions = {
-    body: payload.notification.body,
-    icon: '/icon.png' // You can add a 192x192 icon.png to your folder later!
-  };
-
-  self.registration.showNotification(notificationTitle, notificationOptions);
-});
+// Firebase will now automatically handle and display the notification in the background!
+// We removed the custom 'showNotification' code to prevent the double-echo.

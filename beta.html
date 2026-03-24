@@ -12,7 +12,6 @@
       #login-overlay input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
       #login-overlay button { width: 100%; padding: 10px; background-color: #5d7aa9; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; }
       
-      /* THE HARD GATE MODAL */
       #force-password-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; align-items: center; justify-content: center; }
       .force-pass-box { background: white; padding: 30px; border-radius: 10px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
       .force-pass-box input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
@@ -39,7 +38,6 @@
       .btn-danger { background-color: #dc3545; color: white; }
       .btn-success { background-color: #28a745; color: white; }
       
-      /* Profile Form */
       .form-group { margin-bottom: 15px; }
       .form-group label { display: block; font-weight: bold; margin-bottom: 5px; color: #444; font-size: 0.9em; }
       .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
@@ -69,15 +67,18 @@
 
   <div id="app-content" class="app-container" style="display: none;">
     <div class="header">
-      <h2 style="margin: 0; font-size: 1.2em;">Predicación Pública</h2>
+      <h2 style="margin: 0; font-size: 1.2em; display:flex; align-items:center; gap:10px;">
+        PPAM 
+        <span id="header-user-name" style="font-size:0.7em; font-weight:normal; opacity:0.8; border-left:1px solid rgba(255,255,255,0.3); padding-left:10px;"></span>
+      </h2>
       <button class="btn-logout" onclick="logout()">Salir</button>
     </div>
 
     <div class="tabs">
       <div class="tab active" onclick="switchTab('all')" id="tab-btn-all">Programa</div>
       <div class="tab" onclick="switchTab('mine')" id="tab-btn-mine">Mis Turnos</div>
-      <div class="tab" onclick="switchTab('open')" id="tab-btn-open">Disponibles</div>
-      <div class="tab" onclick="switchTab('avail')" id="tab-btn-avail">Rutina</div>
+      <div class="tab" onclick="switchTab('open')" id="tab-btn-open">Turnos Disponibles</div>
+      <div class="tab" onclick="switchTab('avail')" id="tab-btn-avail">Disponibilidad</div>
       <div class="tab" onclick="switchTab('profile')" id="tab-btn-profile">Mi Perfil</div>
     </div>
 
@@ -90,7 +91,7 @@
 
     <div id="tab-open" class="tab-content">
       <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #17a2b8;">
-        <h3 style="margin-top: 0; color: #333;">Espacios Disponibles</h3>
+        <h3 style="margin-top: 0; color: #333;">Turnos Disponibles</h3>
         <p style="color: #555; font-size: 0.9em; margin-bottom: 0;">Anotarte en turnos libres o cancelados.</p>
       </div>
       <div id="open-shifts-container"></div>
@@ -98,12 +99,12 @@
 
     <div id="tab-avail" class="tab-content">
       <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #5d7aa9;">
-        <h3 style="margin-top: 0; color: #333;">Mi Rutina Semanal</h3>
-        <p style="color: #555; font-size: 0.9em; margin-bottom: 0;">Selecciona los horarios en los que usualmente estás disponible.</p>
+        <h3 style="margin-top: 0; color: #333;">Mi Disponibilidad Semanal</h3>
+        <p style="color: #555; font-size: 0.9em; margin-bottom: 0;">Selecciona los lugares y horarios en los que estás disponible.</p>
       </div>
       <div id="availability-form-container"><p style="text-align: center;">Cargando...</p></div>
       <div style="text-align: right; margin-top: 20px;">
-        <button onclick="saveAvailability()" style="background: #28a745; color: white; border: none; padding: 12px 25px; border-radius: 5px; font-weight: bold; cursor: pointer;">Guardar Mi Disponibilidad</button>
+        <button onclick="saveAvailability()" style="background: #28a745; color: white; border: none; padding: 12px 25px; border-radius: 5px; font-weight: bold; cursor: pointer;">Guardar Disponibilidad</button>
         <p id="avail-msg" style="color: green; margin-top: 10px; font-weight: bold;"></p>
       </div>
     </div>
@@ -112,19 +113,19 @@
       <div style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #6c757d;">
         <h3 style="margin-top: 0; color: #333;">Mis Datos Personales</h3>
         
-        <div class="form-group"><label>Teléfono Celular</label><input type="tel" id="prof-phone" placeholder="ej. 0981 123 456"></div>
-        <div class="form-group"><label>Correo Electrónico (Para recibir notificaciones)</label><input type="email" id="prof-email" placeholder="ej. juan@gmail.com"></div>
+        <div class="form-group"><label>Teléfono Celular</label><input type="tel" id="prof-phone" oninput="checkProfileChanges()" placeholder="ej. 0981 123 456"></div>
+        <div class="form-group"><label>Correo Electrónico (Para recibir notificaciones)</label><input type="email" id="prof-email" oninput="checkProfileChanges()" placeholder="ej. juan@gmail.com"></div>
 
         <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
         <h4 style="margin-top: 0; color: #5d7aa9;">En Caso de Emergencia</h4>
-        <div class="form-group"><label>Nombre del Contacto</label><input type="text" id="prof-emerg-name" placeholder="Familiar o amigo"></div>
-        <div class="form-group"><label>Teléfono de Emergencia</label><input type="tel" id="prof-emerg-phone" placeholder="Número de contacto"></div>
+        <div class="form-group"><label>Nombre del Contacto</label><input type="text" id="prof-emerg-name" oninput="checkProfileChanges()" placeholder="Familiar o amigo"></div>
+        <div class="form-group"><label>Teléfono de Emergencia</label><input type="tel" id="prof-emerg-phone" oninput="checkProfileChanges()" placeholder="Número de contacto"></div>
 
         <hr style="border:0; border-top:1px solid #eee; margin:20px 0;">
         <h4 style="margin-top: 0; color: #5d7aa9;">Preferencias de Asignación</h4>
         <div class="form-group">
           <label>Límite Máximo de Turnos por Mes</label>
-          <select id="prof-max">
+          <select id="prof-max" onchange="checkProfileChanges()">
             <option value="5">5 turnos (Máximo permitido)</option>
             <option value="4">4 turnos</option>
             <option value="3">3 turnos</option>
@@ -132,22 +133,27 @@
             <option value="1">1 turno</option>
           </select>
         </div>
-        <div class="form-group"><label>Pareja Preferida</label><select id="prof-partner"><option value="">Cargando...</option></select></div>
-        <div style="margin-top:10px; display:flex; align-items:flex-start; gap:8px;">
-            <input type="checkbox" id="prof-hardpair" style="margin-top: 3px; cursor:pointer;">
-            <label for="prof-hardpair" style="margin:0; font-weight:normal; cursor:pointer; font-size: 0.9em; color: #444;"><strong>Pareja Estricta:</strong> Solo programarme si mi pareja también está disponible.<br><span style="color:#dc3545; font-size:0.85em;">Nota: Esto restringirá tus asignaciones.</span></label>
+        
+        <div class="form-group">
+            <label>Compañero Preferido</label>
+            <select id="prof-partner"><option value="">Ninguno</option></select>
+        </div>
+        
+        <div id="prof-hardpair-container" style="display:none; margin-top:10px; align-items:flex-start; gap:8px;">
+            <input type="checkbox" id="prof-hardpair" onchange="checkProfileChanges()" style="margin-top: 3px; cursor:pointer;">
+            <label for="prof-hardpair" style="margin:0; font-weight:normal; cursor:pointer; font-size: 0.9em; color: #444;"><strong>Asignar estrictamente:</strong> Solo programarme si mi compañero también está disponible.<br><span style="color:#dc3545; font-size:0.85em;">Nota: Esto restringirá tus asignaciones.</span></label>
         </div>
         
         <div style="text-align: right; margin-top: 30px;">
-          <button onclick="saveProfile()" style="background: #28a745; color: white; border: none; padding: 12px 25px; border-radius: 5px; font-weight: bold; cursor: pointer;">Guardar Perfil</button>
-          <p id="prof-msg" style="color: green; margin-top: 10px; font-weight: bold;"></p>
+          <button id="btn-save-profile" onclick="saveProfile()" disabled style="background: #ccc; color: white; border: none; padding: 12px 25px; border-radius: 5px; font-weight: bold; cursor: not-allowed;">Guardar Perfil</button>
+          <p id="prof-msg" style="margin-top: 10px; font-weight: bold;"></p>
         </div>
 
         <hr style="border:0; border-top:1px solid #eee; margin:30px 0 20px 0;">
         <h4 style="margin-top: 0; color: #dc3545;">Cambiar Contraseña</h4>
-        <div class="form-group"><label>Nueva Contraseña (Mín. 6 caracteres)</label><input type="password" id="prof-new-pass"></div>
+        <div class="form-group"><label>Nueva Contraseña (Mín. 6 caracteres)</label><input type="password" id="prof-new-pass" oninput="checkPasswordChange()"></div>
         <div style="text-align: right; margin-top: 10px;">
-          <button onclick="changeProfilePassword()" style="background: #6c757d; color: white; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: pointer;">Actualizar Contraseña</button>
+          <button id="btn-update-pass" onclick="changeProfilePassword()" disabled style="background: #ccc; color: white; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; cursor: not-allowed;">Actualizar Contraseña</button>
           <p id="prof-pass-msg" style="margin-top: 10px; font-weight: bold;"></p>
         </div>
 

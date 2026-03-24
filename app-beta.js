@@ -15,18 +15,31 @@ const db = firebase.firestore();
 
 let publisherCache = {}; 
 let currentUserPublisherId = null;
+let originalProfileData = {};
+
+// Helper functions for dates
+const getTodayString = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+function formatSpanishDate(dateStr) {
+    const [y, m, d] = dateStr.split('-');
+    const dateObj = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+    const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    return `${days[dateObj.getDay()]} ${parseInt(d)} de ${months[dateObj.getMonth()]}`;
+}
 
 auth.onAuthStateChanged(async user => {
   if (user) {
     document.getElementById('login-overlay').style.display = 'none';
-    
     try {
       const userDoc = await db.collection('users').doc(user.uid).get();
       if (userDoc.exists) {
         const userData = userDoc.data();
         currentUserPublisherId = userData.publisherId;
         
-        // CHECK FOR THE HARD GATE
         if (userData.requirePasswordChange) {
             document.getElementById('force-password-modal').style.display = 'flex';
             document.getElementById('app-content').style.display = 'none';
@@ -36,6 +49,8 @@ auth.onAuthStateChanged(async user => {
             
             const pubSnap = await db.collection('publishers').get();
             pubSnap.forEach(d => { publisherCache[d.id] = `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(); });
+            
+            document.getElementById('header-user-name').innerText = publisherCache[currentUserPublisherId] || "";
             
             loadShifts(); loadMyShifts(); loadAvailableShifts(); loadAvailabilityForm(); loadProfileForm(); 
         }
@@ -75,55 +90,53 @@ async function submitForcedPassword() {
   const p2 = document.getElementById('force-new-pass2').value;
   const err = document.getElementById('force-pass-error');
   err.innerText = "";
-
   if (p1.length < 6) { err.innerText = "La contraseña debe tener al menos 6 caracteres."; return; }
   if (p1 !== p2) { err.innerText = "Las contraseñas no coinciden."; return; }
 
   try {
       const user = auth.currentUser;
       await user.updatePassword(p1);
-      // Remove the flag so they are never asked again
       await db.collection('users').doc(user.uid).update({ requirePasswordChange: false });
       
-      // Load the app safely
       document.getElementById('force-password-modal').style.display = 'none';
       document.getElementById('app-content').style.display = 'block';
       const pubSnap = await db.collection('publishers').get();
       pubSnap.forEach(d => { publisherCache[d.id] = `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(); });
+      document.getElementById('header-user-name').innerText = publisherCache[currentUserPublisherId] || "";
       loadShifts(); loadMyShifts(); loadAvailableShifts(); loadAvailabilityForm(); loadProfileForm(); 
-
   } catch (error) {
-      if(error.code === 'auth/requires-recent-login') {
-         err.innerText = "Por seguridad, cierra sesión, vuelve a ingresar e inténtalo de nuevo.";
-      } else {
-         err.innerText = "Error al actualizar: " + error.message;
-      }
+      if(error.code === 'auth/requires-recent-login') { err.innerText = "Por seguridad, cierra sesión, vuelve a ingresar e inténtalo de nuevo."; } 
+      else { err.innerText = "Error al actualizar: " + error.message; }
   }
+}
+
+function checkPasswordChange() {
+    const p = document.getElementById('prof-new-pass').value;
+    const btn = document.getElementById('btn-update-pass');
+    if (p.length >= 6) { btn.disabled = false; btn.style.background = '#6c757d'; btn.style.cursor = 'pointer'; } 
+    else { btn.disabled = true; btn.style.background = '#ccc'; btn.style.cursor = 'not-allowed'; }
 }
 
 async function changeProfilePassword() {
   const p = document.getElementById('prof-new-pass').value;
   const msg = document.getElementById('prof-pass-msg');
   msg.innerText = "";
-
-  if (p.length < 6) { msg.innerText = "Mínimo 6 caracteres."; msg.style.color = "red"; return; }
+  if (p.length < 6) return;
 
   try {
       await auth.currentUser.updatePassword(p);
       msg.innerText = "¡Contraseña actualizada con éxito!"; msg.style.color = "green";
       document.getElementById('prof-new-pass').value = '';
+      checkPasswordChange(); 
       setTimeout(() => msg.innerText = "", 3000);
   } catch (error) {
-      if(error.code === 'auth/requires-recent-login') {
-         msg.innerText = "Error: Cierra sesión y vuelve a ingresar antes de cambiar tu contraseña."; msg.style.color = "red";
-      } else {
-         msg.innerText = "Error: " + error.message; msg.style.color = "red";
-      }
+      if(error.code === 'auth/requires-recent-login') { msg.innerText = "Error: Cierra sesión y vuelve a ingresar antes de cambiar tu contraseña."; msg.style.color = "red"; } 
+      else { msg.innerText = "Error: " + error.message; msg.style.color = "red"; }
   }
 }
 
 // ==========================================
-// TAB 1: TODOS LOS TURNOS 
+// PROGRAMA & TURNOS LOGIC
 // ==========================================
 let allShiftsData = []; 
 async function loadShifts() {
@@ -146,7 +159,7 @@ function renderAllShifts(shifts) {
     const shiftCard = document.createElement('div');
     shiftCard.style.cssText = "background:white; padding:15px; margin-bottom:15px; border-radius:8px; box-shadow:0 1px 3px rgba(0,0,0,0.1);";
     shiftCard.innerHTML = `
-      <h3 style="margin: 0 0 8px 0; color: #5d7aa9; border-bottom: 1px solid #eee; padding-bottom: 8px;">📅 ${shift.date} | ⏰ ${shift.time}</h3>
+      <h3 style="margin: 0 0 8px 0; color: #5d7aa9; border-bottom: 1px solid #eee; padding-bottom: 8px; text-transform: capitalize;">📅 ${formatSpanishDate(shift.date)} | ⏰ ${shift.time}</h3>
       <p style="margin: 8px 0;"><strong>📍 Lugar:</strong> <span class="loc-text">${shift.location}</span></p>
       <p style="margin: 8px 0;"><strong>👥 Publicadores:</strong> <span class="pub-text">${participantNames.join(', ')}</span></p>
     `;
@@ -158,28 +171,33 @@ function filterAllShifts() {
   const query = document.getElementById('search-all').value.toLowerCase();
   const filtered = allShiftsData.filter(s => {
       const names = (s.participants || []).map(id => publisherCache[id] || '').join(' ').toLowerCase();
-      return s.location.toLowerCase().includes(query) || s.date.includes(query) || names.includes(query);
+      const spanishDate = formatSpanishDate(s.date).toLowerCase();
+      return s.location.toLowerCase().includes(query) || s.date.includes(query) || spanishDate.includes(query) || names.includes(query);
   });
   renderAllShifts(filtered);
 }
 
-// ==========================================
-// TAB 2: MIS TURNOS 
-// ==========================================
 let myCurrentShifts = []; 
 async function loadMyShifts() {
   if (!currentUserPublisherId) return;
   const container = document.getElementById('tab-mine');
   container.innerHTML = '<p style="text-align:center;">Buscando tus turnos...</p>';
   try {
+    const todayStr = getTodayString();
     const shiftsSnapshot = await db.collection('shifts').where('participants', 'array-contains', currentUserPublisherId).get();
-    if (shiftsSnapshot.empty) {
-      container.innerHTML = `<div style="background:white; padding:20px; text-align:center; border-radius:8px;"><h3 style="color:#666;">Sin turnos asignados</h3></div>`;
-      myCurrentShifts = []; return;
-    }
-    container.innerHTML = '<h3 style="margin-top:0; color:#333; margin-bottom: 15px;">Tus Próximos Turnos</h3>';
     myCurrentShifts = [];
-    shiftsSnapshot.forEach(doc => { let s = doc.data(); s.id = doc.id; myCurrentShifts.push(s); });
+    shiftsSnapshot.forEach(doc => { 
+        let s = doc.data(); 
+        s.id = doc.id; 
+        if (s.date >= todayStr) myCurrentShifts.push(s); // Only future & today!
+    });
+    
+    if (myCurrentShifts.length === 0) {
+      container.innerHTML = `<div style="background:white; padding:20px; text-align:center; border-radius:8px;"><h3 style="color:#666;">Sin turnos próximos asignados</h3></div>`;
+      return;
+    }
+    
+    container.innerHTML = '<h3 style="margin-top:0; color:#333; margin-bottom: 15px;">Tus Próximos Turnos</h3>';
     myCurrentShifts.sort((a, b) => new Date(a.date) - new Date(b.date));
 
     myCurrentShifts.forEach(shift => {
@@ -188,7 +206,7 @@ async function loadMyShifts() {
       const shiftCard = document.createElement('div');
       shiftCard.style.cssText = "background:white; padding:15px; margin-bottom:15px; border-radius:8px; border-left: 5px solid #28a745; box-shadow:0 1px 3px rgba(0,0,0,0.1); display:flex; justify-content:space-between; align-items:center;";
       shiftCard.innerHTML = `
-        <div><h4 style="margin: 0 0 8px 0; color: #28a745;">📅 ${shift.date} | ⏰ ${shift.time}</h4>
+        <div><h4 style="margin: 0 0 8px 0; color: #28a745; text-transform: capitalize;">📅 ${formatSpanishDate(shift.date)} | ⏰ ${shift.time}</h4>
         <p style="margin: 5px 0;"><strong>📍 Lugar:</strong> ${shift.location}</p>
         <p style="margin: 5px 0;"><strong>👥 Con:</strong> ${partnerText}</p></div>
         <button onclick="attemptCancel('${shift.id}', '${shift.date}', '${shift.time}', '${shift.location}')" class="btn-action btn-danger">Cancelar</button>
@@ -196,6 +214,45 @@ async function loadMyShifts() {
       container.appendChild(shiftCard);
     });
   } catch (error) { container.innerHTML = '<p style="color:red; text-align:center;">Error al cargar.</p>'; }
+}
+
+async function loadAvailableShifts() {
+  if (!currentUserPublisherId) return;
+  const container = document.getElementById('open-shifts-container');
+  container.innerHTML = '<p style="text-align:center;">Buscando espacios libres...</p>';
+  try {
+    const todayStr = getTodayString();
+    const shiftsSnapshot = await db.collection('shifts').orderBy('date').get();
+    let openShifts = [];
+    shiftsSnapshot.forEach(doc => {
+      let shift = doc.data(); shift.id = doc.id;
+      const capacity = shift.capacity || 2; 
+      const participants = shift.participants || [];
+      // Make sure it has space, you aren't in it, and it isn't in the past
+      if (participants.length < capacity && !participants.includes(currentUserPublisherId) && shift.date >= todayStr) {
+          openShifts.push(shift);
+      }
+    });
+
+    if (openShifts.length === 0) { container.innerHTML = '<p style="text-align:center; color:#666;">No hay espacios libres en este momento.</p>'; return; }
+
+    container.innerHTML = '';
+    openShifts.forEach(shift => {
+      const names = (shift.participants || []).map(id => publisherCache[id] || 'Alguien').join(', ') || 'Vacío';
+      const capacity = shift.capacity || 2;
+      const availableSpots = capacity - (shift.participants || []).length;
+      const card = document.createElement('div');
+      card.style.cssText = "background:white; padding:15px; margin-bottom:15px; border-radius:8px; border-left: 5px solid #17a2b8; box-shadow:0 1px 3px rgba(0,0,0,0.1); display:flex; justify-content:space-between; align-items:center;";
+      card.innerHTML = `
+        <div><h4 style="margin: 0 0 8px 0; color: #17a2b8; text-transform: capitalize;">📅 ${formatSpanishDate(shift.date)} | ⏰ ${shift.time}</h4>
+        <p style="margin: 5px 0;"><strong>📍 Lugar:</strong> ${shift.location}</p>
+        <p style="margin: 5px 0; font-size:0.9em;"><strong>👥 Actuales:</strong> ${names}</p>
+        <p style="margin: 5px 0; font-size:0.8em; color:#666;">Lugares libres: ${availableSpots}</p></div>
+        <button onclick="claimShift('${shift.id}', '${shift.date}', '${shift.time}', ${capacity})" class="btn-action btn-success">+ Tomar Turno</button>
+      `;
+      container.appendChild(card);
+    });
+  } catch (error) { container.innerHTML = '<p style="color:red; text-align:center;">Error al cargar espacios.</p>'; }
 }
 
 async function attemptCancel(shiftId, dateStr, timeStr, locationName) {
@@ -221,44 +278,6 @@ async function attemptCancel(shiftId, dateStr, timeStr, locationName) {
   } catch (err) { alert("Error al cancelar: " + err.message); }
 }
 
-// ==========================================
-// TAB 3: TURNOS DISPONIBLES 
-// ==========================================
-async function loadAvailableShifts() {
-  if (!currentUserPublisherId) return;
-  const container = document.getElementById('open-shifts-container');
-  container.innerHTML = '<p style="text-align:center;">Buscando espacios libres...</p>';
-  try {
-    const shiftsSnapshot = await db.collection('shifts').orderBy('date').get();
-    let openShifts = [];
-    shiftsSnapshot.forEach(doc => {
-      let shift = doc.data(); shift.id = doc.id;
-      const capacity = shift.capacity || 2; 
-      const participants = shift.participants || [];
-      if (participants.length < capacity && !participants.includes(currentUserPublisherId)) openShifts.push(shift);
-    });
-
-    if (openShifts.length === 0) { container.innerHTML = '<p style="text-align:center; color:#666;">No hay espacios libres en este momento.</p>'; return; }
-
-    container.innerHTML = '';
-    openShifts.forEach(shift => {
-      const names = (shift.participants || []).map(id => publisherCache[id] || 'Alguien').join(', ') || 'Vacío';
-      const capacity = shift.capacity || 2;
-      const availableSpots = capacity - (shift.participants || []).length;
-      const card = document.createElement('div');
-      card.style.cssText = "background:white; padding:15px; margin-bottom:15px; border-radius:8px; border-left: 5px solid #17a2b8; box-shadow:0 1px 3px rgba(0,0,0,0.1); display:flex; justify-content:space-between; align-items:center;";
-      card.innerHTML = `
-        <div><h4 style="margin: 0 0 8px 0; color: #17a2b8;">📅 ${shift.date} | ⏰ ${shift.time}</h4>
-        <p style="margin: 5px 0;"><strong>📍 Lugar:</strong> ${shift.location}</p>
-        <p style="margin: 5px 0; font-size:0.9em;"><strong>👥 Actuales:</strong> ${names}</p>
-        <p style="margin: 5px 0; font-size:0.8em; color:#666;">Lugares libres: ${availableSpots}</p></div>
-        <button onclick="claimShift('${shift.id}', '${shift.date}', '${shift.time}', ${capacity})" class="btn-action btn-success">+ Tomar Turno</button>
-      `;
-      container.appendChild(card);
-    });
-  } catch (error) { container.innerHTML = '<p style="color:red; text-align:center;">Error al cargar espacios.</p>'; }
-}
-
 async function claimShift(shiftId, dateStr, timeStr, capacity) {
   const [newStart, newEnd] = timeStr.split('-');
   for (let s of myCurrentShifts) {
@@ -281,7 +300,7 @@ async function claimShift(shiftId, dateStr, timeStr, capacity) {
 }
 
 // ==========================================
-// TAB 4: MI DISPONIBILIDAD
+// TAB 4 & 5: PERFIL Y RUTINA
 // ==========================================
 async function loadAvailabilityForm() {
   if (!currentUserPublisherId) return;
@@ -323,9 +342,6 @@ async function saveAvailability() {
   } catch (error) { msgP.innerText = 'Error al guardar.'; msgP.style.color = 'red'; }
 }
 
-// ==========================================
-// TAB 5: MI PERFIL 
-// ==========================================
 async function loadProfileForm() {
   if (!currentUserPublisherId) return;
   try {
@@ -340,7 +356,7 @@ async function loadProfileForm() {
     document.getElementById('prof-hardpair').checked = pub.hardPair || false;
 
     const partnerSelect = document.getElementById('prof-partner');
-    partnerSelect.innerHTML = '<option value="">Ninguna (Soltero/a)</option>';
+    partnerSelect.innerHTML = '<option value="">Ninguno</option>';
     
     const sortedPubs = Object.keys(publisherCache).map(id => ({ id: id, name: publisherCache[id] })).sort((a, b) => a.name.localeCompare(b.name));
     
@@ -350,11 +366,56 @@ async function loadProfileForm() {
         partnerSelect.innerHTML += `<option value="${p.id}" ${isSelected}>${p.name}</option>`;
       }
     });
+
+    // Handle initial checkbox visibility
+    document.getElementById('prof-hardpair-container').style.display = pub.partner ? 'flex' : 'none';
+
+    // Store original data to check against later
+    originalProfileData = {
+      phone: pub.phone || '', email: pub.notificationEmail || '', eName: pub.emergencyName || '',
+      ePhone: pub.emergencyPhone || '', max: pub.maxShifts || '5', partner: pub.partner || '', hard: pub.hardPair || false
+    };
+
+    // Add listener for dynamic partner select
+    partnerSelect.addEventListener('change', function() {
+        document.getElementById('prof-hardpair-container').style.display = this.value ? 'flex' : 'none';
+        if(!this.value) document.getElementById('prof-hardpair').checked = false;
+        checkProfileChanges();
+    });
+
   } catch (error) { console.error("Error loading profile:", error); }
+}
+
+function checkProfileChanges() {
+    const currentData = {
+      phone: document.getElementById('prof-phone').value.trim(),
+      email: document.getElementById('prof-email').value.trim(),
+      eName: document.getElementById('prof-emerg-name').value.trim(),
+      ePhone: document.getElementById('prof-emerg-phone').value.trim(),
+      max: document.getElementById('prof-max').value,
+      partner: document.getElementById('prof-partner').value,
+      hard: document.getElementById('prof-hardpair').checked
+    };
+    
+    const hasChanged = JSON.stringify(currentData) !== JSON.stringify(originalProfileData);
+    const btn = document.getElementById('btn-save-profile');
+    
+    if (hasChanged) {
+        btn.disabled = false; btn.style.background = '#28a745'; btn.style.cursor = 'pointer';
+    } else {
+        btn.disabled = true; btn.style.background = '#ccc'; btn.style.cursor = 'not-allowed';
+    }
 }
 
 async function saveProfile() {
   if (!currentUserPublisherId) return;
+  
+  const emailVal = document.getElementById('prof-email').value.trim();
+  if (emailVal) {
+      if (!emailVal.includes('@') || !emailVal.includes('.')) { alert("Por favor, ingresa un correo válido."); return; }
+      if (emailVal.toLowerCase().endsWith('@jwpub.org')) { alert("Por motivos de seguridad, no se permiten correos @jwpub.org. Usa un correo personal."); return; }
+  }
+
   const msgP = document.getElementById('prof-msg');
   msgP.innerText = 'Guardando...'; msgP.style.color = '#5d7aa9';
 
@@ -364,7 +425,7 @@ async function saveProfile() {
 
   const profileData = {
     phone: document.getElementById('prof-phone').value.trim(),
-    notificationEmail: document.getElementById('prof-email').value.trim(),
+    notificationEmail: emailVal,
     emergencyName: document.getElementById('prof-emerg-name').value.trim(),
     emergencyPhone: document.getElementById('prof-emerg-phone').value.trim(),
     maxShifts: parseInt(document.getElementById('prof-max').value),
@@ -375,6 +436,14 @@ async function saveProfile() {
 
   try {
     await db.collection('publishers').doc(currentUserPublisherId).update(profileData);
+    
+    // Update original data cache and reset button
+    originalProfileData = {
+        phone: profileData.phone, email: profileData.notificationEmail, eName: profileData.emergencyName,
+        ePhone: profileData.emergencyPhone, max: profileData.maxShifts.toString(), partner: profileData.partner, hard: profileData.hardPair
+    };
+    checkProfileChanges();
+
     msgP.innerText = '¡Perfil actualizado con éxito!'; msgP.style.color = 'green';
     setTimeout(() => { msgP.innerText = ''; }, 3000);
   } catch (error) { 

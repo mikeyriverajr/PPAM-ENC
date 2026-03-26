@@ -229,6 +229,22 @@ async function enablePushNotifications() {
         showToast("Error al activar notificaciones. Asegúrate de estar en HTTPS o en un celular.", "error");
     }
 }
+async function disablePushNotifications() {
+    try {
+        await messaging.deleteToken();
+        await db.collection('publishers').doc(currentUserPublisherId).update({ 
+            fcmToken: firebase.firestore.FieldValue.delete() 
+        });
+        
+        showToast("Notificaciones desactivadas exitosamente.");
+        document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#666;">Desactivadas</span>';
+        document.getElementById('btn-enable-push').style.display = 'inline-block';
+        document.getElementById('btn-disable-push').style.display = 'none';
+    } catch (error) {
+        console.error("Error al desactivar:", error);
+        showToast("Hubo un problema al desactivar las notificaciones.", "error");
+    }
+}
 
 // ==========================================
 // FOREGROUND NOTIFICATION LISTENER (UPGRADED)

@@ -524,12 +524,26 @@ async function loadAvailabilityForm() {
     const locSnapshot = await db.collection('locations').where('isActive', '==', true).get();
     const daysOrder = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
     const grouped = { 'Lunes': [], 'Martes': [], 'Miércoles': [], 'Jueves': [], 'Viernes': [], 'Sábado': [], 'Domingo': [] };
+    
     locSnapshot.forEach(doc => {
       const loc = doc.data();
+      const locId = doc.id; // <-- WE GRAB THE IMMUTABLE ID HERE
+      
       (loc.templates || []).forEach(t => {
-        if (grouped[t.day] !== undefined) grouped[t.day].push({ name: loc.name, time: `${t.startTime} - ${t.endTime}`, val: `${loc.name}_${t.day}_${t.startTime}`, checked: myAvail.includes(`${loc.name}_${t.day}_${t.startTime}`) });
+        if (grouped[t.day] !== undefined) {
+            // Build the key using locId, but keep loc.name for the UI label
+            const availKey = `${locId}_${t.day}_${t.startTime}`;
+            
+            grouped[t.day].push({ 
+                name: loc.name, 
+                time: `${t.startTime} - ${t.endTime}`, 
+                val: availKey, 
+                checked: myAvail.includes(availKey) 
+            });
+        }
       });
     });
+    
     container.innerHTML = '';
     let hasShifts = false;
     daysOrder.forEach(day => {
@@ -542,7 +556,9 @@ async function loadAvailabilityForm() {
       }
     });
     if (!hasShifts) container.innerHTML = '<p style="text-align:center; color:#666;">No hay ubicaciones configuradas.</p>';
-  } catch (error) {}
+  } catch (error) { 
+      console.error("Error al cargar disponibilidad:", error); 
+  }
 }
 
 async function saveAvailability() {

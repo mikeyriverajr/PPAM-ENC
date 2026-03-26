@@ -355,6 +355,13 @@
                 <h3 style="margin:0; color:#333;">Vista Previa del Programa</h3>
                 <span style="font-size: 0.85em; color: #666;">Haz clic en 'Editar' para modificar manualmente.</span>
             </div>
+
+            <div style="text-align: right; margin-bottom: 15px;">
+                <button type="button" onclick="openManualShiftModal()" class="btn-action btn-success" style="padding: 10px 15px;">
+                    <span class="material-symbols-outlined" style="vertical-align: -5px; font-size: 20px;">add_circle</span> Añadir Turno Manual
+                </button>
+            </div>
+
             <div style="overflow-x:auto;">
                 <table id="preview-table"><thead id="preview-head"></thead><tbody id="preview-body"></tbody></table>
             </div>
@@ -386,6 +393,40 @@
       </div>
     </div>
   </div>
+
+<div id="manual-shift-modal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 2000;">
+  <div style="background: white; padding: 30px; border-radius: 12px; width: 90%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+    <h3 style="margin-top: 0; color: #2c5282; display: flex; align-items: center; gap: 8px;"><span class="material-symbols-outlined">add_task</span> Añadir Turno Especial</h3>
+    
+    <div class="form-group">
+        <label>Fecha</label>
+        <input type="date" id="manual-shift-date">
+    </div>
+    <div class="form-group">
+        <label>Ubicación</label>
+        <select id="manual-shift-location"></select>
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <div class="form-group" style="flex: 1;">
+            <label>Hora Inicio</label>
+            <input type="time" id="manual-shift-start" value="08:00">
+        </div>
+        <div class="form-group" style="flex: 1;">
+            <label>Hora Fin</label>
+            <input type="time" id="manual-shift-end" value="10:00">
+        </div>
+    </div>
+    <div class="form-group">
+        <label>Capacidad</label>
+        <input type="number" id="manual-shift-capacity" value="2" min="1" max="10">
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 25px;">
+        <button type="button" onclick="closeManualShiftModal()" class="btn-action" style="background:#6c757d;">Cancelar</button>
+        <button type="button" onclick="saveManualShift()" class="btn-action btn-success">Guardar Turno</button>
+    </div>
+  </div>
+</div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>

@@ -12,7 +12,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
-const messaging = firebase.messaging(); // Initialize Messaging
+const messaging = firebase.messaging(); 
 
 let publisherCache = {}; 
 let currentUserPublisherId = null;
@@ -65,9 +65,9 @@ function formatSpanishDate(dateStr) {
     return `${days[dateObj.getDay()]} ${d} de ${months[dateObj.getMonth()]}`;
 }
 
+// GATEKEEPER WITH LOADING FIX
 auth.onAuthStateChanged(async user => {
   if (user) {
-    document.getElementById('login-overlay').style.display = 'none';
     try {
       const userDoc = await db.collection('users').doc(user.uid).get();
       
@@ -85,6 +85,10 @@ auth.onAuthStateChanged(async user => {
             return;
         }
         
+        // Hide loading, handle state
+        document.getElementById('app-loading').style.display = 'none';
+        document.getElementById('login-overlay').style.display = 'none';
+
         if (userData.requirePasswordChange) {
             document.getElementById('force-password-modal').style.display = 'flex';
             document.getElementById('app-content').style.display = 'none';
@@ -111,6 +115,7 @@ auth.onAuthStateChanged(async user => {
       showToast("Error de conexión. Por favor, vuelve a iniciar sesión.", "error");
     }
   } else {
+    document.getElementById('app-loading').style.display = 'none';
     document.getElementById('login-overlay').style.display = 'block';
     document.getElementById('app-content').style.display = 'none';
     document.getElementById('force-password-modal').style.display = 'none';
@@ -166,7 +171,9 @@ async function submitForcedPassword() {
 
 function checkPasswordChange() {
     const p = document.getElementById('prof-new-pass').value;
-    document.getElementById('btn-update-pass').disabled = p.length < 6;
+    const btn = document.getElementById('btn-update-pass');
+    if (p.length >= 6) { btn.disabled = false; btn.style.opacity = '1'; } 
+    else { btn.disabled = true; btn.style.opacity = '0.5'; }
 }
 
 async function changeProfilePassword() {
@@ -184,10 +191,9 @@ async function changeProfilePassword() {
 }
 
 // ==========================================
-// PUSH NOTIFICATIONS & CACHE CLEANUP
+// PUSH NOTIFICATIONS
 // ==========================================
 
-// THE HUNTER-KILLER SCRIPT
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then(function(registrations) {
         for(let registration of registrations) {
@@ -203,9 +209,7 @@ async function enablePushNotifications() {
     try {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
-            
             const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
-            
             const token = await messaging.getToken({ 
                 vapidKey: 'BCsvQHZK5ybZnRx28iqE5hLKOJeAmIuvNUA62-zJmLxRuJOHySmGeWIRIcN9qMx2-OjGmjlAm09montphPtiBgw',
                 serviceWorkerRegistration: registration 
@@ -216,6 +220,7 @@ async function enablePushNotifications() {
                 showToast("¡Notificaciones activadas con éxito!");
                 document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#28a745;">Activadas</span>';
                 document.getElementById('btn-enable-push').style.display = 'none';
+                document.getElementById('btn-disable-push').style.display = 'inline-block';
             } else {
                 showToast("No se pudo generar el token de notificación.", "error");
             }
@@ -228,26 +233,34 @@ async function enablePushNotifications() {
     }
 }
 
-// ==========================================
-// FOREGROUND NOTIFICATION LISTENER (UPGRADED)
-// ==========================================
+// NEW OPT-OUT LOGIC
+async function disablePushNotifications() {
+    try {
+        await messaging.deleteToken();
+        await db.collection('publishers').doc(currentUserPublisherId).update({ 
+            fcmToken: firebase.firestore.FieldValue.delete() 
+        });
+        
+        showToast("Notificaciones desactivadas exitosamente.");
+        document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#666;">Desactivadas</span>';
+        document.getElementById('btn-enable-push').style.display = 'inline-block';
+        document.getElementById('btn-disable-push').style.display = 'none';
+    } catch (error) {
+        console.error("Error al desactivar:", error);
+        showToast("Hubo un problema al desactivar las notificaciones.", "error");
+    }
+}
+
 if (typeof messaging !== 'undefined') {
     messaging.onMessage((payload) => {
-        console.log("Notificación recibida en primer plano:", payload);
-        
-        // Use the 'info' type to trigger the blue styling for notifications
         showToast(`🔔 ${payload.notification.title} - ${payload.notification.body}`, 'info');
-        
-        // Smart Refresh: If they have the app open, silently refresh the shifts
-        // so the UI matches the new data without requiring a manual refresh!
-        if (currentUserPublisherId) {
-            loadShifts(); 
-            loadMyShifts(); 
-            loadAvailableShifts();
-        }
+        if (currentUserPublisherId) { loadShifts(); loadMyShifts(); loadAvailableShifts(); }
     });
 }
 
+// ==========================================
+// SCHEDULE MANAGEMENT
+// ==========================================
 let allShiftsData = []; 
 async function loadShifts() {
   const container = document.getElementById('schedule-container');
@@ -434,7 +447,7 @@ async function claimShift(shiftId, dateStr, timeStr, capacity) {
 }
 
 // ==========================================
-// TAB 4: MI HORARIO
+// FORMS & PROFILE
 // ==========================================
 async function loadAvailabilityForm() {
   if (!currentUserPublisherId) return;
@@ -475,9 +488,6 @@ async function saveAvailability() {
   } catch (error) { showToast("Error al guardar tu horario.", "error"); }
 }
 
-// ==========================================
-// TAB 5: PERFIL & AUSENCIAS
-// ==========================================
 function handlePartnerChange() {
     const val = document.getElementById('prof-partner').value;
     document.getElementById('prof-hardpair-container').style.display = val ? 'flex' : 'none';
@@ -521,10 +531,15 @@ async function loadProfileForm() {
   try {
     const pub = currentPubData;
     
-    // Check Notification Permission on load
+    // Check Notification Permission on load and show the correct button
     if (Notification.permission === 'granted' && pub.fcmToken) {
         document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#28a745;">Activadas</span>';
         document.getElementById('btn-enable-push').style.display = 'none';
+        document.getElementById('btn-disable-push').style.display = 'inline-block';
+    } else {
+        document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#666;">Desactivadas</span>';
+        document.getElementById('btn-enable-push').style.display = 'inline-block';
+        document.getElementById('btn-disable-push').style.display = 'none';
     }
 
     document.getElementById('prof-phone').value = pub.phone || '';
@@ -555,7 +570,8 @@ async function loadProfileForm() {
       hard: pub.hardPair || false, abs: JSON.stringify(myAbsences)
     };
 
-    document.getElementById('btn-save-profile').disabled = true;
+    const saveBtn = document.getElementById('btn-save-profile');
+    saveBtn.disabled = true; saveBtn.style.opacity = '0.5';
 
   } catch (error) { console.error("Error loading profile:", error); }
 }
@@ -573,7 +589,9 @@ function checkProfileChanges() {
     };
     
     const hasChanged = JSON.stringify(currentData) !== JSON.stringify(originalProfileData);
-    document.getElementById('btn-save-profile').disabled = !hasChanged;
+    const btn = document.getElementById('btn-save-profile');
+    if (hasChanged) { btn.disabled = false; btn.style.opacity = '1'; } 
+    else { btn.disabled = true; btn.style.opacity = '0.5'; }
 }
 
 async function saveProfile() {
@@ -582,7 +600,6 @@ async function saveProfile() {
   const emailVal = document.getElementById('prof-email').value.trim();
   if (emailVal) {
       if (!emailVal.includes('@') || !emailVal.includes('.')) { showToast("Por favor, ingresa un correo electrónico válido.", "error"); return; }
-      if (emailVal.toLowerCase().endsWith('@jwpub.org')) { showToast("No se permiten correos @jwpub.org. Usa un correo personal.", "error"); return; }
   }
 
   const partnerId = document.getElementById('prof-partner').value;

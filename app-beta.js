@@ -227,20 +227,33 @@ async function enablePushNotifications() {
         console.error("FCM Error:", error);
         showToast("Error al activar notificaciones. Asegúrate de estar en HTTPS o en un celular.", "error");
     }
-}
 async function disablePushNotifications() {
     try {
-        await messaging.deleteToken();
+        // 1. Try to delete the token from Firebase's internal system
+        try {
+            await messaging.deleteToken();
+        } catch (fcmError) {
+            // Firebase throws a 404 on GitHub Pages subdirectories. We catch it here so the app doesn't crash.
+            console.warn("FCM path error bypassed. Procediendo con limpieza local.", fcmError);
+        }
+
+        // 2. Force-delete the token from your Firestore database so the Admin stops sending alerts
         await db.collection('publishers').doc(currentUserPublisherId).update({ 
             fcmToken: firebase.firestore.FieldValue.delete() 
         });
+
+        // 3. Manually unregister the Service Worker to stop the phone from listening in the background
+        const registration = await navigator.serviceWorker.getRegistration('./firebase-messaging-sw.js');
+        if (registration) {
+            await registration.unregister();
+        }
         
         showToast("Notificaciones desactivadas exitosamente.");
         document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#666;">Desactivadas</span>';
-        document.getElementById('btn-enable-push').style.display = 'inline-block';
+        document.getElementById('btn-enable-push').style.display = 'inline-flex';
         document.getElementById('btn-disable-push').style.display = 'none';
     } catch (error) {
-        console.error("Error al desactivar:", error);
+        console.error("Error fatal al desactivar:", error);
         showToast("Hubo un problema al desactivar las notificaciones.", "error");
     }
 }

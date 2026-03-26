@@ -12,7 +12,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
-const messaging = firebase.messaging(); 
+const messaging = firebase.messaging(); // Initialize Messaging
 
 let publisherCache = {}; 
 let currentUserPublisherId = null;
@@ -65,16 +65,16 @@ function formatSpanishDate(dateStr) {
     return `${days[dateObj.getDay()]} ${d} de ${months[dateObj.getMonth()]}`;
 }
 
-// GATEKEEPER WITH LOADING FIX
 auth.onAuthStateChanged(async user => {
   if (user) {
+    document.getElementById('login-overlay').style.display = 'none';
     try {
       const userDoc = await db.collection('users').doc(user.uid).get();
-      
+
       if (userDoc.exists) {
         const userData = userDoc.data();
         currentUserPublisherId = userData.publisherId;
-        
+
         const pubDoc = await db.collection('publishers').doc(currentUserPublisherId).get();
         if(pubDoc.exists) {
             currentPubData = pubDoc.data();
@@ -84,10 +84,6 @@ auth.onAuthStateChanged(async user => {
             showToast("Tu cuenta fue desvinculada por el administrador. Por favor, vuelve a iniciar sesión.", "error");
             return;
         }
-        
-        // Hide loading, handle state
-        document.getElementById('app-loading').style.display = 'none';
-        document.getElementById('login-overlay').style.display = 'none';
 
         if (userData.requirePasswordChange) {
             document.getElementById('force-password-modal').style.display = 'flex';
@@ -95,12 +91,12 @@ auth.onAuthStateChanged(async user => {
         } else {
             document.getElementById('force-password-modal').style.display = 'none';
             document.getElementById('app-content').style.display = 'block';
-            
+
             const pubSnap = await db.collection('publishers').get();
             pubSnap.forEach(d => { publisherCache[d.id] = `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(); });
-            
+
             document.getElementById('header-user-name').innerText = `| ${publisherCache[currentUserPublisherId] || ""}`;
-            
+
             loadShifts(); loadMyShifts(); loadAvailableShifts(); loadAvailabilityForm(); loadProfileForm(); 
         }
       } else {
@@ -108,14 +104,13 @@ auth.onAuthStateChanged(async user => {
         auth.signOut();
         showToast("Tu cuenta fue modificada o desvinculada por el administrador.", "error");
       }
-      
+
     } catch (error) { 
       console.error("Error:", error);
       auth.signOut();
       showToast("Error de conexión. Por favor, vuelve a iniciar sesión.", "error");
     }
   } else {
-    document.getElementById('app-loading').style.display = 'none';
     document.getElementById('login-overlay').style.display = 'block';
     document.getElementById('app-content').style.display = 'none';
     document.getElementById('force-password-modal').style.display = 'none';
@@ -154,13 +149,13 @@ async function submitForcedPassword() {
       const user = auth.currentUser;
       await user.updatePassword(p1);
       await db.collection('users').doc(user.uid).update({ requirePasswordChange: false });
-      
+
       document.getElementById('force-password-modal').style.display = 'none';
       document.getElementById('app-content').style.display = 'block';
       const pubSnap = await db.collection('publishers').get();
       pubSnap.forEach(d => { publisherCache[d.id] = `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(); });
       document.getElementById('header-user-name').innerText = `| ${publisherCache[currentUserPublisherId] || ""}`;
-      
+
       showToast("¡Contraseña creada exitosamente!");
       loadShifts(); loadMyShifts(); loadAvailableShifts(); loadAvailabilityForm(); loadProfileForm(); 
   } catch (error) {
@@ -171,9 +166,7 @@ async function submitForcedPassword() {
 
 function checkPasswordChange() {
     const p = document.getElementById('prof-new-pass').value;
-    const btn = document.getElementById('btn-update-pass');
-    if (p.length >= 6) { btn.disabled = false; btn.style.opacity = '1'; } 
-    else { btn.disabled = true; btn.style.opacity = '0.5'; }
+    document.getElementById('btn-update-pass').disabled = p.length < 6;
 }
 
 async function changeProfilePassword() {
@@ -191,12 +184,15 @@ async function changeProfilePassword() {
 }
 
 // ==========================================
-// PUSH NOTIFICATIONS
+// PUSH NOTIFICATIONS & CACHE CLEANUP
 // ==========================================
 
+// THE HUNTER-KILLER SCRIPT: Destroys old rogue caching service workers
+// THE HUNTER-KILLER SCRIPT
 if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then(function(registrations) {
         for(let registration of registrations) {
+            // If it's NOT our specific Firebase messaging worker, kill it.
             if (!registration.active || !registration.active.scriptURL.includes('firebase-messaging-sw.js')) {
                 console.log("Rogue Service Worker detected and destroyed.");
                 registration.unregister();
@@ -209,18 +205,19 @@ async function enablePushNotifications() {
     try {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
+
             const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
+
             const token = await messaging.getToken({ 
                 vapidKey: 'BCsvQHZK5ybZnRx28iqE5hLKOJeAmIuvNUA62-zJmLxRuJOHySmGeWIRIcN9qMx2-OjGmjlAm09montphPtiBgw',
                 serviceWorkerRegistration: registration 
             });
-            
+
             if (token) {
                 await db.collection('publishers').doc(currentUserPublisherId).update({ fcmToken: token });
                 showToast("¡Notificaciones activadas con éxito!");
                 document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#28a745;">Activadas</span>';
                 document.getElementById('btn-enable-push').style.display = 'none';
-                document.getElementById('btn-disable-push').style.display = 'inline-block';
             } else {
                 showToast("No se pudo generar el token de notificación.", "error");
             }
@@ -233,34 +230,26 @@ async function enablePushNotifications() {
     }
 }
 
-// NEW OPT-OUT LOGIC
-async function disablePushNotifications() {
-    try {
-        await messaging.deleteToken();
-        await db.collection('publishers').doc(currentUserPublisherId).update({ 
-            fcmToken: firebase.firestore.FieldValue.delete() 
-        });
-        
-        showToast("Notificaciones desactivadas exitosamente.");
-        document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#666;">Desactivadas</span>';
-        document.getElementById('btn-enable-push').style.display = 'inline-block';
-        document.getElementById('btn-disable-push').style.display = 'none';
-    } catch (error) {
-        console.error("Error al desactivar:", error);
-        showToast("Hubo un problema al desactivar las notificaciones.", "error");
-    }
-}
-
+// ==========================================
+// FOREGROUND NOTIFICATION LISTENER (UPGRADED)
+// ==========================================
 if (typeof messaging !== 'undefined') {
     messaging.onMessage((payload) => {
+        console.log("Notificación recibida en primer plano:", payload);
+        
+        // Use the 'info' type to trigger the blue styling for notifications
         showToast(`🔔 ${payload.notification.title} - ${payload.notification.body}`, 'info');
-        if (currentUserPublisherId) { loadShifts(); loadMyShifts(); loadAvailableShifts(); }
+        
+        // Smart Refresh: If they have the app open, silently refresh the shifts
+        // so the UI matches the new data without requiring a manual refresh!
+        if (currentUserPublisherId) {
+            loadShifts(); 
+            loadMyShifts(); 
+            loadAvailableShifts();
+        }
     });
 }
 
-// ==========================================
-// SCHEDULE MANAGEMENT
-// ==========================================
 let allShiftsData = []; 
 async function loadShifts() {
   const container = document.getElementById('schedule-container');
@@ -316,12 +305,12 @@ async function loadMyShifts() {
         let s = doc.data(); s.id = doc.id; 
         if (s.date >= todayStr) myCurrentShifts.push(s); 
     });
-    
+
     if (myCurrentShifts.length === 0) {
       container.innerHTML = `<div style="text-align:center; padding: 30px 10px; background: white; border-radius: 10px; border: 1px dashed #ccc;"><p style="color:#666; margin:0;">No tienes próximos turnos asignados.</p></div>`;
       return;
     }
-    
+
     container.innerHTML = '';
     myCurrentShifts.sort((a, b) => new Date(a.date) - new Date(b.date));
 
@@ -350,9 +339,9 @@ async function attemptCancel(shiftId, dateStr, timeStr, locationName) {
   const startTime = timeStr.split('-')[0]; 
   const shiftDateTime = new Date(`${dateStr}T${startTime}:00`);
   const now = new Date();
-  
+
   if (((shiftDateTime - now) / (1000 * 60 * 60)) < 24) { showToast("No puedes cancelar con menos de 24 horas. Comunícate con los encargados.", "error"); return; }
-  
+
   const isConfirmed = await showConfirm(`¿Estás seguro de que deseas cancelar tu turno el ${formatSpanishDate(dateStr)}?`, "Cancelar Turno", "#dc3545");
   if(!isConfirmed) return;
 
@@ -371,10 +360,10 @@ async function loadAvailableShifts() {
   if (!currentUserPublisherId || !currentPubData) return;
   const container = document.getElementById('open-shifts-container');
   const banner = document.getElementById('trainee-warning');
-  
+
   const isTrainee = currentPubData.status === 'Entrenamiento';
   banner.style.display = isTrainee ? 'flex' : 'none';
-  
+
   container.innerHTML = '<p style="text-align:center; color:#666;">Buscando espacios libres...</p>';
   try {
     const todayStr = getTodayString();
@@ -396,10 +385,10 @@ async function loadAvailableShifts() {
       const names = (shift.participants || []).map(id => publisherCache[id] || 'Alguien').join(', ') || 'Vacío';
       const capacity = shift.capacity || 2;
       const availableSpots = capacity - (shift.participants || []).length;
-      
+
       const card = document.createElement('div');
       card.className = 'shift-card open';
-      
+
       const actionButton = isTrainee 
         ? `<button disabled class="btn-action" style="background:#e9ecef; color:#888; cursor:not-allowed; border: 1px solid #ddd;">Requiere Aprobación</button>`
         : `<button onclick="claimShift('${shift.id}', '${shift.date}', '${shift.time}', ${capacity})" class="btn-action btn-success"><span class="material-symbols-outlined" style="font-size:18px;">add</span> Tomar Turno</button>`;
@@ -429,7 +418,7 @@ async function claimShift(shiftId, dateStr, timeStr, capacity) {
       if (newStart < myEnd && myStart < newEnd) { showToast("Este horario se superpone con un turno que ya tienes.", "error"); return; }
     }
   }
-  
+
   const isConfirmed = await showConfirm(`¿Deseas anotarte para este turno el ${formatSpanishDate(dateStr)}?`, "Tomar Turno", "#28a745");
   if(!isConfirmed) return;
 
@@ -438,16 +427,28 @@ async function claimShift(shiftId, dateStr, timeStr, capacity) {
     const docSnap = await shiftRef.get();
     let currentParticipants = docSnap.data().participants || [];
     if (currentParticipants.length >= capacity) { showToast("Alguien más acaba de tomar este lugar.", "error"); loadAvailableShifts(); return; }
-    
+
     currentParticipants.push(currentUserPublisherId);
     await shiftRef.update({ participants: currentParticipants });
     showToast("¡Turno agregado con éxito!");
     loadMyShifts(); loadAvailableShifts(); loadShifts(); 
   } catch (err) { showToast("Error al tomar turno: " + err.message, "error"); }
 }
+// ==========================================
+// FOREGROUND NOTIFICATION LISTENER
+// ==========================================
+// This catches notifications if the user happens to be looking at the app when it arrives
+if (typeof messaging !== 'undefined') {
+    messaging.onMessage((payload) => {
+        console.log("Notificación recibida en primer plano:", payload);
+        
+        // Show the notification as a green Toast inside the app!
+        showToast(`🔔 ${payload.notification.title} - ${payload.notification.body}`);
+    });
+}
 
 // ==========================================
-// FORMS & PROFILE
+// TAB 4: MI HORARIO
 // ==========================================
 async function loadAvailabilityForm() {
   if (!currentUserPublisherId) return;
@@ -488,6 +489,9 @@ async function saveAvailability() {
   } catch (error) { showToast("Error al guardar tu horario.", "error"); }
 }
 
+// ==========================================
+// TAB 5: PERFIL & AUSENCIAS
+// ==========================================
 function handlePartnerChange() {
     const val = document.getElementById('prof-partner').value;
     document.getElementById('prof-hardpair-container').style.display = val ? 'flex' : 'none';
@@ -530,16 +534,11 @@ async function loadProfileForm() {
   if (!currentUserPublisherId || !currentPubData) return;
   try {
     const pub = currentPubData;
-    
-    // Check Notification Permission on load and show the correct button
+
+    // Check Notification Permission on load
     if (Notification.permission === 'granted' && pub.fcmToken) {
         document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#28a745;">Activadas</span>';
         document.getElementById('btn-enable-push').style.display = 'none';
-        document.getElementById('btn-disable-push').style.display = 'inline-block';
-    } else {
-        document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#666;">Desactivadas</span>';
-        document.getElementById('btn-enable-push').style.display = 'inline-block';
-        document.getElementById('btn-disable-push').style.display = 'none';
     }
 
     document.getElementById('prof-phone').value = pub.phone || '';
@@ -570,8 +569,7 @@ async function loadProfileForm() {
       hard: pub.hardPair || false, abs: JSON.stringify(myAbsences)
     };
 
-    const saveBtn = document.getElementById('btn-save-profile');
-    saveBtn.disabled = true; saveBtn.style.opacity = '0.5';
+    document.getElementById('btn-save-profile').disabled = true;
 
   } catch (error) { console.error("Error loading profile:", error); }
 }
@@ -587,19 +585,18 @@ function checkProfileChanges() {
       hard: document.getElementById('prof-hardpair').checked,
       abs: JSON.stringify(myAbsences)
     };
-    
+
     const hasChanged = JSON.stringify(currentData) !== JSON.stringify(originalProfileData);
-    const btn = document.getElementById('btn-save-profile');
-    if (hasChanged) { btn.disabled = false; btn.style.opacity = '1'; } 
-    else { btn.disabled = true; btn.style.opacity = '0.5'; }
+    document.getElementById('btn-save-profile').disabled = !hasChanged;
 }
 
 async function saveProfile() {
   if (!currentUserPublisherId) return;
-  
+
   const emailVal = document.getElementById('prof-email').value.trim();
   if (emailVal) {
       if (!emailVal.includes('@') || !emailVal.includes('.')) { showToast("Por favor, ingresa un correo electrónico válido.", "error"); return; }
+      if (emailVal.toLowerCase().endsWith('@jwpub.org')) { showToast("No se permiten correos @jwpub.org. Usa un correo personal.", "error"); return; }
   }
 
   const partnerId = document.getElementById('prof-partner').value;
@@ -620,13 +617,13 @@ async function saveProfile() {
 
   try {
     await db.collection('publishers').doc(currentUserPublisherId).update(profileData);
-    
+
     originalProfileData = {
         phone: profileData.phone, email: profileData.notificationEmail, eName: profileData.emergencyName,
         ePhone: profileData.emergencyPhone, max: profileData.maxShifts.toString(), partner: profileData.partner, 
         hard: profileData.hardPair, abs: JSON.stringify(myAbsences)
     };
-    
+
     currentPubData = { ...currentPubData, ...profileData };
     checkProfileChanges();
     showToast("¡Perfil y ausencias actualizados con éxito!");

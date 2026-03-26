@@ -875,7 +875,6 @@ async function publishSchedule() {
       if (shift.docId) { 
           await db.collection('shifts').doc(shift.docId).update({ participants: shift.assigned.map(p => p.id) }); 
       } else { 
-          // <-- ADDED: locationId is now saved to the shift document
           await db.collection('shifts').add({ 
               date: shift.dateString, 
               location: shift.location, 
@@ -894,4 +893,67 @@ async function publishSchedule() {
   } finally { 
       btn.innerHTML = `<span class="material-symbols-outlined">cloud_upload</span> Guardar y Publicar`; btn.disabled = false; 
   }
+}
+
+// ==========================================
+// MANUAL SHIFT INJECTION
+// ==========================================
+async function openManualShiftModal() {
+    const locSelect = document.getElementById('manual-shift-location');
+    locSelect.innerHTML = '<option value="">Cargando ubicaciones...</option>';
+    
+    // Auto-fill the date with the month currently being viewed
+    const monthVal = document.getElementById('gen-month').value;
+    if (monthVal) { document.getElementById('manual-shift-date').value = `${monthVal}-01`; }
+    
+    document.getElementById('manual-shift-modal').style.display = 'flex';
+
+    try {
+        const locSnap = await db.collection('locations').where('isActive', '==', true).get();
+        locSelect.innerHTML = '<option value="">Selecciona una ubicación...</option>';
+        locSnap.forEach(doc => {
+            locSelect.innerHTML += `<option value="${doc.id}">${doc.data().name}</option>`;
+        });
+    } catch (e) {
+        locSelect.innerHTML = '<option value="">Error al cargar ubicaciones</option>';
+    }
+}
+
+function closeManualShiftModal() {
+    document.getElementById('manual-shift-modal').style.display = 'none';
+}
+
+async function saveManualShift() {
+    const dateVal = document.getElementById('manual-shift-date').value;
+    const locSelect = document.getElementById('manual-shift-location');
+    const locId = locSelect.value;
+    const locName = locSelect.options[locSelect.selectedIndex]?.text;
+    const startVal = document.getElementById('manual-shift-start').value;
+    const endVal = document.getElementById('manual-shift-end').value;
+    const capacity = parseInt(document.getElementById('manual-shift-capacity').value) || 2;
+
+    if (!dateVal || !locId || !startVal || !endVal) {
+        showToast("Por favor, completa todos los campos del turno.", "error");
+        return;
+    }
+
+    try {
+        // Create the new shift directly in the database
+        await db.collection('shifts').add({
+            date: dateVal,
+            location: locName,
+            locationId: locId, 
+            time: `${startVal}-${endVal}`,
+            capacity: capacity,
+            participants: [] 
+        });
+
+        showToast("¡Turno especial añadido con éxito!");
+        closeManualShiftModal();
+        
+        // Refresh the table so the Admin immediately sees the new shift
+        loadPublishedMonth(); 
+    } catch (error) {
+        showToast("Error al añadir el turno: " + error.message, "error");
+    }
 }

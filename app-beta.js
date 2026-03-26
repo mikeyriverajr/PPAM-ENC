@@ -426,10 +426,15 @@ async function loadAvailableShifts() {
 
 async function claimShift(shiftId, dateStr, timeStr, capacity) {
   const [newStart, newEnd] = timeStr.split('-');
+  
+  // 1. Check for local time overlaps first
   for (let s of myCurrentShifts) {
     if (s.date === dateStr) {
       const [myStart, myEnd] = s.time.split('-');
-      if (newStart < myEnd && myStart < newEnd) { showToast("Este horario se superpone con un turno que ya tienes.", "error"); return; }
+      if (newStart < myEnd && myStart < newEnd) { 
+          showToast("Este horario se superpone con un turno que ya tienes.", "error"); 
+          return; 
+      }
     }
   }
 
@@ -438,15 +443,45 @@ async function claimShift(shiftId, dateStr, timeStr, capacity) {
 
   try {
     const shiftRef = db.collection('shifts').doc(shiftId);
-    const docSnap = await shiftRef.get();
-    let currentParticipants = docSnap.data().participants || [];
-    if (currentParticipants.length >= capacity) { showToast("Alguien más acaba de tomar este lugar.", "error"); loadAvailableShifts(); return; }
+    
+    // 2. Run the secure transaction
+    await db.runTransaction(async (transaction) => {
+        const docSnap = await transaction.get(shiftRef);
+        
+        if (!docSnap.exists) {
+            throw new Error("El turno ya no existe.");
+        }
+        
+        let currentParticipants = docSnap.data().participants || [];
+        
+        // Safety check inside the transaction
+        if (currentParticipants.length >= capacity) {
+            throw new Error("CAPACIDAD_LLENA"); 
+        }
+        if (currentParticipants.includes(currentUserPublisherId)) {
+            throw new Error("Ya estás anotado en este turno.");
+        }
 
-    currentParticipants.push(currentUserPublisherId);
-    await shiftRef.update({ participants: currentParticipants });
+        // Add user and commit update
+        currentParticipants.push(currentUserPublisherId);
+        transaction.update(shiftRef, { participants: currentParticipants });
+    });
+
+    // 3. Success handling
     showToast("¡Turno agregado con éxito!");
-    loadMyShifts(); loadAvailableShifts(); loadShifts(); 
-  } catch (err) { showToast("Error al tomar turno: " + err.message, "error"); }
+    loadMyShifts(); 
+    loadAvailableShifts(); 
+    loadShifts(); 
+
+  } catch (err) { 
+    // 4. Handle custom transaction errors smoothly
+    if (err.message === "CAPACIDAD_LLENA") {
+        showToast("Alguien más acaba de tomar este lugar.", "error"); 
+        loadAvailableShifts(); // Refresh to show it's full
+    } else {
+        showToast("Error al tomar turno: " + err.message, "error"); 
+    }
+  }
 }
 // ==========================================
 // FOREGROUND NOTIFICATION LISTENER

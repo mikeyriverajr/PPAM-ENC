@@ -197,13 +197,17 @@ async function buildAdminAvailabilityForm(pubAvailability = []) {
   try {
     const locSnapshot = await db.collection('locations').where('isActive', '==', true).get();
     const daysOrder = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-    const grouped = { 'Lunes': [], 'Martes': [], 'Miércoles': [], 'Jueves': [], 'Viernes': [], 'Sábado': [], 'Domingo': [] };
+    const grouped = { 'Lunes': [], 'Martes': [], 'Miércoles': [], 'Jueves': [], 'Viernes': [], 'Sábado', 'Domingo': [] };
+    
     locSnapshot.forEach(doc => {
       const loc = doc.data();
+      const locId = doc.id; // <-- GRAB THE ID HERE
       (loc.templates || []).forEach(t => {
-        if (grouped[t.day] !== undefined) grouped[t.day].push({ name: loc.name, time: `${t.startTime}-${t.endTime}`, val: `${loc.name}_${t.day}_${t.startTime}` });
+        // Use locId to build the val, but keep loc.name for the UI label
+        if (grouped[t.day] !== undefined) grouped[t.day].push({ name: loc.name, time: `${t.startTime}-${t.endTime}`, val: `${locId}_${t.day}_${t.startTime}` });
       });
     });
+    
     container.innerHTML = '';
     let hasShifts = false;
     daysOrder.forEach(day => {
@@ -580,12 +584,17 @@ async function generateDraft() {
       let dayName = daysMap[dateObj.getDay()];
       let dateString = formatDate(dateObj);
 
-      locations.forEach(loc => {
+locations.forEach(loc => {
         (loc.templates || []).forEach(t => {
           if (t.day === dayName) {
             shiftTasks.push({
-              docId: null, dateObj: dateObj, dateString: dateString, location: loc.name, time: `${t.startTime}-${t.endTime}`,
-              capacity: loc.capacity, availKey: `${loc.name}_${t.day}_${t.startTime}`, pool: [], assigned: []
+              docId: null, dateObj: dateObj, dateString: dateString, 
+              location: loc.name, 
+              locationId: loc.id, // <-- ADDED: Keep track of the ID for saving
+              time: `${t.startTime}-${t.endTime}`,
+              capacity: loc.capacity, 
+              availKey: `${loc.id}_${t.day}_${t.startTime}`, // <-- CHANGED: Generator now looks for the ID
+              pool: [], assigned: []
             });
           }
         });
@@ -664,6 +673,11 @@ async function loadPublishedMonth() {
   const endDate = `${monthVal}-31`;
 
   try {
+    // 1. Pre-fetch locations to map names to IDs just in case
+    const locsSnap = await db.collection('locations').get();
+    let locMap = {};
+    locsSnap.forEach(d => { locMap[d.data().name] = d.id; });
+
     const shiftsSnap = await db.collection('shifts').where('date', '>=', startDate).where('date', '<=', endDate).get();
     if (shiftsSnap.empty) { showToast("No hay turnos publicados para este mes.", "info"); return; }
     draftSchedule = [];
@@ -678,12 +692,21 @@ async function loadPublishedMonth() {
         const [y, m, d] = s.date.split('-');
         const dateObj = new Date(parseInt(y), parseInt(m)-1, parseInt(d));
         const dayName = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][dateObj.getDay()];
-        const availKey = `${s.location}_${dayName}_${s.time.split('-')[0]}`;
+        
+        // 2. Safely grab the Location ID (from the document or by looking up the name)
+        const locId = s.locationId || locMap[s.location];
+        
+        // 3. Rebuild the key using the ID
+        const availKey = `${locId}_${dayName}_${s.time.split('-')[0]}`;
         let taskPool = [];
+        
         allPublishers.forEach(pub => { if ((pub.availability || []).includes(availKey)) taskPool.push(pub); });
+        
         draftSchedule.push({
-            docId: doc.id, dateObj: dateObj, dateString: s.date, location: s.location, time: s.time,
-            capacity: s.capacity || 2, availKey: availKey, pool: taskPool, assigned: assignedPubs
+            docId: doc.id, dateObj: dateObj, dateString: s.date, 
+            location: s.location, locationId: locId, // <-- Include ID in state
+            time: s.time, capacity: s.capacity || 2, 
+            availKey: availKey, pool: taskPool, assigned: assignedPubs
         });
     });
     draftSchedule.sort((a,b) => a.dateObj - b.dateObj);
@@ -849,12 +872,26 @@ async function publishSchedule() {
   
   try {
     for (const shift of draftSchedule) {
-      if (shift.docId) { await db.collection('shifts').doc(shift.docId).update({ participants: shift.assigned.map(p => p.id) }); } 
-      else { await db.collection('shifts').add({ date: shift.dateString, location: shift.location, time: shift.time, capacity: shift.capacity, participants: shift.assigned.map(p => p.id) }); }
+      if (shift.docId) { 
+          await db.collection('shifts').doc(shift.docId).update({ participants: shift.assigned.map(p => p.id) }); 
+      } else { 
+          // <-- ADDED: locationId is now saved to the shift document
+          await db.collection('shifts').add({ 
+              date: shift.dateString, 
+              location: shift.location, 
+              locationId: shift.locationId, 
+              time: shift.time, 
+              capacity: shift.capacity, 
+              participants: shift.assigned.map(p => p.id) 
+          }); 
+      }
     }
     showToast('¡Programa guardado y publicado exitosamente!'); 
     document.getElementById('schedule-preview-container').style.display = 'none';
     draftSchedule = []; checkMonthStatus(); 
-  } catch (error) { showToast("Error: " + error.message, "error"); } 
-  finally { btn.innerHTML = `<span class="material-symbols-outlined">cloud_upload</span> Guardar y Publicar`; btn.disabled = false; }
+  } catch (error) { 
+      showToast("Error: " + error.message, "error"); 
+  } finally { 
+      btn.innerHTML = `<span class="material-symbols-outlined">cloud_upload</span> Guardar y Publicar`; btn.disabled = false; 
+  }
 }

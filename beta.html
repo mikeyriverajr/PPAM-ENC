@@ -36,14 +36,27 @@
       .tab:hover { color: #333; background: #fafafa; }
       .tab.active { color: #5d7aa9; border-bottom: 3px solid #5d7aa9; background: #fff; }
 
-      @media (max-width: 600px) {
+@media (max-width: 600px) {
+          /* Expand container to edges and remove body gaps */
+          body { padding: 0; }
+          .app-container { width: 100%; }
+          
+          /* Make header and tabs flush with the screen corners */
+          .header { border-radius: 0; padding: 15px; }
+          .tabs { border-radius: 0; }
+          
+          /* Reclaim space inside the cards and panels */
+          .shift-card { padding: 15px; border-radius: 0; border-right: none; border-left-width: 4px; }
+          .profile-panel { padding: 20px 15px; border-radius: 0; border-left: none; border-right: none; }
+          .day-group { padding: 15px; border-radius: 0; border-left: none; border-right: none; }
+          
+          /* Your existing mobile text tweaks */
           .tab { padding: 12px 2px; font-size: 0.85em; letter-spacing: -0.3px; }
           .header h2 { font-size: 1.1em; }
           #header-user-name { font-size: 0.75em; }
           .hide-mobile { display: none; }
           .btn-header-action { padding: 6px 8px; }
       }
-
       .tab-content { display: none; margin-top: 25px; }
       .tab-content.active { display: block; }
 

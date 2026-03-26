@@ -9,106 +9,79 @@
   <style>
       body { background-color: #f4f6f8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 15px 0; color: #333; }
       .app-container { max-width: 1000px; width: 95%; margin: 0 auto; }
+      
+      /* FIX: Loading spinner styles */
+      #app-loading { text-align: center; padding: 100px 20px; color: #666; }
+      @keyframes spin { 100% { transform: rotate(360deg); } }
 
       #login-overlay { background: white; padding: 40px 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); max-width: 400px; margin: 10vh auto; text-align: center; }
       #login-overlay input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; transition: border-color 0.3s; }
       #login-overlay input:focus { outline: none; border-color: #5d7aa9; }
       #login-overlay button { width: 100%; padding: 12px; margin-top: 10px; background-color: #5d7aa9; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 16px; transition: background-color 0.3s; }
       #login-overlay button:hover { background-color: #4a638b; }
-
-      #force-password-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
-      .force-pass-box { background: white; padding: 40px 30px; border-radius: 12px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-      .force-pass-box input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
-      .force-pass-box button { width: 100%; padding: 12px; margin-top: 15px; background-color: #333; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 16px; }
-
+      
       .header { background-color: #5d7aa9; padding: 20px; border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
       .header h2 { margin: 0; font-size: 1.3em; display:flex; align-items:center; gap:10px; color: white; }
-      #header-user-name { font-size: 0.8em; font-weight: normal; color: rgba(255,255,255,0.8); border-left: 1px solid rgba(255,255,255,0.3); padding-left: 10px; }
-
-      .header-actions { display: flex; gap: 10px; align-items: center; }
-      .btn-header-action { display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.4); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.9em; font-weight: 600; transition: all 0.2s; }
-      .btn-header-action:hover { background: white; color: #5d7aa9; }
-      .btn-logout { background: transparent; color: white; border: 1px solid rgba(255,255,255,0.4); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.9em; transition: all 0.2s; }
+      #header-user-name { font-size: 0.7em; font-weight: normal; color: rgba(255,255,255,0.8); border-left: 1px solid rgba(255,255,255,0.3); padding-left: 10px; }
+      .btn-logout { background: transparent; color: white; border: 1px solid rgba(255,255,255,0.4); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.9em; transition: all 0.2s; font-weight: 600; }
       .btn-logout:hover { background: rgba(255,255,255,0.1); border-color: white; }
 
-      .tabs { display: flex; background: #fff; border-radius: 0 0 12px 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
-      .tab { padding: 15px 10px; cursor: pointer; color: #777; font-weight: 600; flex: 1; text-align: center; border-bottom: 3px solid transparent; font-size: 0.9em; transition: all 0.2s; }
+      .tabs { display: flex; background: #fff; border-radius: 0 0 12px 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); margin-bottom: 25px; overflow-x: auto; }
+      .tab { padding: 15px 10px; cursor: pointer; color: #777; font-weight: 600; flex: 1; text-align: center; border-bottom: 3px solid transparent; font-size: 0.9em; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; gap: 5px; white-space: nowrap; }
       .tab:hover { color: #333; background: #fafafa; }
       .tab.active { color: #5d7aa9; border-bottom: 3px solid #5d7aa9; background: #fff; }
-
-      @media (max-width: 600px) {
-          .tab { padding: 12px 2px; font-size: 0.85em; letter-spacing: -0.3px; }
-          .header h2 { font-size: 1.1em; }
-          #header-user-name { font-size: 0.75em; }
-          .hide-mobile { display: none; }
-          .btn-header-action { padding: 6px 8px; }
-      }
-
-      .tab-content { display: none; margin-top: 25px; }
+      .tab-content { display: none; }
       .tab-content.active { display: block; }
 
-      .section-intro { margin-bottom: 25px; padding: 0 5px; }
-      .section-intro h3 { margin: 0 0 5px 0; color: #222; font-size: 1.4em; }
-      .section-intro p { color: #666; font-size: 0.95em; margin: 0; }
+      .panel { background: white; padding: 20px; border-radius: 12px; border: 1px solid #eaeaea; box-shadow: 0 2px 8px rgba(0,0,0,0.02); margin-bottom: 20px; }
+      
+      .shift-card { background: white; padding: 18px; margin-bottom: 12px; border: 1px solid #eaeaea; border-radius: 10px; transition: box-shadow 0.2s; }
+      .shift-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.06); border-color: #5d7aa9; }
+      .shift-card.mine { border-left: 4px solid #5d7aa9; }
+      .shift-card.open { border-left: 4px solid #28a745; }
+      
+      .shift-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #f0f0f0; }
+      .shift-card-title { margin: 0; font-size: 1.1em; color: #333; font-weight: 600; text-transform: capitalize; }
+      .shift-card-time { font-size: 0.95em; color: #666; font-weight: 500; background: #f8f9fa; padding: 4px 8px; border-radius: 6px; }
+      .shift-card-detail { margin: 5px 0; font-size: 0.95em; color: #444; display: flex; align-items: center; gap: 8px; }
+      
+      .card-actions { margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end; }
 
-      .search-wrapper { position: relative; margin-bottom: 20px; }
-      .search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #999; }
-      .search-box { width: 100%; padding: 14px 14px 14px 45px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 15px; box-shadow: 0 1px 4px rgba(0,0,0,0.02); transition: border-color 0.3s; }
-      .search-box:focus { outline: none; border-color: #5d7aa9; }
-
-      .form-group { margin-bottom: 20px; }
+      .form-group { margin-bottom: 15px; }
       .form-group label { display: block; font-weight: 600; margin-bottom: 8px; color: #444; font-size: 0.9em; }
       .form-group input, .form-group select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 15px; background: #fff; }
       .form-group input:focus, .form-group select:focus { outline: none; border-color: #5d7aa9; }
 
-      .shift-card { background: white; padding: 20px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eaeaea; box-shadow: 0 2px 8px rgba(0,0,0,0.02); display: flex; flex-direction: column; gap: 8px; }
-      .shift-card.mine { border: 1px solid #e0e8f0; border-left: 5px solid #5d7aa9; }
-      .shift-card.open { border-left: 5px solid #28a745; }
+      .search-box { width: 100%; padding: 12px 12px 12px 40px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 15px; margin-bottom: 20px; }
+      .search-wrapper { position: relative; }
+      .search-icon { position: absolute; left: 12px; top: 12px; color: #999; }
 
-      .shift-card-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #f0f0f0; padding-bottom: 12px; margin-bottom: 4px; }
-      .shift-card-title { margin: 0; color: #333; font-size: 1.1em; text-transform: capitalize; font-weight: 600; display:flex; align-items:center; }
-      .shift-card-time { color: #666; font-size: 0.9em; background: #f4f6f8; padding: 4px 8px; border-radius: 4px; display:flex; align-items:center; }
-      .shift-card-detail { margin: 0; color: #555; font-size: 0.95em; display: flex; align-items: center; gap: 8px; }
-      .card-actions { margin-top: 10px; display: flex; justify-content: flex-end; }
-
-      .day-group { background: white; padding: 20px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #eaeaea; }
-      .day-title { margin-top: 0; color: #333; border-bottom: 1px solid #f0f0f0; padding-bottom: 12px; margin-bottom: 15px; font-size: 1.1em; }
-      .shift-option { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; font-size: 0.95em; color: #444; padding: 4px 0; }
-      .shift-option input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: #5d7aa9; }
-      .shift-option label { cursor: pointer; flex: 1; user-select: none; }
-
-      .btn-action { padding: 10px 18px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.9em; transition: opacity 0.2s; display: inline-flex; align-items: center; gap: 5px; justify-content: center; }
+      .btn-action { padding: 10px 16px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.9em; transition: opacity 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
       .btn-action:hover { opacity: 0.9; }
-      .btn-danger { background-color: #fff; color: #dc3545; border: 1px solid #dc3545; }
-      .btn-danger:hover { background-color: #fff5f5; }
+      .btn-action:disabled { opacity: 0.5; cursor: not-allowed; }
+      .btn-danger { background-color: #dc3545; color: white; }
       .btn-success { background-color: #28a745; color: white; }
+      .btn-primary { background-color: #5d7aa9; color: white; }
 
-      .btn-primary { background: #5d7aa9; color: white; border: none; padding: 12px 25px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
-      .btn-primary:hover { background: #4a638b; }
-      .btn-primary:disabled { background: #e0e0e0; color: #999; cursor: not-allowed; }
+      .day-group { margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #eaeaea; }
+      .day-title { margin: 0 0 10px 0; color: #5d7aa9; font-size: 1.1em; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+      .shift-option { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; padding: 8px; background: white; border-radius: 6px; border: 1px solid #eee; }
+      .avail-checkbox { width: 18px; height: 18px; accent-color: #5d7aa9; cursor: pointer; }
 
-      .profile-panel { background: white; padding: 30px; border-radius: 12px; border: 1px solid #eaeaea; }
-      .profile-divider { border: 0; border-top: 1px solid #f0f0f0; margin: 30px 0; }
-      .profile-section-title { margin-top: 0; color: #333; font-size: 1.1em; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; }
-
-      #full-schedule-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; justify-content: center; align-items: flex-end; backdrop-filter: blur(3px); }
-      .full-modal-content { background: #f4f6f8; width: 100%; max-width: 800px; height: 90vh; border-radius: 16px 16px 0 0; display: flex; flex-direction: column; overflow: hidden; animation: slideUpModal 0.3s cubic-bezier(0.175, 0.885, 0.32, 1); }
-      .full-modal-header { background: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; }
-      .full-modal-header h3 { margin: 0; color: #333; display: flex; align-items: center; gap: 8px; font-size: 1.2em; }
-      .btn-close-modal { background: #f0f0f0; border: none; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #555; transition: background 0.2s; }
-      .btn-close-modal:hover { background: #e0e0e0; color: #333; }
-      .full-modal-body { padding: 20px; overflow-y: auto; flex: 1; }
-      @keyframes slideUpModal { from { transform: translateY(100%); } to { transform: translateY(0); } }
+      .profile-section-title { color: #5d7aa9; margin-top: 0; margin-bottom: 15px; font-size: 1.1em; display: flex; align-items: center; gap: 8px; }
+      .profile-divider { border: 0; border-top: 1px solid #eaeaea; margin: 25px 0; }
 
       #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 10002; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
       .toast { background: white; color: #333; padding: 15px 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); font-weight: 500; display: flex; align-items: center; gap: 12px; animation: slideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; border-left: 4px solid #5d7aa9; min-width: 250px; pointer-events: auto; }
       .toast.success { border-left-color: #28a745; }
       .toast.error { border-left-color: #dc3545; }
+      .toast.info { border-left-color: #17a2b8; }
       @keyframes slideIn { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
       @keyframes fadeOutToast { to { opacity: 0; transform: translateY(10px); } }
-      #custom-confirm { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10003; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
+
+      #custom-confirm, #force-password-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10003; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
       .confirm-box { background: white; padding: 30px; border-radius: 12px; max-width: 350px; width: 90%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.25); animation: popIn 0.3s ease-out forwards; }
-      .confirm-box p { margin: 0 0 25px 0; color: #333; font-size: 1.1em; line-height: 1.4; font-weight: 500; }
+      .confirm-box p { margin: 0 0 25px 0; color: #333; font-size: 1.05em; line-height: 1.4; font-weight: 500; }
       .confirm-btns { display: flex; gap: 10px; justify-content: center; }
       .confirm-btns button { flex: 1; padding: 12px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 1em; transition: background 0.2s; }
       .btn-confirm-cancel { background: #f0f0f0; color: #555; }
@@ -131,162 +104,137 @@
     </div>
   </div>
 
-  <div id="full-schedule-modal">
-      <div class="full-modal-content">
-          <div class="full-modal-header">
-              <h3><span class="material-symbols-outlined" style="color:#5d7aa9;">calendar_month</span> Programa General</h3>
-              <button class="btn-close-modal" onclick="closeFullSchedule()"><span class="material-symbols-outlined" style="font-size: 20px;">close</span></button>
-          </div>
-          <div class="full-modal-body">
-              <div class="search-wrapper">
-                  <span class="material-symbols-outlined search-icon">search</span>
-                  <input type="text" id="search-all" class="search-box" placeholder="Buscar lugar, fecha o publicador..." onkeyup="filterAllShifts()">
-              </div>
-              <div id="schedule-container"></div>
-          </div>
-      </div>
+  <div id="force-password-modal">
+    <div class="confirm-box" style="max-width: 400px; text-align: left;">
+      <h3 style="margin-top:0; color:#5d7aa9;">Bienvenido a PPAM</h3>
+      <p style="font-size:0.95em; color:#666; margin-bottom: 20px;">Por seguridad, debes crear una nueva contraseña para tu cuenta antes de continuar.</p>
+      <div class="form-group"><label>Nueva Contraseña</label><input type="password" id="force-new-pass1" placeholder="Mínimo 6 caracteres"></div>
+      <div class="form-group"><label>Confirmar Contraseña</label><input type="password" id="force-new-pass2" placeholder="Repite la contraseña"></div>
+      <button onclick="submitForcedPassword()" class="btn-action btn-primary" style="width: 100%; padding: 12px; margin-top: 10px;">Guardar y Entrar</button>
+      <p id="force-pass-error" style="color: #dc3545; font-size: 0.85em; margin-top: 10px; text-align: center;"></p>
+    </div>
   </div>
 
-  <div id="login-overlay">
+  <div id="app-loading">
+    <span class="material-symbols-outlined" style="font-size: 48px; color: #5d7aa9; animation: spin 1s linear infinite;">sync</span>
+    <p style="font-weight: 500;">Cargando PPAM...</p>
+  </div>
+
+  <div class="app-container" id="login-overlay" style="display: none;">
     <h2 style="color: #333; margin-bottom: 5px;">Bienvenido</h2>
-    <p style="color: #666; font-size: 0.95em; margin-bottom: 25px;">Ingresa para ver tu programa de PPAM.</p>
-    <input type="text" id="gate-username" placeholder="Usuario (ej. juanperez)">
+    <p style="color: #666; font-size: 0.95em; margin-bottom: 25px; margin-top: 0;">Ingresa para ver tu programa</p>
+    <input type="text" id="gate-username" placeholder="Usuario o Correo">
     <input type="password" id="gate-password" placeholder="Contraseña">
     <button onclick="handleGatekeeperLogin()">Ingresar</button>
     <p id="gate-error" style="color: #dc3545; font-size: 0.9em; margin-top: 15px;"></p>
   </div>
 
-  <div id="force-password-modal">
-    <div class="force-pass-box">
-      <h3 style="color:#333; margin-top:0; display:flex; align-items:center; justify-content:center; gap:8px;">
-        <span class="material-symbols-outlined" style="color:#dc3545;">lock</span> Cambio Obligatorio
-      </h3>
-      <p style="font-size:0.95em; color:#555; margin-bottom: 25px;">Por seguridad, debes crear una contraseña privada antes de acceder al sistema.</p>
-      <input type="password" id="force-new-pass1" placeholder="Nueva Contraseña (Mín. 6 caracteres)">
-      <input type="password" id="force-new-pass2" placeholder="Confirmar Contraseña">
-      <button onclick="submitForcedPassword()">Guardar y Entrar</button>
-      <p id="force-pass-error" style="color:#dc3545; font-size:0.9em; margin-bottom:0; margin-top: 10px;"></p>
-    </div>
-  </div>
-
-  <div id="app-content" class="app-container" style="display: none;">
+  <div class="app-container" id="app-content" style="display: none;">
     <div class="header">
       <h2>PPAM <span id="header-user-name"></span></h2>
-      <div class="header-actions">
-          <button class="btn-header-action" onclick="openFullSchedule()">
-              <span class="material-symbols-outlined" style="font-size: 1.1em;">calendar_month</span>
-              <span class="hide-mobile">Programa</span>
-          </button>
-          <button class="btn-logout" onclick="logout()">Salir</button>
-      </div>
+      <button class="btn-logout" onclick="logout()">Salir</button>
     </div>
-
+    
     <div class="tabs">
-      <div class="tab active" onclick="switchTab('mine')" id="tab-btn-mine">Mis Turnos</div>
-      <div class="tab" onclick="switchTab('open')" id="tab-btn-open">Libres</div>
-      <div class="tab" onclick="switchTab('avail')" id="tab-btn-avail">Mi Horario</div>
-      <div class="tab" onclick="switchTab('profile')" id="tab-btn-profile">Perfil</div>
+        <div class="tab active" onclick="switchTab('mine')" id="tab-btn-mine"><span class="material-symbols-outlined">person</span> Mis Turnos</div>
+        <div class="tab" onclick="switchTab('open')" id="tab-btn-open"><span class="material-symbols-outlined">event_available</span> Libres</div>
+        <div class="tab" onclick="switchTab('all')" id="tab-btn-all"><span class="material-symbols-outlined">calendar_month</span> Programa</div>
+        <div class="tab" onclick="switchTab('avail')" id="tab-btn-avail"><span class="material-symbols-outlined">schedule</span> Horario</div>
+        <div class="tab" onclick="switchTab('profile')" id="tab-btn-profile"><span class="material-symbols-outlined">manage_accounts</span> Perfil</div>
     </div>
 
     <div id="tab-mine" class="tab-content active">
-      <div class="section-intro">
-        <h3>Mis Turnos</h3>
-        <p>Tus próximas asignaciones confirmadas.</p>
-      </div>
       <div id="mine-container"></div>
     </div>
 
     <div id="tab-open" class="tab-content">
-      <div class="section-intro">
-        <h3>Turnos Libres</h3>
-        <p>Espacios vacíos o cancelados que puedes tomar.</p>
-      </div>
-      <div id="trainee-warning" style="display:none; background: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 15px; border-radius: 8px; margin-bottom: 20px; align-items: flex-start; gap: 10px;">
-          <span class="material-symbols-outlined" style="font-size: 24px;">info</span>
-          <div>
-              <strong style="display:block; margin-bottom: 5px;">Requisito de Entrenamiento</strong>
-              <span style="font-size: 0.9em;">Actualmente estás en la lista de Entrenamiento. Una vez que completes tu turno inicial con un capacitador y seas aprobado, se te habilitará la opción para tomar turnos libres aquí.</span>
-          </div>
+      <div id="trainee-warning" style="display:none; background:#fff3cd; color:#856404; padding:15px; border-radius:8px; border:1px solid #ffeeba; margin-bottom:15px; align-items:center; gap:10px;">
+          <span class="material-symbols-outlined">warning</span>
+          <div style="font-size:0.9em;"><strong>Estás en Entrenamiento.</strong> Puedes ver los turnos libres, pero debes coordinar con el encargado para que te asigne manualmente junto a un capacitador.</div>
       </div>
       <div id="open-shifts-container"></div>
     </div>
 
-    <div id="tab-avail" class="tab-content">
-      <div class="section-intro">
-        <h3>Mi Horario Semanal</h3>
-        <p>Selecciona tu rutina habitual para que el generador te asigne.</p>
+    <div id="tab-all" class="tab-content">
+      <div class="panel" style="padding: 15px;">
+        <div class="search-wrapper">
+            <span class="material-symbols-outlined search-icon">search</span>
+            <input type="text" id="search-all" class="search-box" style="margin-bottom:0;" placeholder="Buscar por lugar, fecha o publicador..." onkeyup="filterAllShifts()">
+        </div>
       </div>
-      <div id="availability-form-container"><p style="text-align: center; color: #666;">Cargando...</p></div>
-      <div style="text-align: right; margin-top: 25px;">
-        <button onclick="saveAvailability()" class="btn-primary">Guardar Horario</button>
+      <div id="schedule-container"></div>
+    </div>
+
+    <div id="tab-avail" class="tab-content">
+      <div class="panel">
+        <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#333;">update</span> Disponibilidad Habitual</h3>
+        <p style="font-size:0.9em; color:#666; margin-top:0; margin-bottom:20px;">Marca los horarios en los que el sistema puede asignarte turnos automáticamente.</p>
+        <div id="availability-form-container"></div>
+        <div style="text-align: right; margin-top: 20px;">
+          <button onclick="saveAvailability()" class="btn-action btn-primary">Guardar Horario</button>
+        </div>
       </div>
     </div>
 
     <div id="tab-profile" class="tab-content">
-      <div class="profile-panel">
-
-        <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#28a745;">notifications_active</span> Notificaciones Push</h3>
-        <p style="font-size:0.9em; color:#666; margin-top:0;">Recibe alertas instantáneas en tu celular cuando se liberen turnos o haya cambios en tu programa.</p>
-        <div style="background:#f9f9f9; padding:15px; border-radius:8px; border:1px solid #eee; display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
-            <span id="push-status-text" style="font-weight:600; color:#555;">Estado: Sin activar</span>
-            <div style="margin-top: 15px; display: flex; gap: 10px; align-items: center;">
-    <button id="btn-enable-push" onclick="enablePushNotifications()" class="btn-action btn-success">Activar Notificaciones</button>
-    <button id="btn-disable-push" onclick="disablePushNotifications()" class="btn-action btn-danger" style="display: none;">Desactivar</button>
-    <span id="push-status-text" style="font-size: 0.9em; color: #666;">Estado: Desactivadas</span>
-</div>
+      <div class="panel">
+        
+        <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#333;">notifications</span> Notificaciones</h3>
+        <p style="font-size:0.85em; color:#666; margin-top:0;">Recibe alertas en tu dispositivo cuando haya cambios en tus turnos.</p>
+        
+        <div style="margin-top: 15px; display: flex; gap: 10px; align-items: center;">
+            <button id="btn-enable-push" onclick="enablePushNotifications()" class="btn-action btn-success">Activar Notificaciones</button>
+            <button id="btn-disable-push" onclick="disablePushNotifications()" class="btn-action btn-danger" style="display: none;">Desactivar</button>
+            <span id="push-status-text" style="font-size: 0.9em; color: #666;">Estado: Desactivadas</span>
         </div>
 
         <hr class="profile-divider">
-        <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#5d7aa9;">contact_page</span> Mis Datos de Contacto</h3>
-        <div class="form-group"><label>Teléfono Celular</label><input type="tel" id="prof-phone" oninput="checkProfileChanges()" placeholder="ej. 0981 123 456"></div>
-        <div class="form-group"><label>Correo Electrónico (Opcional)</label><input type="email" id="prof-email" oninput="checkProfileChanges()" placeholder="ej. juan@gmail.com"></div>
+
+        <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#333;">contact_phone</span> Mis Datos</h3>
+        <div class="form-group"><label>Teléfono Personal</label><input type="text" id="prof-phone" oninput="checkProfileChanges()"></div>
+        <div class="form-group"><label>Email Alternativo (Opcional)</label><input type="email" id="prof-email" oninput="checkProfileChanges()"></div>
+        
+        <h4 style="color:#666; font-size:0.95em; margin-bottom:10px;">En caso de emergencia:</h4>
+        <div style="display:flex; gap:10px; flex-wrap: wrap;">
+            <div class="form-group" style="flex:1; min-width:150px;"><label>Familiar o Contacto</label><input type="text" id="prof-emerg-name" oninput="checkProfileChanges()"></div>
+            <div class="form-group" style="flex:1; min-width:150px;"><label>Teléfono de Contacto</label><input type="text" id="prof-emerg-phone" oninput="checkProfileChanges()"></div>
+        </div>
 
         <hr class="profile-divider">
-        <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#dc3545;">emergency</span> En Caso de Emergencia</h3>
-        <div class="form-group"><label>Nombre del Contacto</label><input type="text" id="prof-emerg-name" oninput="checkProfileChanges()" placeholder="Familiar o amigo"></div>
-        <div class="form-group"><label>Teléfono de Emergencia</label><input type="tel" id="prof-emerg-phone" oninput="checkProfileChanges()" placeholder="Número de contacto"></div>
-
-        <hr class="profile-divider">
-        <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#5d7aa9;">tune</span> Preferencias del Generador</h3>
+        <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#5d7aa9;">tune</span> Preferencias de Asignación</h3>
         <div class="form-group">
-          <label>Límite Máximo de Turnos por Mes</label>
-          <select id="prof-max" onchange="checkProfileChanges()">
-            <option value="5">5 turnos (Máximo permitido)</option>
-            <option value="4">4 turnos</option>
-            <option value="3">3 turnos</option>
-            <option value="2">2 turnos</option>
-            <option value="1">1 turno</option>
-          </select>
+            <label>Límite de Turnos al Mes</label>
+            <select id="prof-max" onchange="checkProfileChanges()"><option value="5">5 turnos</option><option value="4">4 turnos</option><option value="3">3 turnos</option><option value="2">2 turnos</option><option value="1">1 turno</option></select>
         </div>
         <div class="form-group">
-            <label>Compañero Preferido</label>
-            <select id="prof-partner" onchange="handlePartnerChange()"><option value="">Ninguno</option></select>
+            <label>Compañero Frecuente</label>
+            <select id="prof-partner" onchange="handlePartnerChange()"></select>
         </div>
-        <div id="prof-hardpair-container" style="display:none; margin-top:10px; align-items:flex-start; gap:10px; background:#f9f9f9; padding:15px; border-radius:8px; border:1px solid #eee;">
-            <input type="checkbox" id="prof-hardpair" onchange="checkProfileChanges()" style="margin-top: 2px; width: 16px; height: 16px; cursor:pointer;">
-            <label for="prof-hardpair" style="margin:0; font-weight:normal; cursor:pointer; font-size: 0.9em; color: #444;"><strong>Asignar estrictamente:</strong> Solo programarme si mi compañero también está disponible.<br><span style="color:#666; font-size:0.85em; display:block; margin-top:4px;">Nota: Esto puede reducir la cantidad de turnos que recibas.</span></label>
+        <div id="prof-hardpair-container" style="display:none; margin-bottom: 20px; align-items:center; gap:8px;">
+            <input type="checkbox" id="prof-hardpair" onchange="checkProfileChanges()" style="width:18px; height:18px; margin:0; cursor:pointer; accent-color: #5d7aa9;">
+            <label for="prof-hardpair" style="margin:0; font-weight:600; cursor:pointer; font-size: 0.9em; color: #5d7aa9;">Asignarnos siempre juntos</label>
         </div>
 
         <hr class="profile-divider">
-        <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#f59f00;">flight_takeoff</span> Mis Ausencias (Vacaciones)</h3>
-        <p style="font-size:0.9em; color:#666; margin-top:0;">Agrega las fechas en las que no estarás disponible. El generador automático no te asignará turnos en estos días.</p>
-
-        <div style="display:flex; gap:10px; margin-bottom:15px; align-items:flex-end; flex-wrap: wrap;">
-            <div style="flex:1; min-width: 120px;"><label style="font-size:0.85em; font-weight:600; color:#555;">Desde</label><input type="date" id="my-abs-start" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;"></div>
-            <div style="flex:1; min-width: 120px;"><label style="font-size:0.85em; font-weight:600; color:#555;">Hasta</label><input type="date" id="my-abs-end" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;"></div>
+        <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#dc3545;">flight_takeoff</span> Mis Ausencias o Vacaciones</h3>
+        <p style="font-size:0.85em; color:#666; margin-top:0;">El generador automático ignorará tus horarios disponibles durante estas fechas.</p>
+        
+        <div style="display:flex; gap:10px; margin-bottom:15px; align-items: flex-end;">
+            <div style="flex:1;"><label style="font-size:0.8em; font-weight:bold; color:#666;">Inicio</label><input type="date" id="my-abs-start" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px;"></div>
+            <div style="flex:1;"><label style="font-size:0.8em; font-weight:bold; color:#666;">Fin</label><input type="date" id="my-abs-end" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px;"></div>
             <button type="button" onclick="addMyAbsence()" class="btn-action btn-info" style="padding:10px 15px; height:42px;"><span class="material-symbols-outlined">add</span> Añadir</button>
         </div>
         <div id="my-absences-list" style="margin-bottom:20px; display:flex; flex-direction:column; gap:8px;"></div>
-
+        
         <div style="text-align: right; margin-top: 30px;">
-          <button id="btn-save-profile" onclick="saveProfile()" disabled class="btn-primary">Guardar Cambios</button>
+          <button id="btn-save-profile" onclick="saveProfile()" disabled class="btn-primary" style="padding: 12px 24px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; opacity: 0.5;">Guardar Cambios</button>
         </div>
 
         <hr class="profile-divider">
         <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#333;">lock</span> Seguridad</h3>
         <div class="form-group"><label>Nueva Contraseña (Mín. 6 caracteres)</label><input type="password" id="prof-new-pass" oninput="checkPasswordChange()" placeholder="Escribe para cambiar..."></div>
         <div style="text-align: right; margin-top: 10px;">
-          <button id="btn-update-pass" onclick="changeProfilePassword()" disabled class="btn-primary">Actualizar Contraseña</button>
+          <button id="btn-update-pass" onclick="changeProfilePassword()" disabled class="btn-primary" style="padding: 10px 20px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; opacity: 0.5;">Actualizar Contraseña</button>
         </div>
 
       </div>
@@ -297,6 +245,6 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
-<script src="app-beta.js?v=7"></script>
+<script src="app-beta.js?v=8"></script>
 </body>
 </html>

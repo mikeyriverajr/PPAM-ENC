@@ -211,12 +211,12 @@ async function enablePushNotifications() {
                 serviceWorkerRegistration: registration 
             });
 
-    if (token) {
+            if (token) {
                 await db.collection('publishers').doc(currentUserPublisherId).update({ fcmToken: token });
                 showToast("¡Notificaciones activadas con éxito!");
                 document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#28a745;">Activadas</span>';
                 document.getElementById('btn-enable-push').style.display = 'none';
-                document.getElementById('btn-disable-push').style.display = 'inline-flex'; // <-- AÑADIDO ESTO
+                document.getElementById('btn-disable-push').style.display = 'inline-flex'; 
             } else {
                 showToast("No se pudo generar el token de notificación.", "error");
             }
@@ -227,6 +227,8 @@ async function enablePushNotifications() {
         console.error("FCM Error:", error);
         showToast("Error al activar notificaciones. Asegúrate de estar en HTTPS o en un celular.", "error");
     }
+} // <-- ESTA LLAVE FALTABA AQUÍ
+
 async function disablePushNotifications() {
     try {
         // 1. Try to delete the token from Firebase's internal system

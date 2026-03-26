@@ -631,6 +631,8 @@ async function loadProfileForm() {
 
     document.getElementById('prof-phone').value = pub.phone || '';
     document.getElementById('prof-email').value = pub.notificationEmail || '';
+    document.getElementById('prof-email-notif-container').style.display = pub.notificationEmail ? 'flex' : 'none';
+    document.getElementById('prof-email-notif').checked = pub.emailNotificationsEnabled || false;
     document.getElementById('prof-emerg-name').value = pub.emergencyName || '';
     document.getElementById('prof-emerg-phone').value = pub.emergencyPhone || '';
     document.getElementById('prof-max').value = pub.maxShifts || '5';
@@ -652,7 +654,7 @@ async function loadProfileForm() {
     renderMyAbsences();
 
     originalProfileData = {
-      phone: pub.phone || '', email: pub.notificationEmail || '', eName: pub.emergencyName || '',
+      phone: pub.phone || '', email: pub.notificationEmail || '', emailNotif: pub.emailNotificationsEnabled || false, eName: pub.emergencyName || '',
       ePhone: pub.emergencyPhone || '', max: (pub.maxShifts || '5').toString(), partner: pub.partner || '', 
       hard: pub.hardPair || false, abs: JSON.stringify(myAbsences)
     };
@@ -663,9 +665,14 @@ async function loadProfileForm() {
 }
 
 function checkProfileChanges() {
+    const emailVal = document.getElementById('prof-email').value.trim();
+    document.getElementById('prof-email-notif-container').style.display = emailVal ? 'flex' : 'none';
+    if (!emailVal) document.getElementById('prof-email-notif').checked = false;
+
     const currentData = {
       phone: document.getElementById('prof-phone').value.trim(),
-      email: document.getElementById('prof-email').value.trim(),
+      email: emailVal,
+      emailNotif: document.getElementById('prof-email-notif').checked,
       eName: document.getElementById('prof-emerg-name').value.trim(),
       ePhone: document.getElementById('prof-emerg-phone').value.trim(),
       max: document.getElementById('prof-max').value,
@@ -694,6 +701,7 @@ async function saveProfile() {
   const profileData = {
     phone: document.getElementById('prof-phone').value.trim(),
     notificationEmail: emailVal,
+    emailNotificationsEnabled: document.getElementById('prof-email-notif').checked,
     emergencyName: document.getElementById('prof-emerg-name').value.trim(),
     emergencyPhone: document.getElementById('prof-emerg-phone').value.trim(),
     maxShifts: parseInt(document.getElementById('prof-max').value),
@@ -707,7 +715,7 @@ async function saveProfile() {
     await db.collection('publishers').doc(currentUserPublisherId).update(profileData);
 
     originalProfileData = {
-        phone: profileData.phone, email: profileData.notificationEmail, eName: profileData.emergencyName,
+        phone: profileData.phone, email: profileData.notificationEmail, emailNotif: profileData.emailNotificationsEnabled, eName: profileData.emergencyName,
         ePhone: profileData.emergencyPhone, max: profileData.maxShifts.toString(), partner: profileData.partner, 
         hard: profileData.hardPair, abs: JSON.stringify(myAbsences)
     };

@@ -124,6 +124,13 @@ document.addEventListener("DOMContentLoaded", function() {
             if(!this.value) document.getElementById('pub-hardpair').checked = false;
         });
     }
+    const emailInput = document.getElementById('pub-email');
+    if(emailInput) {
+        emailInput.addEventListener('input', function() {
+            document.getElementById('pub-email-notif-container').style.display = this.value.trim() ? 'flex' : 'none';
+            if(!this.value.trim()) document.getElementById('pub-email-notif').checked = false;
+        });
+    }
 });
 
 async function loadPublishers() {
@@ -260,6 +267,8 @@ async function editPublisher(id) {
   
   document.getElementById('pub-phone').value = pub.phone || '';
   document.getElementById('pub-email').value = pub.notificationEmail || '';
+  document.getElementById('pub-email-notif-container').style.display = pub.notificationEmail ? 'flex' : 'none';
+  document.getElementById('pub-email-notif').checked = pub.emailNotificationsEnabled || false;
   document.getElementById('pub-emerg-name').value = pub.emergencyName || '';
   document.getElementById('pub-emerg-phone').value = pub.emergencyPhone || '';
 
@@ -310,6 +319,7 @@ async function savePublisher() {
   const notificationEmail = document.getElementById('pub-email').value.trim();
   const emergencyName = document.getElementById('pub-emerg-name').value.trim();
   const emergencyPhone = document.getElementById('pub-emerg-phone').value.trim();
+  const emailNotificationsEnabled = document.getElementById('pub-email-notif').checked;
   const availability = Array.from(document.querySelectorAll('.admin-avail-checkbox:checked')).map(cb => cb.value);
 
   const username = document.getElementById('pub-username').value.trim();
@@ -323,7 +333,7 @@ async function savePublisher() {
   let partnerName = "";
   if (partnerId) { const pObj = allPublishers.find(p => p.id === partnerId); if (pObj) partnerName = `${pObj.firstName} ${pObj.lastName}`; }
   
-  const pubData = { firstName, lastName, gender, status, partner: partnerId, partnerName, hardPair, maxShifts, phone, notificationEmail, emergencyName, emergencyPhone, availability, absences: currentAbsences };
+  const pubData = { firstName, lastName, gender, status, partner: partnerId, partnerName, hardPair, maxShifts, phone, notificationEmail, emailNotificationsEnabled, emergencyName, emergencyPhone, availability, absences: currentAbsences };
 
   try {
     if (id) {
@@ -397,6 +407,8 @@ function clearPublisherForm() {
   document.getElementById('pub-hardpair').checked = false;
   document.getElementById('pub-phone').value = '';
   document.getElementById('pub-email').value = '';
+  document.getElementById('pub-email-notif-container').style.display = 'none';
+  document.getElementById('pub-email-notif').checked = false;
   document.getElementById('pub-emerg-name').value = '';
   document.getElementById('pub-emerg-phone').value = '';
   document.getElementById('pub-username').value = '';

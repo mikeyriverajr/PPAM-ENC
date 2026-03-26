@@ -253,6 +253,10 @@
         <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#5d7aa9;">contact_page</span> Mis Datos de Contacto</h3>
         <div class="form-group"><label>Teléfono Celular</label><input type="tel" id="prof-phone" oninput="checkProfileChanges()" placeholder="ej. 0981 123 456"></div>
         <div class="form-group"><label>Correo Electrónico (Opcional)</label><input type="email" id="prof-email" oninput="checkProfileChanges()" placeholder="ej. juan@gmail.com"></div>
+        <div id="prof-email-notif-container" style="display:none; margin-top:10px; align-items:flex-start; gap:10px; background:#f9f9f9; padding:15px; border-radius:8px; border:1px solid #eee;">
+            <input type="checkbox" id="prof-email-notif" onchange="checkProfileChanges()" style="margin-top: 2px; width: 16px; height: 16px; cursor:pointer;">
+            <label for="prof-email-notif" style="margin:0; font-weight:normal; cursor:pointer; font-size: 0.9em; color: #444;"><strong>Recibir correos:</strong> Enviar notificaciones de turnos a mi correo electrónico.</label>
+        </div>
 
         <hr class="profile-divider">
         <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#dc3545;">emergency</span> En Caso de Emergencia</h3>

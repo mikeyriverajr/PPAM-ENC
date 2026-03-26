@@ -187,20 +187,18 @@ async function changeProfilePassword() {
 // PUSH NOTIFICATIONS & CACHE CLEANUP
 // ==========================================
 
-// THE HUNTER-KILLER SCRIPT: Destroys old rogue caching service workers
-// THE HUNTER-KILLER SCRIPT
+// PWA & Messaging Service Worker Registration
 if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.getRegistrations().then(function(registrations) {
-        for(let registration of registrations) {
-            // If it's NOT our specific Firebase messaging worker, kill it.
-            if (!registration.active || !registration.active.scriptURL.includes('firebase-messaging-sw.js')) {
-                console.log("Rogue Service Worker detected and destroyed.");
-                registration.unregister();
-            }
-        }
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./firebase-messaging-sw.js')
+            .then(registration => {
+                console.log('Service Worker registrado con éxito:', registration.scope);
+            })
+            .catch(err => {
+                console.log('Falló el registro del Service Worker:', err);
+            });
     });
 }
-
 async function enablePushNotifications() {
     try {
         const permission = await Notification.requestPermission();

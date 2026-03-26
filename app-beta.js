@@ -211,11 +211,12 @@ async function enablePushNotifications() {
                 serviceWorkerRegistration: registration 
             });
 
-            if (token) {
+    if (token) {
                 await db.collection('publishers').doc(currentUserPublisherId).update({ fcmToken: token });
                 showToast("¡Notificaciones activadas con éxito!");
                 document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#28a745;">Activadas</span>';
                 document.getElementById('btn-enable-push').style.display = 'none';
+                document.getElementById('btn-disable-push').style.display = 'inline-flex'; // <-- AÑADIDO ESTO
             } else {
                 showToast("No se pudo generar el token de notificación.", "error");
             }
@@ -585,9 +586,16 @@ async function loadProfileForm() {
     const pub = currentPubData;
 
     // Check Notification Permission on load
+    // Check Notification Permission on load
     if (Notification.permission === 'granted' && pub.fcmToken) {
         document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#28a745;">Activadas</span>';
         document.getElementById('btn-enable-push').style.display = 'none';
+        document.getElementById('btn-disable-push').style.display = 'inline-flex'; // <-- AÑADIDO ESTO
+    } else {
+        // Ensures correct UI if they disabled it on another device
+        document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#555;">Sin activar</span>';
+        document.getElementById('btn-enable-push').style.display = 'inline-flex';
+        document.getElementById('btn-disable-push').style.display = 'none';
     }
 
     document.getElementById('prof-phone').value = pub.phone || '';

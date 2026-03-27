@@ -18,7 +18,9 @@ async function getPubNames(userIds) {
     for (const uid of userIds) {
         const doc = await db.collection('publishers').doc(uid).get();
         if (doc.exists) {
-            names.push(doc.data().firstName || 'Un publicador');
+            const data = doc.data();
+            const fullName = `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Un publicador';
+            names.push(fullName);
         }
     }
     return names.join(', ');

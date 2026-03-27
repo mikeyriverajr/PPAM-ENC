@@ -190,7 +190,7 @@ async function changeProfilePassword() {
 // PWA & Messaging Service Worker Registration
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./firebase-messaging-sw.js')
+        navigator.serviceWorker.register('./service-worker.js')
             .then(registration => {
                 console.log('Service Worker registrado con éxito:', registration.scope);
             })
@@ -204,7 +204,7 @@ async function enablePushNotifications() {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
 
-            const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js');
+            const registration = await navigator.serviceWorker.register('./service-worker.js');
 
             const token = await messaging.getToken({ 
                 vapidKey: 'BCsvQHZK5ybZnRx28iqE5hLKOJeAmIuvNUA62-zJmLxRuJOHySmGeWIRIcN9qMx2-OjGmjlAm09montphPtiBgw',
@@ -244,11 +244,8 @@ async function disablePushNotifications() {
             fcmToken: firebase.firestore.FieldValue.delete() 
         });
 
-        // 3. Manually unregister the Service Worker to stop the phone from listening in the background
-        const registration = await navigator.serviceWorker.getRegistration('./firebase-messaging-sw.js');
-        if (registration) {
-            await registration.unregister();
-        }
+        // We no longer unregister the Service Worker because it's shared with the main app cache.
+        // By deleting the token above, Firebase knows not to send messages to this device anymore.
         
         showToast("Notificaciones desactivadas exitosamente.");
         document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#666;">Desactivadas</span>';

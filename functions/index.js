@@ -82,11 +82,11 @@ exports.notifyShiftChanges = functions.firestore
     });
 
 async function sendEmailNotification(email, title, body) {
-    const gmailEmail = process.env.GMAIL_EMAIL || functions.config().gmail?.email;
-    const gmailPassword = process.env.GMAIL_PASSWORD || functions.config().gmail?.password;
+    const gmailEmail = process.env.GMAIL_EMAIL;
+    const gmailPassword = process.env.GMAIL_PASSWORD;
 
     if (!gmailEmail || !gmailPassword) {
-        console.log("[CEREBRO] ⚠️ Credenciales de Gmail no configuradas. Omitiendo email.");
+        console.log("[CEREBRO] ⚠️ Credenciales de Gmail no configuradas en variables de entorno. Omitiendo email.");
         return;
     }
 

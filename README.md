@@ -17,15 +17,19 @@ Si la cuenta de Gmail utilizada tiene la verificación en 2 pasos activada (reco
 5. En "Seleccionar aplicación", elige "Otra (Nombre personalizado)" y escribe algo como "PPAM Encarnacion".
 6. Haz clic en **Generar**. Copia la contraseña de 16 letras que aparece en pantalla (sin espacios).
 
-**2. Configurar Firebase Functions:**
-Abre tu terminal (línea de comandos) en tu computadora, asegúrate de estar logueado en Firebase (`firebase login`) y ejecuta el siguiente comando reemplazando con tu correo y la contraseña generada:
+**2. Configurar Firebase Functions (.env):**
+Como estamos utilizando Firebase Functions v2 y el SDK v7, las credenciales se manejan mediante un archivo `.env`.
+Abre la carpeta `functions` en tu computadora y crea un nuevo archivo de texto llamado exactamente `.env`. Dentro de ese archivo, pega lo siguiente (reemplazando con tu correo y tu contraseña de aplicación):
 
-```bash
-firebase functions:config:set gmail.email="tu_correo_ppam@gmail.com" gmail.password="tu_contraseña_de_aplicacion_generada"
+```
+GMAIL_EMAIL=tu_correo_ppam@gmail.com
+GMAIL_PASSWORD=tu_contraseña_de_aplicacion_generada
 ```
 
+*(Importante: No debe haber comillas alrededor del correo ni de la contraseña en el archivo .env, y asegúrate de guardar el archivo).*
+
 **3. Desplegar (Deploy) las Functions:**
-Una vez configuradas las variables, debes volver a desplegar las funciones para que tomen los cambios:
+Una vez guardado tu archivo `.env` dentro de la carpeta `functions`, debes volver a desplegar las funciones para que Firebase suba automáticamente tus variables de entorno al servidor:
 
 ```bash
 firebase deploy --only functions

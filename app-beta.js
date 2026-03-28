@@ -224,6 +224,7 @@ async function enablePushNotifications() {
             showToast("Permiso denegado para notificaciones.", "error");
         }
     } catch (error) {
+        alert("El error real es: " + error.message);
         console.error("FCM Error:", error);
         showToast("Error al activar notificaciones. Asegúrate de estar en HTTPS o en un celular.", "error");
     }

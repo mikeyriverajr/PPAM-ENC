@@ -93,7 +93,13 @@ auth.onAuthStateChanged(async user => {
             document.getElementById('app-content').style.display = 'block';
 
             const pubSnap = await db.collection('publishers').get();
-            pubSnap.forEach(d => { publisherCache[d.id] = `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(); });
+            pubSnap.forEach(d => {
+                publisherCache[d.id] = {
+                    name: `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(),
+                    phone: d.data().phone || '',
+                    isShiftManager: d.data().isShiftManager || false
+                };
+            });
 
             document.getElementById('header-user-name').innerText = `| ${publisherCache[currentUserPublisherId] || ""}`;
 
@@ -153,8 +159,14 @@ async function submitForcedPassword() {
       document.getElementById('force-password-modal').style.display = 'none';
       document.getElementById('app-content').style.display = 'block';
       const pubSnap = await db.collection('publishers').get();
-      pubSnap.forEach(d => { publisherCache[d.id] = `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(); });
-      document.getElementById('header-user-name').innerText = `| ${publisherCache[currentUserPublisherId] || ""}`;
+      pubSnap.forEach(d => {
+          publisherCache[d.id] = {
+              name: `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(),
+              phone: d.data().phone || '',
+              isShiftManager: d.data().isShiftManager || false
+          };
+      });
+      document.getElementById('header-user-name').innerText = `| ${publisherCache[currentUserPublisherId]?.name || ""}`;
 
       showToast("¡Contraseña creada exitosamente!");
       loadShifts(); loadMyShifts(); loadAvailableShifts(); loadAvailabilityForm(); loadProfileForm(); 
@@ -279,7 +291,54 @@ if (typeof messaging !== 'undefined') {
 }
 
 let allShiftsData = []; 
+let dayManagersCache = {};
+
+async function loadDayManagers() {
+    try {
+        const doc = await db.collection('settings').doc('dayManagers').get();
+        if (doc.exists) dayManagersCache = doc.data();
+    } catch(e) { console.error("Error loading day managers", e); }
+}
+
+function getShiftContactHtml(shift) {
+    let contactHtml = '';
+
+    // Check if local manager is required and present
+    if (shift.requiresManager) {
+        const localManagerId = (shift.participants || []).find(id => publisherCache[id]?.isShiftManager);
+        if (localManagerId) {
+            const mgr = publisherCache[localManagerId];
+            if (mgr.phone) {
+                const msg = encodeURIComponent(`Hola ${mgr.name}, te escribo sobre el turno en ${shift.location} de las ${shift.time}.`);
+                contactHtml = `<a href="https://wa.me/${mgr.phone.replace(/\D/g,'')}?text=${msg}" target="_blank" style="display:inline-flex; align-items:center; gap:5px; background:#25D366; color:white; padding:4px 8px; border-radius:12px; font-size:0.8em; text-decoration:none; margin-top:5px;"><span class="material-symbols-outlined" style="font-size:14px;">chat</span> Encargado: ${mgr.name}</a>`;
+            } else {
+                contactHtml = `<span style="display:inline-flex; align-items:center; gap:5px; background:#f0f0f0; color:#555; padding:4px 8px; border-radius:12px; font-size:0.8em; margin-top:5px;"><span class="material-symbols-outlined" style="font-size:14px;">local_police</span> Encargado: ${mgr.name}</span>`;
+            }
+            return contactHtml; // If local manager found, return it and stop.
+        }
+    }
+
+    // If no local manager required or found, fallback to Day Manager
+    const [y, m, d] = shift.date.split('-');
+    const dateObj = new Date(parseInt(y), parseInt(m)-1, parseInt(d));
+    const dayName = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][dateObj.getDay()];
+
+    const dayManagerId = dayManagersCache[dayName];
+    if (dayManagerId && publisherCache[dayManagerId]) {
+        const mgr = publisherCache[dayManagerId];
+        if (mgr.phone) {
+            const msg = encodeURIComponent(`Hola ${mgr.name}, te escribo sobre el turno en ${shift.location} de las ${shift.time} (${shift.date}).`);
+            contactHtml = `<a href="https://wa.me/${mgr.phone.replace(/\D/g,'')}?text=${msg}" target="_blank" style="display:inline-flex; align-items:center; gap:5px; background:#5d7aa9; color:white; padding:4px 8px; border-radius:12px; font-size:0.8em; text-decoration:none; margin-top:5px;"><span class="material-symbols-outlined" style="font-size:14px;">support_agent</span> Contacto del Día: ${mgr.name}</a>`;
+        } else {
+            contactHtml = `<span style="display:inline-flex; align-items:center; gap:5px; background:#f0f0f0; color:#555; padding:4px 8px; border-radius:12px; font-size:0.8em; margin-top:5px;"><span class="material-symbols-outlined" style="font-size:14px;">support_agent</span> Contacto del Día: ${mgr.name}</span>`;
+        }
+    }
+
+    return contactHtml;
+}
+
 async function loadShifts() {
+  await loadDayManagers();
   const container = document.getElementById('schedule-container');
   container.innerHTML = '<p style="text-align:center; color:#666;">Cargando programa...</p>';
   try {
@@ -295,7 +354,8 @@ function renderAllShifts(shifts) {
   container.innerHTML = '';
   if(shifts.length === 0) { container.innerHTML = '<p style="text-align:center; color:#666;">No hay turnos programados.</p>'; return; }
   shifts.forEach(shift => {
-    const participantNames = (shift.participants || []).map(id => publisherCache[id] || 'Desconocido');
+    const participantNames = (shift.participants || []).map(id => publisherCache[id]?.name || 'Desconocido');
+    const contactHtml = getShiftContactHtml(shift);
     const shiftCard = document.createElement('div');
     shiftCard.className = 'shift-card';
     shiftCard.innerHTML = `
@@ -305,6 +365,7 @@ function renderAllShifts(shifts) {
       </div>
       <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545;">location_on</span> <strong>${shift.location}</strong></p>
       <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> ${participantNames.join(', ')}</p>
+      ${contactHtml}
     `;
     container.appendChild(shiftCard);
   });
@@ -313,7 +374,7 @@ function renderAllShifts(shifts) {
 function filterAllShifts() {
   const query = document.getElementById('search-all').value.toLowerCase();
   const filtered = allShiftsData.filter(s => {
-      const names = (s.participants || []).map(id => publisherCache[id] || '').join(' ').toLowerCase();
+      const names = (s.participants || []).map(id => publisherCache[id]?.name || '').join(' ').toLowerCase();
       const spanishDate = formatSpanishDate(s.date).toLowerCase();
       return s.location.toLowerCase().includes(query) || s.date.includes(query) || spanishDate.includes(query) || names.includes(query);
   });
@@ -343,8 +404,9 @@ async function loadMyShifts() {
     myCurrentShifts.sort((a, b) => new Date(a.date) - new Date(b.date));
 
     myCurrentShifts.forEach(shift => {
-      const others = (shift.participants || []).filter(id => id !== currentUserPublisherId).map(id => publisherCache[id] || 'Desconocido');
+      const others = (shift.participants || []).filter(id => id !== currentUserPublisherId).map(id => publisherCache[id]?.name || 'Desconocido');
       const partnerText = others.length > 0 ? others.join(', ') : 'Solo/a';
+      const contactHtml = getShiftContactHtml(shift);
       const shiftCard = document.createElement('div');
       shiftCard.className = 'shift-card mine';
       shiftCard.innerHTML = `
@@ -354,8 +416,9 @@ async function loadMyShifts() {
         </div>
         <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545;">location_on</span> <strong>${shift.location}</strong></p>
         <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> Con: ${partnerText}</p>
-        <div class="card-actions">
-           <button onclick="attemptCancel('${shift.id}', '${shift.date}', '${shift.time}', '${shift.location}')" class="btn-action btn-danger">Cancelar Turno</button>
+        ${contactHtml}
+        <div class="card-actions" style="margin-top: 15px; border-top: 1px solid #f0f0f0; padding-top: 10px;">
+           <button onclick="attemptCancel('${shift.id}', '${shift.date}', '${shift.time}', '${shift.location}')" class="btn-action btn-danger" style="width: 100%;">Cancelar Turno</button>
         </div>
       `;
       container.appendChild(shiftCard);
@@ -410,9 +473,10 @@ async function loadAvailableShifts() {
 
     container.innerHTML = '';
     openShifts.forEach(shift => {
-      const names = (shift.participants || []).map(id => publisherCache[id] || 'Alguien').join(', ') || 'Vacío';
+      const names = (shift.participants || []).map(id => publisherCache[id]?.name || 'Alguien').join(', ') || 'Vacío';
       const capacity = shift.capacity || 2;
       const availableSpots = capacity - (shift.participants || []).length;
+      const contactHtml = getShiftContactHtml(shift);
 
       const card = document.createElement('div');
       card.className = 'shift-card open';
@@ -429,7 +493,8 @@ async function loadAvailableShifts() {
         <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545;">location_on</span> <strong>${shift.location}</strong></p>
         <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> Actuales: ${names}</p>
         <p style="margin: 5px 0 0 0; font-size:0.85em; color:#666; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #28a745;">person_add</span> Lugares libres: <strong>${availableSpots}</strong></p>
-        <div class="card-actions">
+        ${contactHtml}
+        <div class="card-actions" style="margin-top: 15px; border-top: 1px solid #f0f0f0; padding-top: 10px;">
            ${actionButton}
         </div>
       `;
@@ -638,7 +703,7 @@ async function loadProfileForm() {
 
     const partnerSelect = document.getElementById('prof-partner');
     partnerSelect.innerHTML = '<option value="">Ninguno</option>';
-    const sortedPubs = Object.keys(publisherCache).map(id => ({ id: id, name: publisherCache[id] })).sort((a, b) => a.name.localeCompare(b.name));
+    const sortedPubs = Object.keys(publisherCache).map(id => ({ id: id, name: publisherCache[id]?.name })).sort((a, b) => a.name.localeCompare(b.name));
     sortedPubs.forEach(p => {
       if (p.id !== currentUserPublisherId) {
         const isSelected = p.id === pub.partner ? 'selected' : '';
@@ -694,7 +759,7 @@ async function saveProfile() {
 
   const partnerId = document.getElementById('prof-partner').value;
   let partnerName = "";
-  if (partnerId) { partnerName = publisherCache[partnerId]; }
+  if (partnerId) { partnerName = publisherCache[partnerId]?.name; }
 
   const profileData = {
     phone: document.getElementById('prof-phone').value.trim(),

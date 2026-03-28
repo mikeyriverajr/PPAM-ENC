@@ -137,7 +137,17 @@ async function notifyUsers(userIds, title, body) {
             const token = pubData.fcmToken;
             if (token) {
                 console.log(`[CEREBRO] Enviando Push a: ${pubData.firstName}`);
-                const message = { notification: { title: title, body: body }, token: token };
+                const message = {
+                    notification: { title: title, body: body },
+                    token: token,
+                    webpush: {
+                        notification: {
+                            icon: './icon-512.png',
+                            badge: './icon.png',
+                            click_action: 'https://mikeyriverajr.github.io/PPAM-ENC/beta.html'
+                        }
+                    }
+                };
                 
                 promises.push(admin.messaging().send(message).then(()=> {
                     console.log(`[CEREBRO] ✅ ¡Push enviado con éxito!`);
@@ -162,3 +172,49 @@ async function notifyUsers(userIds, title, body) {
     }
     return Promise.all(promises);
 }
+
+exports.updateShiftLocations = functions.firestore
+    .document('locations/{locationId}')
+    .onUpdate(async (change, context) => {
+        const beforeData = change.before.data();
+        const afterData = change.after.data();
+
+        // Check if the name field actually changed
+        if (beforeData.name === afterData.name) {
+            return null;
+        }
+
+        console.log(`[CEREBRO] Ubicación ${context.params.locationId} cambió de nombre: ${beforeData.name} -> ${afterData.name}`);
+
+        const db = admin.firestore();
+
+        // Get today's date in YYYY-MM-DD
+        const today = new Date();
+        const y = today.getFullYear();
+        const m = String(today.getMonth() + 1).padStart(2, '0');
+        const d = String(today.getDate()).padStart(2, '0');
+        const todayStr = `${y}-${m}-${d}`;
+
+        // Find all future shifts that belong to this location
+        const shiftsRef = db.collection('shifts');
+        const snapshot = await shiftsRef
+            .where('locationId', '==', context.params.locationId)
+            .where('date', '>=', todayStr)
+            .get();
+
+        if (snapshot.empty) {
+            console.log(`[CEREBRO] No se encontraron turnos futuros para actualizar.`);
+            return null;
+        }
+
+        console.log(`[CEREBRO] Actualizando ${snapshot.size} turnos con el nuevo nombre.`);
+
+        const batch = db.batch();
+        snapshot.forEach(doc => {
+            batch.update(doc.ref, { location: afterData.name });
+        });
+
+        await batch.commit();
+        console.log(`[CEREBRO] ✅ Nombres de ubicación actualizados en todos los turnos futuros.`);
+        return null;
+    });

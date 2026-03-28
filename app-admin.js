@@ -260,6 +260,8 @@ async function editPublisher(id) {
   document.getElementById('pub-lastname').value = pub.lastName || '';
   document.getElementById('pub-gender').value = pub.gender || 'H';
   document.getElementById('pub-status').value = pub.status || 'Aprobado';
+  document.getElementById('pub-istrainer').checked = pub.isTrainer || false;
+  document.getElementById('pub-ismanager').checked = pub.isShiftManager || false;
   document.getElementById('pub-max').value = pub.maxShifts || '5';
   document.getElementById('pub-partner').value = pub.partner || '';
   document.getElementById('pub-hardpair-container').style.display = pub.partner ? 'flex' : 'none';
@@ -314,6 +316,8 @@ async function savePublisher() {
   const partnerId = document.getElementById('pub-partner').value;
   const hardPair = document.getElementById('pub-hardpair').checked;
   const status = document.getElementById('pub-status').value;
+  const isTrainer = document.getElementById('pub-istrainer').checked;
+  const isShiftManager = document.getElementById('pub-ismanager').checked;
   const maxShifts = parseInt(document.getElementById('pub-max').value) || 5;
   const phone = document.getElementById('pub-phone').value.trim();
   const notificationEmail = document.getElementById('pub-email').value.trim();
@@ -333,7 +337,7 @@ async function savePublisher() {
   let partnerName = "";
   if (partnerId) { const pObj = allPublishers.find(p => p.id === partnerId); if (pObj) partnerName = `${pObj.firstName} ${pObj.lastName}`; }
   
-  const pubData = { firstName, lastName, gender, status, partner: partnerId, partnerName, hardPair, maxShifts, phone, notificationEmail, emailNotificationsEnabled, emergencyName, emergencyPhone, availability, absences: currentAbsences };
+  const pubData = { firstName, lastName, gender, status, isTrainer, isShiftManager, partner: partnerId, partnerName, hardPair, maxShifts, phone, notificationEmail, emailNotificationsEnabled, emergencyName, emergencyPhone, availability, absences: currentAbsences };
 
   try {
     if (id) {
@@ -401,6 +405,8 @@ function clearPublisherForm() {
   document.getElementById('pub-lastname').value = '';
   document.getElementById('pub-gender').value = 'H';
   document.getElementById('pub-status').value = 'Aprobado';
+  document.getElementById('pub-istrainer').checked = false;
+  document.getElementById('pub-ismanager').checked = false;
   document.getElementById('pub-max').value = '5';
   document.getElementById('pub-partner').value = '';
   document.getElementById('pub-hardpair-container').style.display = 'none';
@@ -461,6 +467,7 @@ function openLocationModal() {
   document.getElementById('location-modal').style.display = 'flex';
   document.getElementById('loc-id').value = ''; document.getElementById('loc-name').value = ''; 
   document.getElementById('loc-capacity').value = '2'; document.getElementById('loc-status').value = 'true';
+  document.getElementById('loc-req-manager').checked = false;
   document.getElementById('loc-modal-title').innerText = 'Nueva Ubicación';
   document.getElementById('btn-delete-loc').style.display = 'none';
   document.getElementById('shifts-container').innerHTML = '';
@@ -515,12 +522,13 @@ async function saveLocation() {
   const name = document.getElementById('loc-name').value.trim();
   const capacity = parseInt(document.getElementById('loc-capacity').value) || 2;
   const isActive = document.getElementById('loc-status').value === 'true';
+  const requiresManager = document.getElementById('loc-req-manager').checked;
   if (!name) { showToast("El nombre es obligatorio", "error"); return; }
   
   const templates = [];
   document.querySelectorAll('.shift-row').forEach(row => { templates.push({ day: row.querySelector('.shift-day').value, startTime: row.querySelector('.shift-start').value, endTime: row.querySelector('.shift-end').value }); });
   
-  const locationData = { name, capacity, isActive, templates };
+  const locationData = { name, capacity, isActive, requiresManager, templates };
   try {
     if (id) await db.collection('locations').doc(id).update(locationData);
     else await db.collection('locations').add(locationData);
@@ -540,6 +548,7 @@ async function editLocation(id) {
     document.getElementById('loc-name').value = loc.name; 
     document.getElementById('loc-capacity').value = loc.capacity;
     document.getElementById('loc-status').value = loc.isActive !== false ? 'true' : 'false';
+    document.getElementById('loc-req-manager').checked = loc.requiresManager || false;
     if (loc.templates && loc.templates.length > 0) loc.templates.forEach(t => addShiftRow(t.day, t.startTime, t.endTime));
   } catch (error) { showToast('Error al cargar ubicación.', "error"); }
 }
@@ -570,6 +579,53 @@ async function checkMonthStatus() {
         if (!snap.empty) { btnGen.style.display = 'none'; btnLoad.style.display = 'inline-flex'; containerDel.style.display = 'block';
         } else { btnGen.style.display = 'inline-flex'; btnLoad.style.display = 'none'; containerDel.style.display = 'none'; }
     } catch(e) { console.error("Error:", e); }
+
+    await loadDayManagers();
+}
+
+async function loadDayManagers() {
+    const container = document.getElementById('day-managers-container');
+    container.innerHTML = '<p style="color:#666; font-size:0.85em;">Cargando encargados del día...</p>';
+    try {
+        const settingsDoc = await db.collection('settings').doc('dayManagers').get();
+        const settings = settingsDoc.exists ? settingsDoc.data() : {};
+
+        let pubOptions = `<option value="">Ninguno</option>`;
+        const sortedPubs = [...allPublishers].sort((a,b) => a.firstName.localeCompare(b.firstName));
+        sortedPubs.forEach(p => pubOptions += `<option value="${p.id}">${p.firstName} ${p.lastName}</option>`);
+
+        const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+        container.innerHTML = '';
+
+        days.forEach(day => {
+            const currentId = settings[day] || '';
+            const div = document.createElement('div');
+            div.style.cssText = 'flex: 1; min-width: 120px; background: white; padding: 10px; border: 1px solid #eaeaea; border-radius: 8px;';
+            div.innerHTML = `
+                <label style="display:block; font-size:0.85em; color:#5d7aa9; font-weight:bold; margin-bottom:5px;">${day}</label>
+                <select id="day-manager-${day}" style="width:100%; padding:8px; border:1px solid #ccc; border-radius:4px; font-size:0.9em;">
+                    ${pubOptions}
+                </select>
+            `;
+            container.appendChild(div);
+            document.getElementById(`day-manager-${day}`).value = currentId;
+        });
+    } catch(e) { container.innerHTML = '<p style="color:red;">Error al cargar encargados del día.</p>'; }
+}
+
+async function saveDayManagers() {
+    const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    const data = {};
+    days.forEach(day => {
+        data[day] = document.getElementById(`day-manager-${day}`).value;
+    });
+
+    try {
+        await db.collection('settings').doc('dayManagers').set(data, {merge: true});
+        showToast('Encargados del día guardados exitosamente.');
+    } catch(e) {
+        showToast('Error al guardar encargados.', 'error');
+    }
 }
 
 async function generateDraft() {
@@ -601,6 +657,7 @@ async function generateDraft() {
               docId: null, dateObj: dateObj, dateString: dateString, 
               location: loc.name, 
               locationId: loc.id, 
+              requiresManager: loc.requiresManager || false,
               time: `${t.startTime}-${t.endTime}`,
               capacity: loc.capacity, 
               availKey: `${loc.id}_${t.day}_${t.startTime}`, 
@@ -640,6 +697,32 @@ async function generateDraft() {
       return true;
     }
 
+    // 1. First Pass: Assign Required Local Managers
+    shiftTasks.forEach(task => {
+        if (task.requiresManager && task.assigned.length < task.capacity) {
+            // Find an available manager in the pool
+            const manager = task.pool.find(p => p.isShiftManager && canAssign(p.id, task.dateObj, task.dateString));
+            if (manager) {
+                task.assigned.push(manager);
+                assignedCounts[manager.id] = (assignedCounts[manager.id] || 0) + 1;
+                if(!assignedDates[manager.id]) assignedDates[manager.id] = new Set();
+                assignedDates[manager.id].add(task.dateString);
+
+                // If they have a hard pair, pull them in too if possible
+                if (manager.hardPair && manager.partner && task.assigned.length < task.capacity) {
+                    const partner = allPublishers.find(p => p.id === manager.partner);
+                    if (partner && task.pool.find(p => p.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString)) {
+                        task.assigned.push(partner);
+                        assignedCounts[partner.id] = (assignedCounts[partner.id] || 0) + 1;
+                        if(!assignedDates[partner.id]) assignedDates[partner.id] = new Set();
+                        assignedDates[partner.id].add(task.dateString);
+                    }
+                }
+            }
+        }
+    });
+
+    // 2. Second Pass: Fill remaining spots with anyone
     shiftTasks.forEach(task => {
       task.pool.forEach(pub => {
         if (task.assigned.length >= task.capacity) return; 
@@ -685,7 +768,7 @@ async function loadPublishedMonth() {
   try {
     const locsSnap = await db.collection('locations').get();
     let locMap = {};
-    locsSnap.forEach(d => { locMap[d.data().name] = d.id; });
+    locsSnap.forEach(d => { locMap[d.data().name] = { id: d.id, requiresManager: d.data().requiresManager || false }; });
 
     const shiftsSnap = await db.collection('shifts').where('date', '>=', startDate).where('date', '<=', endDate).get();
     if (shiftsSnap.empty) { showToast("No hay turnos publicados para este mes.", "info"); return; }
@@ -702,16 +785,19 @@ async function loadPublishedMonth() {
         const dateObj = new Date(parseInt(y), parseInt(m)-1, parseInt(d));
         const dayName = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][dateObj.getDay()];
         
-        const locId = s.locationId || locMap[s.location];
+        const locId = s.locationId || locMap[s.location]?.id;
         
         const availKey = `${locId}_${dayName}_${s.time.split('-')[0]}`;
         let taskPool = [];
         
         allPublishers.forEach(pub => { if ((pub.availability || []).includes(availKey)) taskPool.push(pub); });
         
+        const locRequiresManager = locMap[s.location]?.requiresManager || false;
+
         draftSchedule.push({
             docId: doc.id, dateObj: dateObj, dateString: s.date, 
             location: s.location, locationId: locId, 
+            requiresManager: locRequiresManager,
             time: s.time, capacity: s.capacity || 2, 
             availKey: availKey, pool: taskPool, assigned: assignedPubs
         });
@@ -749,12 +835,21 @@ function renderPreviewTable() {
   
   draftSchedule.forEach((shift, index) => {
     let namesHtml = '';
+    let hasManager = false;
+
     shift.assigned.forEach(p => {
         const warn = p.status === 'Entrenamiento' ? `<span class="material-symbols-outlined" style="font-size:14px; color:#ffc107; vertical-align:-2px;" title="En Entrenamiento">warning</span>` : '';
-        namesHtml += `${p.firstName} ${p.lastName} ${warn}, `;
+        const mgrBadge = p.isShiftManager ? `<span class="material-symbols-outlined" style="font-size:14px; color:#dc3545; vertical-align:-2px;" title="Encargado Físico">local_police</span>` : '';
+        namesHtml += `${p.firstName} ${p.lastName} ${warn}${mgrBadge}, `;
+        if (p.isShiftManager) hasManager = true;
     });
     namesHtml = namesHtml.slice(0, -2); 
     
+    let warningHtml = '';
+    if (shift.requiresManager && !hasManager && shift.assigned.length > 0) {
+        warningHtml = `<div style="background:#fff3cd; color:#856404; font-size:0.8em; padding:4px 8px; border-radius:4px; margin-top:5px; border:1px solid #ffeeba; display:inline-block;"><span class="material-symbols-outlined" style="font-size:12px; vertical-align:-2px;">error</span> Falta Encargado</div>`;
+    }
+
     const row = document.createElement('tr');
     const isFull = shift.assigned.length >= shift.capacity;
     const statusColor = isFull ? '#28a745' : '#dc3545';
@@ -765,6 +860,7 @@ function renderPreviewTable() {
       <td style="color:${statusColor};">
         ${namesHtml || 'Nadie disponible'} <br>
         <span style="font-size:0.85em; opacity: 0.8;">(${shift.assigned.length}/${shift.capacity})</span>
+        ${warningHtml}
       </td>
       <td style="width: 100px; text-align: right;"><button type="button" onclick="openShiftEditModal(${index})" class="btn-action btn-info"><span class="material-symbols-outlined" style="font-size:18px;">edit</span> Editar</button></td>
     `;
@@ -880,12 +976,16 @@ async function publishSchedule() {
   try {
     for (const shift of draftSchedule) {
       if (shift.docId) { 
-          await db.collection('shifts').doc(shift.docId).update({ participants: shift.assigned.map(p => p.id) }); 
+          await db.collection('shifts').doc(shift.docId).update({
+              participants: shift.assigned.map(p => p.id),
+              requiresManager: shift.requiresManager || false
+          });
       } else { 
           await db.collection('shifts').add({ 
               date: shift.dateString, 
               location: shift.location, 
               locationId: shift.locationId, 
+              requiresManager: shift.requiresManager || false,
               time: shift.time, 
               capacity: shift.capacity, 
               participants: shift.assigned.map(p => p.id) 

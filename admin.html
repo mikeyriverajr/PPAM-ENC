@@ -206,9 +206,15 @@
             </select>
           </div>
           
-          <div id="pub-trainer-container" style="margin-bottom: 15px; align-items:center; gap:8px; display:flex;">
-              <input type="checkbox" id="pub-istrainer" style="width:18px; height:18px; margin:0; cursor:pointer; accent-color: #5d7aa9;">
-              <label for="pub-istrainer" style="margin:0; font-weight:600; cursor:pointer; font-size: 0.9em; color: #5d7aa9;">Es Capacitador (Trainer)</label>
+          <div id="pub-trainer-container" style="margin-bottom: 15px; align-items:flex-start; gap:10px; display:flex; flex-direction:column;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                  <input type="checkbox" id="pub-istrainer" style="width:18px; height:18px; margin:0; cursor:pointer; accent-color: #5d7aa9;">
+                  <label for="pub-istrainer" style="margin:0; font-weight:600; cursor:pointer; font-size: 0.9em; color: #5d7aa9;">Es Capacitador (Trainer)</label>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                  <input type="checkbox" id="pub-ismanager" style="width:18px; height:18px; margin:0; cursor:pointer; accent-color: #dc3545;">
+                  <label for="pub-ismanager" style="margin:0; font-weight:600; cursor:pointer; font-size: 0.9em; color: #dc3545;">Es Encargado de Turno</label>
+              </div>
           </div>
 
           <div class="form-group" style="margin-bottom: 10px;">
@@ -285,12 +291,18 @@
                 <div class="form-group" style="flex:1; min-width: 100px;"><label>Capacidad</label><input type="number" id="loc-capacity" value="2" min="1"></div>
             </div>
             
-            <div class="form-group" style="margin-bottom: 25px;">
-                <label>Estado Operativo</label>
-                <select id="loc-status" style="background:#f8f9fa; border-color: #bbb; font-weight: 600;">
-                    <option value="true">🟢 Activa (Incluir en el Generador)</option>
-                    <option value="false">⚪ Inactiva (Ubicación Temporal/Cerrada)</option>
-                </select>
+            <div style="display:flex; gap:15px; flex-wrap: wrap; margin-bottom: 25px;">
+                <div class="form-group" style="flex:1; min-width: 200px;">
+                    <label>Estado Operativo</label>
+                    <select id="loc-status" style="background:#f8f9fa; border-color: #bbb; font-weight: 600;">
+                        <option value="true">🟢 Activa (Incluir en el Generador)</option>
+                        <option value="false">⚪ Inactiva (Ubicación Temporal/Cerrada)</option>
+                    </select>
+                </div>
+                <div style="flex:1; display:flex; align-items:center; background:#fff3cd; padding:10px 15px; border-radius:8px; border:1px solid #ffeeba;">
+                    <input type="checkbox" id="loc-req-manager" style="width:18px; height:18px; margin-right:10px; cursor:pointer; accent-color:#856404;">
+                    <label for="loc-req-manager" style="margin:0; font-weight:600; color:#856404; cursor:pointer; font-size:0.9em;">Requiere Encargado Físico</label>
+                </div>
             </div>
             
             <div class="quick-build-box">
@@ -330,6 +342,17 @@
     </div>
     
     <div id="tab-schedule" class="tab-content">
+        <div class="panel" style="margin-bottom:20px;">
+            <h3 style="margin-top: 0; color: #5d7aa9; display: flex; align-items: center; gap: 8px;"><span class="material-symbols-outlined">admin_panel_settings</span> Encargados del Día (Generales)</h3>
+            <p style="color: #666; font-size: 0.95em;">Asigna quién es el contacto principal para cada día de la semana. Esta persona no necesita estar en un turno físico.</p>
+            <div id="day-managers-container" style="display:flex; gap:10px; flex-wrap:wrap;">
+                <!-- Filled dynamically -->
+            </div>
+            <div style="text-align:right; margin-top:15px;">
+                <button onclick="saveDayManagers()" class="btn-action btn-success">Guardar Encargados del Día</button>
+            </div>
+        </div>
+
         <div class="panel" style="background:#fcfcfc;">
             <h3 style="margin-top: 0; color: #5d7aa9; display: flex; align-items: center; gap: 8px;"><span class="material-symbols-outlined">auto_awesome</span> Gestión del Programa Mensual</h3>
             <p style="color: #666; font-size: 0.95em;">Genera un mes nuevo automáticamente o edita uno que ya fue publicado.</p>

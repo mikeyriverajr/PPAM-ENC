@@ -15,51 +15,6 @@ firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
 // ==========================================
-// BACKGROUND PUSH NOTIFICATIONS
-// ==========================================
-messaging.onBackgroundMessage((payload) => {
-    console.log('[service-worker.js] Mensaje recibido en segundo plano', payload);
-
-    // Extraer datos del payload enviado desde Cloud Functions
-    const notificationTitle = payload.notification.title || "PPAM Encarnación";
-    const notificationOptions = {
-        body: payload.notification.body || "Tienes una nueva notificación de turno.",
-        icon: './icon-512.png',
-        badge: './icon.png',
-        tag: 'ppam-turnos', // Evita que se acumulen mil notificaciones iguales
-        data: {
-            url: '/PPAM-ENC/beta.html' // Abre esta URL al tocar la notificación
-        }
-    };
-
-    self.registration.showNotification(notificationTitle, notificationOptions);
-});
-
-self.addEventListener('notificationclick', function(event) {
-    console.log('[ServiceWorker] Notificación clickeada', event.notification);
-    event.notification.close();
-
-    // Redirige al publicador a la app beta cuando toca la notificación
-    const urlToOpen = event.notification.data.url || '/PPAM-ENC/beta.html';
-
-    event.waitUntil(
-        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-            // Si la app ya está abierta en alguna pestaña, simplemente ponla al frente
-            for (let i = 0; i < windowClients.length; i++) {
-                const client = windowClients[i];
-                if (client.url.includes('beta.html') && 'focus' in client) {
-                    return client.focus();
-                }
-            }
-            // Si la app está cerrada completamente, ábrela
-            if (clients.openWindow) {
-                return clients.openWindow(urlToOpen);
-            }
-        })
-    );
-});
-
-// ==========================================
 // PWA CACHING LOGIC
 // ==========================================
 const CACHE_NAME = 'ppam-schedule-v13';

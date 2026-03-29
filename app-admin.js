@@ -610,7 +610,7 @@ async function loadDayManagers() {
             container.appendChild(div);
             document.getElementById(`day-manager-${day}`).value = currentId;
         });
-    } catch(e) { container.innerHTML = '<p style="color:red;">Error al cargar encargados del día.</p>'; }
+  } catch(e) { container.innerHTML = '<p style="color:red;">Error exacto: ' + e.message + '</p>'; }
 }
 
 async function saveDayManagers() {

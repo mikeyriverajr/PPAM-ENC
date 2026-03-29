@@ -143,7 +143,7 @@ async function notifyUsers(userIds, title, body) {
                     webpush: {
                         notification: {
                             icon: './icon-512.png',
-                            badge: './icon.png',
+                            // badge: './icon.png', // Omitted to prevent Android white square bug
                             click_action: 'https://mikeyriverajr.github.io/PPAM-ENC/beta.html'
                         }
                     }

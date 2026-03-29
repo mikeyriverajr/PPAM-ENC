@@ -591,7 +591,7 @@ async function loadDayManagers() {
         const settings = settingsDoc.exists ? settingsDoc.data() : {};
 
         let pubOptions = `<option value="">Ninguno</option>`;
-        const sortedPubs = [...allPublishers].sort((a,b) => a.firstName.localeCompare(b.firstName));
+        const sortedPubs = [...allPublishers].sort((a,b) => (a.firstName || '').localeCompare(b.firstName || ''));
         sortedPubs.forEach(p => pubOptions += `<option value="${p.id}">${p.firstName} ${p.lastName}</option>`);
 
         const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -894,7 +894,7 @@ function openShiftEditModal(shiftIndex) {
   let traineeHtml = `<optgroup label="⚠️ En Entrenamiento (Asignar Manualmente)">`; 
   let unavailableHtml = `<optgroup label="❌ No Disponibles / Ausentes">`;
   
-  const sortedPubs = [...allPublishers].sort((a,b) => a.firstName.localeCompare(b.firstName));
+  const sortedPubs = [...allPublishers].sort((a,b) => (a.firstName || '').localeCompare(b.firstName || ''));
   sortedPubs.forEach(pub => {
     if(shift.assigned.find(p => p.id === pub.id)) return;
     

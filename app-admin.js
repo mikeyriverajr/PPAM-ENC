@@ -579,7 +579,7 @@ async function checkMonthStatus() {
         if (!snap.empty) { btnGen.style.display = 'none'; btnLoad.style.display = 'inline-flex'; containerDel.style.display = 'block';
         } else { btnGen.style.display = 'inline-flex'; btnLoad.style.display = 'none'; containerDel.style.display = 'none'; }
     } catch(e) { console.error("Error:", e); }
-
+    
     await loadDayManagers();
 }
 
@@ -589,14 +589,14 @@ async function loadDayManagers() {
     try {
         const settingsDoc = await db.collection('settings').doc('dayManagers').get();
         const settings = settingsDoc.exists ? settingsDoc.data() : {};
-
+        
         let pubOptions = `<option value="">Ninguno</option>`;
         const sortedPubs = [...allPublishers].sort((a,b) => (a.firstName || '').localeCompare(b.firstName || ''));
         sortedPubs.forEach(p => pubOptions += `<option value="${p.id}">${p.firstName} ${p.lastName}</option>`);
 
         const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
         container.innerHTML = '';
-
+        
         days.forEach(day => {
             const currentId = settings[day] || '';
             const div = document.createElement('div');
@@ -610,7 +610,7 @@ async function loadDayManagers() {
             container.appendChild(div);
             document.getElementById(`day-manager-${day}`).value = currentId;
         });
-    } catch(e) { container.innerHTML = '<p style="color:red;">Error al cargar encargados del día.</p>'; }
+  } catch(e) { container.innerHTML = '<p style="color:red;">Error exacto: ' + e.message + '</p>'; }
 }
 
 async function saveDayManagers() {
@@ -619,7 +619,7 @@ async function saveDayManagers() {
     days.forEach(day => {
         data[day] = document.getElementById(`day-manager-${day}`).value;
     });
-
+    
     try {
         await db.collection('settings').doc('dayManagers').set(data, {merge: true});
         showToast('Encargados del día guardados exitosamente.');
@@ -707,7 +707,7 @@ async function generateDraft() {
                 assignedCounts[manager.id] = (assignedCounts[manager.id] || 0) + 1;
                 if(!assignedDates[manager.id]) assignedDates[manager.id] = new Set();
                 assignedDates[manager.id].add(task.dateString);
-
+                
                 // If they have a hard pair, pull them in too if possible
                 if (manager.hardPair && manager.partner && task.assigned.length < task.capacity) {
                     const partner = allPublishers.find(p => p.id === manager.partner);
@@ -836,7 +836,7 @@ function renderPreviewTable() {
   draftSchedule.forEach((shift, index) => {
     let namesHtml = '';
     let hasManager = false;
-
+    
     shift.assigned.forEach(p => {
         const warn = p.status === 'Entrenamiento' ? `<span class="material-symbols-outlined" style="font-size:14px; color:#ffc107; vertical-align:-2px;" title="En Entrenamiento">warning</span>` : '';
         const mgrBadge = p.isShiftManager ? `<span class="material-symbols-outlined" style="font-size:14px; color:#dc3545; vertical-align:-2px;" title="Encargado Físico">local_police</span>` : '';
@@ -976,10 +976,10 @@ async function publishSchedule() {
   try {
     for (const shift of draftSchedule) {
       if (shift.docId) { 
-          await db.collection('shifts').doc(shift.docId).update({
+          await db.collection('shifts').doc(shift.docId).update({ 
               participants: shift.assigned.map(p => p.id),
               requiresManager: shift.requiresManager || false
-          });
+          }); 
       } else { 
           await db.collection('shifts').add({ 
               date: shift.dateString, 

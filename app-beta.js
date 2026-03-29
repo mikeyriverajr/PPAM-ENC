@@ -93,12 +93,12 @@ auth.onAuthStateChanged(async user => {
             document.getElementById('app-content').style.display = 'block';
 
             const pubSnap = await db.collection('publishers').get();
-            pubSnap.forEach(d => { 
+            pubSnap.forEach(d => {
                 publisherCache[d.id] = {
                     name: `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(),
                     phone: d.data().phone || '',
                     isShiftManager: d.data().isShiftManager || false
-                }; 
+                };
             });
 
             document.getElementById('header-user-name').innerText = `| ${publisherCache[currentUserPublisherId]?.name || ""}`;
@@ -159,12 +159,12 @@ async function submitForcedPassword() {
       document.getElementById('force-password-modal').style.display = 'none';
       document.getElementById('app-content').style.display = 'block';
       const pubSnap = await db.collection('publishers').get();
-      pubSnap.forEach(d => { 
+      pubSnap.forEach(d => {
           publisherCache[d.id] = {
               name: `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(),
               phone: d.data().phone || '',
               isShiftManager: d.data().isShiftManager || false
-          }; 
+          };
       });
       document.getElementById('header-user-name').innerText = `| ${publisherCache[currentUserPublisherId]?.name || ""}`;
 
@@ -301,7 +301,7 @@ async function loadDayManagers() {
 
 function getShiftContactHtml(shift) {
     let contactHtml = '';
-    
+
     // Check if local manager is required and present
     if (shift.requiresManager) {
         const localManagerId = (shift.participants || []).find(id => publisherCache[id]?.isShiftManager);
@@ -316,12 +316,12 @@ function getShiftContactHtml(shift) {
             return contactHtml; // If local manager found, return it and stop.
         }
     }
-    
+
     // If no local manager required or found, fallback to Day Manager
     const [y, m, d] = shift.date.split('-');
     const dateObj = new Date(parseInt(y), parseInt(m)-1, parseInt(d));
     const dayName = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][dateObj.getDay()];
-    
+
     const dayManagerId = dayManagersCache[dayName];
     if (dayManagerId && publisherCache[dayManagerId]) {
         const mgr = publisherCache[dayManagerId];
@@ -332,7 +332,7 @@ function getShiftContactHtml(shift) {
             contactHtml = `<span style="display:inline-flex; align-items:center; gap:5px; background:#f0f0f0; color:#555; padding:4px 10px; border-radius:12px; font-size:0.85em; margin-top:5px; font-weight:600;"><span class="material-symbols-outlined" style="font-size:14px;">support_agent</span> Encargado: ${mgr.name}</span>`;
         }
     }
-    
+
     return contactHtml;
 }
 

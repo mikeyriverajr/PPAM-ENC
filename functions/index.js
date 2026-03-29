@@ -142,8 +142,8 @@ async function notifyUsers(userIds, title, body) {
                     token: token,
                     webpush: {
                         notification: {
-                            icon: './icon-512.png',
-                            // badge: './icon.png', // Omitted to prevent Android white square bug
+                            icon: 'https://mikeyriverajr.github.io/PPAM-ENC/icon-512.png',
+                            badge: 'https://mikeyriverajr.github.io/PPAM-ENC/badge.png', // Explicit monochrome icon for Android PWA status bar
                             click_action: 'https://mikeyriverajr.github.io/PPAM-ENC/beta.html'
                         }
                     }

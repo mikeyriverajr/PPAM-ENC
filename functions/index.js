@@ -335,7 +335,7 @@ exports.sendDailyReminders = onSchedule({
                 `;
 
                 const mailOptions = {
-                    from: `"PPAM Cerebro" <${gmailEmail || 'no-reply@ppam.com'}>`,
+                    from: `"PPAM Encarnación" <${gmailEmail || 'no-reply@ppam.com'}>`,
                     to: userData.notificationEmail,
                     subject: "Recordatorio de Turno (Mañana)",
                     html: emailHtml

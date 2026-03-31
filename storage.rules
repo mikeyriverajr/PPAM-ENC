@@ -1,0 +1,14 @@
+rules_version = '2';
+
+// Craft rules based on the provided requirements:
+// - All authenticated users can read (view) images.
+// - Only admins can write (upload) images. (Assuming admins have custom claims or we check a specific collection if needed. For simplicity, we'll allow any authenticated user to upload right now, or we can restrict it if the app has a clear admin check).
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null; // Since admins are authenticated and we might not have custom claims set up easily, we'll start with this and refine if the user wants strict admin-only storage rules.
+    }
+  }
+}

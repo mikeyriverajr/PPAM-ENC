@@ -1,4 +1,5 @@
 const functions = require('firebase-functions/v1');
+const { onSchedule } = require('firebase-functions/v2/scheduler');
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
 admin.initializeApp();
@@ -218,3 +219,138 @@ exports.updateShiftLocations = functions.firestore
         console.log(`[CEREBRO] ✅ Nombres de ubicación actualizados en todos los turnos futuros.`);
         return null;
     });
+
+exports.sendDailyReminders = onSchedule({
+    schedule: "0 8 * * *",
+    timeZone: "America/Asuncion",
+    timeoutSeconds: 300 // 5 minutes just in case
+}, async (event) => {
+    const db = admin.firestore();
+
+    // 1. Calculate Tomorrow's Date in Asuncion Timezone
+    // We want the literal YYYY-MM-DD string for tomorrow
+    const now = new Date();
+    // Use Intl.DateTimeFormat to get the parts in the specific timezone
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Asuncion',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    });
+
+    // Add 24 hours to 'now' to get tomorrow
+    now.setDate(now.getDate() + 1);
+    const tomorrowStr = formatter.format(now); // en-CA format is YYYY-MM-DD naturally
+
+    console.log(`[CEREBRO] Ejecutando recordatorios para el día: ${tomorrowStr}`);
+
+    // 2. Query Shifts for Tomorrow
+    const shiftsRef = db.collection('shifts');
+    const snapshot = await shiftsRef.where('date', '==', tomorrowStr).get();
+
+    if (snapshot.empty) {
+        console.log('[CEREBRO] No hay turnos programados para mañana.');
+        return null;
+    }
+
+    console.log(`[CEREBRO] Encontrados ${snapshot.size} turnos para mañana.`);
+
+    const emailPromises = [];
+    const pushPromises = [];
+
+    // Configure Email Transporter
+    const gmailEmail = process.env.GMAIL_EMAIL;
+    const gmailPassword = process.env.GMAIL_PASSWORD;
+    let transporter = null;
+    if (gmailEmail && gmailPassword) {
+        transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: gmailEmail,
+                pass: gmailPassword
+            }
+        });
+    } else {
+        console.log("[CEREBRO] ⚠️ Credenciales de Gmail no configuradas en variables de entorno. Omitiendo recordatorios por email.");
+    }
+
+    for (const doc of snapshot.docs) {
+        const shiftData = doc.data();
+        const participants = shiftData.participants || [];
+
+        for (const uid of participants) {
+            if (!uid || uid === "Disponible") continue;
+
+            // Fetch User
+            const userDoc = await db.collection('publishers').doc(uid).get();
+            if (!userDoc.exists) continue;
+
+            const userData = userDoc.data();
+            const locationName = shiftData.location || 'Local';
+            const timeSlot = shiftData.time || '--:-- a --:--';
+
+            const title = "Recordatorio de Turno";
+            const body = `Hola ${userData.firstName}, recuerda que tienes un turno mañana en ${locationName} de ${timeSlot}.`;
+
+            // 1. Push Notification
+            if (userData.fcmToken) {
+                const message = {
+                    notification: { title, body },
+                    token: userData.fcmToken,
+                    webpush: {
+                        notification: {
+                            icon: 'https://mikeyriverajr.github.io/PPAM-ENC/icon-512.png',
+                            badge: 'https://mikeyriverajr.github.io/PPAM-ENC/badge.png',
+                            click_action: 'https://mikeyriverajr.github.io/PPAM-ENC/beta.html'
+                        }
+                    }
+                };
+                pushPromises.push(
+                    admin.messaging().send(message).catch(err => {
+                        console.error(`[CEREBRO] ❌ Error enviando Push recordatorio a ${uid}:`, err);
+                        // Clean up inactive tokens
+                        if (err.code === 'messaging/invalid-registration-token' || err.code === 'messaging/registration-token-not-registered') {
+                             db.collection('publishers').doc(uid).update({ fcmToken: admin.firestore.FieldValue.delete() });
+                        }
+                    })
+                );
+            }
+
+            // 2. Email Notification
+            if (transporter && userData.emailNotificationsEnabled && userData.notificationEmail) {
+                const emailHtml = `
+                <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4; border-radius: 5px;">
+                  <h2 style="color: #333;">📅 Recordatorio de Turno</h2>
+                  <p>Hola <strong>${userData.firstName}</strong>,</p>
+                  <p>Este es un recordatorio de que tienes un turno programado para mañana.</p>
+                  <table style="width: 100%; max-width: 400px; margin-top: 20px; border-collapse: collapse; background-color: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
+                    <tr><td style="padding: 10px; border-bottom: 1px solid #ddd;"><strong>Ubicación:</strong></td><td style="padding: 10px; border-bottom: 1px solid #ddd;">${locationName}</td></tr>
+                    <tr><td style="padding: 10px; border-bottom: 1px solid #ddd;"><strong>Horario:</strong></td><td style="padding: 10px; border-bottom: 1px solid #ddd;">${timeSlot}</td></tr>
+                    <tr><td style="padding: 10px;"><strong>Fecha:</strong></td><td style="padding: 10px;">Mañana (${tomorrowStr})</td></tr>
+                  </table>
+                  <p style="margin-top: 20px;">
+                    <a href="https://mikeyriverajr.github.io/PPAM-ENC/beta.html" style="background-color: #5d7aa9; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Abrir Aplicación</a>
+                  </p>
+                </div>
+                `;
+
+                const mailOptions = {
+                    from: `"PPAM Encarnación" <${gmailEmail || 'no-reply@ppam.com'}>`,
+                    to: userData.notificationEmail,
+                    subject: "Recordatorio de Turno (Mañana)",
+                    html: emailHtml
+                };
+
+                emailPromises.push(
+                    transporter.sendMail(mailOptions).catch(err => {
+                        console.error(`[CEREBRO] ❌ Error enviando Email recordatorio a ${uid}:`, err);
+                    })
+                );
+            }
+        }
+    }
+
+    await Promise.all([...pushPromises, ...emailPromises]);
+    console.log(`[CEREBRO] ✅ Recordatorios procesados. Push: ${pushPromises.length}, Emails: ${emailPromises.length}`);
+    return null;
+});

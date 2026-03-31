@@ -362,7 +362,10 @@ function renderAllShifts(shifts) {
         <h4 class="shift-card-title"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px; color: #5d7aa9;">event</span>${formatSpanishDate(shift.date)}</h4>
         <span class="shift-card-time"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px; color: #666;">schedule</span>${shift.time}</span>
       </div>
-      <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545;">location_on</span> <strong>${shift.location}</strong></p>
+      <p class="shift-card-detail" style="display:flex; justify-content:space-between; align-items:center;">
+          <span><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545; vertical-align:-3px;">location_on</span> <strong>${shift.location}</strong></span>
+          <button onclick="openLocationInfoModal('${shift.locationId}', '${shift.location}')" style="background:none; border:none; color:#5d7aa9; font-size:0.9em; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:3px;"><span class="material-symbols-outlined" style="font-size:1.1em;">info</span> Info</button>
+      </p>
       <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> ${participantNames.join(', ')}</p>
       ${contactHtml}
     `;
@@ -413,7 +416,10 @@ async function loadMyShifts() {
           <h4 class="shift-card-title" style="color:#2c5282;"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">event</span>${formatSpanishDate(shift.date)}</h4>
           <span class="shift-card-time"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">schedule</span>${shift.time}</span>
         </div>
-        <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545;">location_on</span> <strong>${shift.location}</strong></p>
+        <p class="shift-card-detail" style="display:flex; justify-content:space-between; align-items:center;">
+          <span><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545; vertical-align:-3px;">location_on</span> <strong>${shift.location}</strong></span>
+          <button onclick="openLocationInfoModal('${shift.locationId}', '${shift.location}')" style="background:none; border:none; color:#2c5282; font-size:0.9em; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:3px;"><span class="material-symbols-outlined" style="font-size:1.1em;">info</span> Info</button>
+        </p>
         <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> Con: ${partnerText}</p>
         ${contactHtml}
         <div class="card-actions" style="margin-top: 15px; border-top: 1px solid #f0f0f0; padding-top: 10px;">
@@ -489,7 +495,10 @@ async function loadAvailableShifts() {
           <h4 class="shift-card-title" style="color:#28a745;"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">event</span>${formatSpanishDate(shift.date)}</h4>
           <span class="shift-card-time"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">schedule</span>${shift.time}</span>
         </div>
-        <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545;">location_on</span> <strong>${shift.location}</strong></p>
+        <p class="shift-card-detail" style="display:flex; justify-content:space-between; align-items:center;">
+          <span><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545; vertical-align:-3px;">location_on</span> <strong>${shift.location}</strong></span>
+          <button onclick="openLocationInfoModal('${shift.locationId}', '${shift.location}')" style="background:none; border:none; color:#28a745; font-size:0.9em; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:3px;"><span class="material-symbols-outlined" style="font-size:1.1em;">info</span> Info</button>
+        </p>
         <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> Actuales: ${names}</p>
         <p style="margin: 5px 0 0 0; font-size:0.85em; color:#666; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #28a745;">person_add</span> Lugares libres: <strong>${availableSpots}</strong></p>
         ${contactHtml}
@@ -787,3 +796,62 @@ async function saveProfile() {
     showToast("¡Perfil y ausencias actualizados con éxito!");
   } catch (error) { showToast("Error al guardar perfil.", "error"); }
 }
+
+// --- LOCATION INFO MODAL ---
+async function openLocationInfoModal(locationId, locationName) {
+    if(!locationId) { showToast("No se encontró información de la ubicación."); return; }
+
+    document.getElementById('location-info-modal').style.display = 'flex';
+    document.getElementById('info-modal-title').innerText = locationName || 'Información de Ubicación';
+    document.getElementById('info-modal-map-btn-container').innerHTML = '<p style="color: #666;">Cargando...</p>';
+    document.getElementById('info-modal-content').innerHTML = '';
+
+    try {
+        const doc = await db.collection('locations').doc(locationId).get();
+        if(!doc.exists) {
+            document.getElementById('info-modal-content').innerHTML = '<p>La información de esta ubicación no está disponible.</p>';
+            document.getElementById('info-modal-map-btn-container').innerHTML = '';
+            return;
+        }
+
+        const loc = doc.data();
+
+        // Render Maps Button
+        if(loc.mapsUrl) {
+            document.getElementById('info-modal-map-btn-container').innerHTML = `
+                <a href="${loc.mapsUrl}" target="_blank" style="display: flex; align-items: center; justify-content: center; gap: 8px; background-color: #34a853; color: white; padding: 12px 20px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 1.05em; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    <span class="material-symbols-outlined">map</span> Abrir en Google Maps
+                </a>
+            `;
+        } else {
+             document.getElementById('info-modal-map-btn-container').innerHTML = '';
+        }
+
+        // Render Info HTML
+        if(loc.infoHtml && loc.infoHtml.trim() !== '') {
+            document.getElementById('info-modal-content').innerHTML = loc.infoHtml;
+
+            // Adjust any images in the quill HTML to be responsive
+            const imgs = document.getElementById('info-modal-content').querySelectorAll('img');
+            imgs.forEach(img => {
+                img.style.maxWidth = '100%';
+                img.style.height = 'auto';
+                img.style.borderRadius = '8px';
+            });
+        } else {
+            document.getElementById('info-modal-content').innerHTML = '<p style="color: #666; font-style: italic;">No hay instrucciones adicionales para esta ubicación.</p>';
+        }
+
+    } catch(e) {
+        console.error("Error loading location info:", e);
+        document.getElementById('info-modal-content').innerHTML = '<p style="color: red;">Error al cargar la información.</p>';
+        document.getElementById('info-modal-map-btn-container').innerHTML = '';
+    }
+}
+
+function closeLocationInfoModal() {
+    document.getElementById('location-info-modal').style.display = 'none';
+}
+
+window.openLocationInfoModal = openLocationInfoModal;
+window.closeLocationInfoModal = closeLocationInfoModal;

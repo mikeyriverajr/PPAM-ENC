@@ -12,6 +12,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+const storage = firebase.storage();
 const secondaryApp = firebase.initializeApp(firebaseConfig, "Secondary");
 const secondaryAuth = secondaryApp.auth();
 
@@ -464,13 +465,16 @@ async function loadLocations() {
 }
 
 function openLocationModal() {
+  if(!quillEditor) initQuill();
   document.getElementById('location-modal').style.display = 'flex';
   document.getElementById('loc-id').value = ''; document.getElementById('loc-name').value = ''; 
   document.getElementById('loc-capacity').value = '2'; document.getElementById('loc-status').value = 'true';
+  document.getElementById('loc-maps-url').value = '';
   document.getElementById('loc-req-manager').checked = false;
   document.getElementById('loc-modal-title').innerText = 'Nueva Ubicación';
   document.getElementById('btn-delete-loc').style.display = 'none';
   document.getElementById('shifts-container').innerHTML = '';
+  if (quillEditor) quillEditor.root.innerHTML = '';
 }
 function closeLocationModal() { document.getElementById('location-modal').style.display = 'none'; }
 
@@ -523,12 +527,15 @@ async function saveLocation() {
   const capacity = parseInt(document.getElementById('loc-capacity').value) || 2;
   const isActive = document.getElementById('loc-status').value === 'true';
   const requiresManager = document.getElementById('loc-req-manager').checked;
+  const mapsUrl = document.getElementById('loc-maps-url').value.trim();
+  const infoHtml = quillEditor ? quillEditor.root.innerHTML.trim() : "";
+
   if (!name) { showToast("El nombre es obligatorio", "error"); return; }
   
   const templates = [];
   document.querySelectorAll('.shift-row').forEach(row => { templates.push({ day: row.querySelector('.shift-day').value, startTime: row.querySelector('.shift-start').value, endTime: row.querySelector('.shift-end').value }); });
   
-  const locationData = { name, capacity, isActive, requiresManager, templates };
+  const locationData = { name, capacity, isActive, requiresManager, mapsUrl, infoHtml, templates };
   try {
     if (id) await db.collection('locations').doc(id).update(locationData);
     else await db.collection('locations').add(locationData);
@@ -548,6 +555,10 @@ async function editLocation(id) {
     document.getElementById('loc-name').value = loc.name; 
     document.getElementById('loc-capacity').value = loc.capacity;
     document.getElementById('loc-status').value = loc.isActive !== false ? 'true' : 'false';
+    document.getElementById('loc-maps-url').value = loc.mapsUrl || '';
+    if (quillEditor && loc.infoHtml) {
+        quillEditor.clipboard.dangerouslyPasteHTML(loc.infoHtml);
+    }
     document.getElementById('loc-req-manager').checked = loc.requiresManager || false;
     if (loc.templates && loc.templates.length > 0) loc.templates.forEach(t => addShiftRow(t.day, t.startTime, t.endTime));
   } catch (error) { showToast('Error al cargar ubicación.', "error"); }
@@ -1064,4 +1075,103 @@ async function saveManualShift() {
     } catch (error) {
         showToast("Error al añadir el turno: " + error.message, "error");
     }
+}
+
+// Initialize Quill Editor
+let quillEditor = null;
+function initQuill() {
+    if (!quillEditor) {
+        quillEditor = new Quill('#loc-editor-container', {
+            theme: 'snow',
+            modules: {
+                toolbar: {
+                    container: [
+                        ['bold', 'italic', 'underline'],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        ['link', 'image'],
+                        ['clean']
+                    ],
+                    handlers: {
+                        image: imageHandler
+                    }
+                }
+            },
+            placeholder: 'Escribe instrucciones, FAQ, o adjunta imágenes...'
+        });
+    }
+}
+document.addEventListener('DOMContentLoaded', () => {
+   // Wait for DOM to load before init
+   setTimeout(initQuill, 500);
+});
+
+window.initQuill = initQuill;
+
+// --- IMAGE HANDLING & COMPRESSION ---
+function imageHandler() {
+    const input = document.createElement('input');
+    input.setAttribute('type', 'file');
+    input.setAttribute('accept', 'image/*');
+    input.click();
+
+    input.onchange = async () => {
+        const file = input.files[0];
+        if (!file) return;
+
+        showToast("Comprimiendo imagen...", "info");
+        try {
+            // 1. Compress Image (Canvas)
+            const compressedBlob = await compressImage(file, 800); // max width 800px
+
+            // 2. Upload to Firebase Storage
+            showToast("Subiendo imagen...", "info");
+            const storageRef = storage.ref();
+            const fileName = `locations/${Date.now()}_${file.name}`;
+            const imageRef = storageRef.child(fileName);
+
+            await imageRef.put(compressedBlob);
+            const downloadUrl = await imageRef.getDownloadURL();
+
+            // 3. Insert into Quill Editor
+            const range = quillEditor.getSelection();
+            quillEditor.insertEmbed(range.index, 'image', downloadUrl);
+            showToast("Imagen subida con éxito.");
+        } catch (error) {
+            console.error("Error al procesar la imagen:", error);
+            showToast("Error al subir la imagen.", "error");
+        }
+    };
+}
+
+function compressImage(file, maxWidth) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = event => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                if (width > maxWidth) {
+                    height = Math.round((height *= maxWidth / width));
+                    width = maxWidth;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Compress to JPEG with 0.7 quality
+                canvas.toBlob((blob) => {
+                    resolve(blob);
+                }, 'image/jpeg', 0.7);
+            };
+            img.onerror = error => reject(error);
+        };
+        reader.onerror = error => reject(error);
+    });
 }

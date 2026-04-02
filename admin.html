@@ -369,36 +369,25 @@
         </div>
 
         <div class="panel" style="background:#fcfcfc;">
-            <h3 style="margin-top: 0; color: #5d7aa9; display: flex; align-items: center; gap: 8px;"><span class="material-symbols-outlined">edit_calendar</span> Gestión de Turnos Publicados</h3>
-            <p style="color: #666; font-size: 0.95em;">Edita o elimina un mes completo que ya está publicado en el calendario en vivo.</p>
+            <h3 style="margin-top: 0; color: #5d7aa9; display: flex; align-items: center; gap: 8px;"><span class="material-symbols-outlined">filter_1</span> Paso 1: Modificar Turnos Existentes</h3>
+            <p style="color: #666; font-size: 0.95em;">Trae un mes completo a la mesa de trabajo para editarlo, o elimínalo permanentemente del calendario en vivo.</p>
             
             <div class="form-group" style="max-width: 400px; margin-top: 15px;">
-                <label>Seleccionar Mes</label>
+                <label>Seleccionar Mes Publicado</label>
                 <select id="gen-month">
-                    <option value="2026-01">Enero 2026</option>
-                    <option value="2026-02">Febrero 2026</option>
-                    <option value="2026-03">Marzo 2026</option>
-                    <option value="2026-04">Abril 2026</option>
-                    <option value="2026-05">Mayo 2026</option>
-                    <option value="2026-06">Junio 2026</option>
-                    <option value="2026-07">Julio 2026</option>
-                    <option value="2026-08">Agosto 2026</option>
-                    <option value="2026-09">Septiembre 2026</option>
-                    <option value="2026-10">Octubre 2026</option>
-                    <option value="2026-11">Noviembre 2026</option>
-                    <option value="2026-12">Diciembre 2026</option>
+                    <option value="">Cargando...</option>
                 </select>
             </div>
             
             <div style="display:flex; gap:15px; margin-top:15px; flex-wrap: wrap;">
-                <button onclick="loadPublishedMonth()" class="btn-action btn-info" style="flex:1; min-width: 200px;"><span class="material-symbols-outlined">download</span> Cargar a Borrador</button>
-                <button onclick="deletePublishedMonth()" class="btn-action btn-danger" style="flex:1; min-width: 200px;"><span class="material-symbols-outlined">delete_forever</span> Eliminar Mes Completo</button>
+                <button onclick="loadPublishedMonth()" class="btn-action btn-info" style="flex:1; min-width: 200px;"><span class="material-symbols-outlined">download</span> Traer a la mesa de trabajo</button>
+                <button onclick="deletePublishedMonth()" class="btn-action btn-danger" style="flex:1; min-width: 200px;"><span class="material-symbols-outlined">delete_forever</span> Eliminar del calendario</button>
             </div>
         </div>
 
         <div class="panel" style="background:#fcfcfc; margin-top: 25px;">
-            <h3 style="margin-top: 0; color: #5d7aa9; display: flex; align-items: center; gap: 8px;"><span class="material-symbols-outlined">auto_awesome</span> Generador de Turnos (Borrador)</h3>
-            <p style="color: #666; font-size: 0.95em;">Selecciona el rango de fechas y las ubicaciones para generar un borrador. El borrador se guarda automáticamente en la nube y puedes ir agregando más fechas poco a poco antes de publicarlo.</p>
+            <h3 style="margin-top: 0; color: #5d7aa9; display: flex; align-items: center; gap: 8px;"><span class="material-symbols-outlined">filter_2</span> Paso 2: Crear Turnos Nuevos</h3>
+            <p style="color: #666; font-size: 0.95em;">Genera nuevos turnos masivamente y envíalos a la mesa de trabajo. (No se publicarán hasta el Paso 3).</p>
             
             <div style="display:flex; gap:15px; margin-top: 20px; flex-wrap: wrap;">
                 <div class="form-group" style="flex:1; min-width: 150px;">
@@ -418,15 +407,15 @@
                 </div>
             </div>
 
-            <div style="display:flex; gap:15px; margin-top:20px; flex-wrap: wrap;">
-                <button id="btn-gen-draft" onclick="generateDraft()" class="btn-action btn-primary" style="flex:1; min-width: 200px; padding: 12px; font-size: 1em;"><span class="material-symbols-outlined">magic_button</span> Añadir al Borrador</button>
+            <div style="margin-top: 25px;">
+                <button id="btn-gen-draft" onclick="generateDraft()" class="btn-action btn-primary" style="width:100%; padding: 12px; font-size: 1.05em;"><span class="material-symbols-outlined">magic_button</span> Añadir a la mesa de trabajo</button>
             </div>
         </div>
         
-        <div id="schedule-preview-container" class="panel" style="display:none; margin-top:25px;">
+        <div id="schedule-preview-container" class="panel" style="display:none; margin-top:25px; border: 2px dashed #5d7aa9; background: #f4f7fb;">
             <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom: 15px;">
-                <h3 style="margin:0; color:#333;">Vista Previa del Programa</h3>
-                <span style="font-size: 0.85em; color: #666;">Haz clic en 'Editar' para modificar manualmente.</span>
+                <h3 style="margin:0; color:#5d7aa9; display: flex; align-items: center; gap: 8px;"><span class="material-symbols-outlined">filter_3</span> Paso 3: Mesa de Trabajo (Borrador)</h3>
+                <span style="font-size: 0.85em; color: #666;">Revisa y ajusta antes de guardar. Los cambios hechos aquí no son públicos hasta que confirmes.</span>
             </div>
 
             <div style="text-align: right; margin-bottom: 15px;">
@@ -439,8 +428,8 @@
                 <table id="preview-table"><thead id="preview-head"></thead><tbody id="preview-body"></tbody></table>
             </div>
             <div style="margin-top:25px; text-align:right; display:flex; justify-content:space-between;">
-               <button id="btn-clear-draft" onclick="clearDraft()" class="btn-action btn-danger" style="padding:12px 30px; font-size: 1em;"><span class="material-symbols-outlined">delete_sweep</span> Limpiar Borrador</button>
-               <button id="btn-publish-bottom" onclick="publishSchedule()" class="btn-action btn-success" style="padding:12px 30px; font-size: 1em;"><span class="material-symbols-outlined">cloud_upload</span> Guardar y Publicar</button>
+               <button id="btn-clear-draft" onclick="clearDraft()" class="btn-action btn-danger" style="padding:12px 30px; font-size: 1em;"><span class="material-symbols-outlined">delete_sweep</span> Descartar todo</button>
+               <button id="btn-publish-bottom" onclick="publishSchedule()" class="btn-action btn-success" style="padding:12px 30px; font-size: 1em;"><span class="material-symbols-outlined">cloud_upload</span> Guardar en Calendario Oficial</button>
             </div>
         </div>
     </div>

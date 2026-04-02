@@ -441,6 +441,12 @@ function filterPublishers() {
 // ==========================================
 // TAB 2: LOCATIONS (QUICK BUILDER FIX)
 // ==========================================
+// Initialize draft listener when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    // Wait slightly to ensure allPublishers is loaded first, though ideally it should be chained.
+    setTimeout(initDraftListener, 1000);
+});
+
 async function loadLocations() {
   const listDiv = document.getElementById('locations-list');
   listDiv.innerHTML = '<p style="color:#666; text-align:center;">Cargando ubicaciones...</p>';
@@ -448,6 +454,9 @@ async function loadLocations() {
     const snapshot = await db.collection('locations').get();
     if (snapshot.empty) { listDiv.innerHTML = '<p style="color:#666; text-align:center;">No hay ubicaciones registradas.</p>'; return; }
     listDiv.innerHTML = '';
+    const generatorLocsDiv = document.getElementById('generator-locations');
+    if (generatorLocsDiv) generatorLocsDiv.innerHTML = '';
+
     snapshot.forEach(doc => {
       const loc = doc.data();
       const card = document.createElement('div');
@@ -460,7 +469,22 @@ async function loadLocations() {
         <button onclick='editLocation("${doc.id}")' class="btn-action btn-primary">Editar</button>
       `;
       listDiv.appendChild(card);
+
+      // Populate Generator Checkboxes for active locations
+      if (loc.isActive !== false && generatorLocsDiv) {
+          const cbDiv = document.createElement('div');
+          cbDiv.style.cssText = "display:flex; align-items:center; gap:5px;";
+          cbDiv.innerHTML = `
+            <input type="checkbox" id="gen-loc-${doc.id}" value="${doc.id}" checked>
+            <label for="gen-loc-${doc.id}" style="font-weight:bold; cursor:pointer;">${loc.name}</label>
+          `;
+          generatorLocsDiv.appendChild(cbDiv);
+      }
     });
+
+    if(generatorLocsDiv && generatorLocsDiv.innerHTML === '') {
+        generatorLocsDiv.innerHTML = '<p style="color:#dc3545; font-size:0.9em; margin:0;">No hay ubicaciones activas disponibles.</p>';
+    }
   } catch (error) { listDiv.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar ubicaciones.</p>'; }
 }
 
@@ -579,17 +603,8 @@ async function deleteLocation() {
 let draftSchedule = []; 
 
 async function checkMonthStatus() {
-    const monthVal = document.getElementById('gen-month').value;
-    const btnGen = document.getElementById('btn-gen-draft');
-    const btnLoad = document.getElementById('btn-load-month');
-    const containerDel = document.getElementById('container-delete-month');
-    document.getElementById('schedule-preview-container').style.display = 'none';
-
-    try {
-        const snap = await db.collection('shifts').where('date', '>=', `${monthVal}-01`).where('date', '<=', `${monthVal}-31`).limit(1).get();
-        if (!snap.empty) { btnGen.style.display = 'none'; btnLoad.style.display = 'inline-flex'; containerDel.style.display = 'block';
-        } else { btnGen.style.display = 'inline-flex'; btnLoad.style.display = 'none'; containerDel.style.display = 'none'; }
-    } catch(e) { console.error("Error:", e); }
+    // The previous month selection logic was removed in favor of persistent drafts.
+    // We only need to load day managers when switching to this tab.
 
     await loadDayManagers();
 }
@@ -644,28 +659,58 @@ async function generateDraft() {
   btn.innerHTML = `<span class="material-symbols-outlined">hourglass_empty</span> Calculando...`; btn.disabled = true;
 
   try {
-    const monthVal = document.getElementById('gen-month').value; 
-    const [targetYearStr, targetMonthStr] = monthVal.split('-');
-    const targetYear = parseInt(targetYearStr);
-    const targetMonthIndex = parseInt(targetMonthStr) - 1; 
+    const startDateStr = document.getElementById('gen-start-date').value;
+    const endDateStr = document.getElementById('gen-end-date').value;
+
+    if (!startDateStr || !endDateStr) {
+        showToast("Selecciona la fecha de inicio y fin.", "error");
+        btn.innerHTML = `<span class="material-symbols-outlined">magic_button</span> Añadir al Borrador`; btn.disabled = false;
+        return;
+    }
+
+    const startDate = new Date(startDateStr + 'T00:00:00');
+    const endDate = new Date(endDateStr + 'T00:00:00');
+
+    if (startDate > endDate) {
+        showToast("La fecha de inicio no puede ser mayor a la de fin.", "error");
+        btn.innerHTML = `<span class="material-symbols-outlined">magic_button</span> Añadir al Borrador`; btn.disabled = false;
+        return;
+    }
+
+    // Get selected locations
+    const selectedLocIds = [];
+    document.querySelectorAll('#generator-locations input[type="checkbox"]:checked').forEach(cb => {
+        selectedLocIds.push(cb.value);
+    });
+
+    if (selectedLocIds.length === 0) {
+        showToast("Selecciona al menos una ubicación.", "error");
+        btn.innerHTML = `<span class="material-symbols-outlined">magic_button</span> Añadir al Borrador`; btn.disabled = false;
+        return;
+    }
 
     const locsSnap = await db.collection('locations').where('isActive', '==', true).get();
-    const locations = []; locsSnap.forEach(d => { let l=d.data(); l.id=d.id; locations.push(l); });
+    const locations = [];
+    locsSnap.forEach(d => {
+        if(selectedLocIds.includes(d.id)) {
+            let l=d.data(); l.id=d.id; locations.push(l);
+        }
+    });
 
-    const daysInMonth = new Date(targetYear, targetMonthIndex + 1, 0).getDate();
     const daysMap = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
     let shiftTasks = [];
 
-    for (let d = 1; d <= daysInMonth; d++) {
-      let dateObj = new Date(targetYear, targetMonthIndex, d);
-      let dayName = daysMap[dateObj.getDay()];
-      let dateString = formatDate(dateObj);
+    // Iterate through dates
+    let currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      let dayName = daysMap[currentDate.getDay()];
+      let dateString = formatDate(currentDate);
 
       locations.forEach(loc => {
         (loc.templates || []).forEach(t => {
           if (t.day === dayName) {
             shiftTasks.push({
-              docId: null, dateObj: dateObj, dateString: dateString, 
+              docId: null, dateObj: new Date(currentDate), dateString: dateString,
               location: loc.name, 
               locationId: loc.id, 
               requiresManager: loc.requiresManager || false,
@@ -677,6 +722,8 @@ async function generateDraft() {
           }
         });
       });
+      // Move to next day
+      currentDate.setDate(currentDate.getDate() + 1);
     }
 
     allPublishers.forEach(pub => {
@@ -763,78 +810,120 @@ async function generateDraft() {
       });
     });
 
-    draftSchedule = shiftTasks.sort((a,b) => a.dateObj - b.dateObj); 
-    renderPreviewTable();
-    showToast("Borrador generado. Revisa y haz clic en Guardar.");
+    const finalShifts = shiftTasks.sort((a,b) => a.dateObj - b.dateObj);
+
+    // Save to Firestore draft_shifts collection using a chunked Batch
+    const draftRef = db.collection('draft_shifts');
+    const chunks = [];
+    let currentBatch = db.batch();
+    let currentCount = 0;
+
+    finalShifts.forEach(shift => {
+        const docRef = draftRef.doc(); // Auto ID
+        const participantIds = [];
+        shift.assigned.forEach(p => participantIds.push(p.id));
+        while(participantIds.length < shift.capacity) { participantIds.push("Disponible"); }
+
+        currentBatch.set(docRef, {
+            date: shift.dateString,
+            location: shift.location,
+            locationId: shift.locationId,
+            time: shift.time,
+            capacity: shift.capacity,
+            participants: participantIds
+        });
+
+        currentCount++;
+        if (currentCount >= 490) {
+            chunks.push(currentBatch.commit());
+            currentBatch = db.batch();
+            currentCount = 0;
+        }
+    });
+
+    if (currentCount > 0) {
+        chunks.push(currentBatch.commit());
+    }
+
+    await Promise.all(chunks);
+    showToast("Turnos añadidos al borrador exitosamente.");
 
   } catch (error) { showToast("Error al generar: " + error.message, "error"); } 
-  finally { btn.innerHTML = `<span class="material-symbols-outlined">magic_button</span> 1. Generar Borrador Nuevo`; btn.disabled = false; }
+  finally { btn.innerHTML = `<span class="material-symbols-outlined">magic_button</span> Añadir al Borrador`; btn.disabled = false; }
 }
 
 async function loadPublishedMonth() {
   const monthVal = document.getElementById('gen-month').value; 
+  if (!monthVal) return;
   const startDate = `${monthVal}-01`;
   const endDate = `${monthVal}-31`;
 
   try {
-    const locsSnap = await db.collection('locations').get();
-    let locMap = {};
-    locsSnap.forEach(d => { locMap[d.data().name] = { id: d.id, requiresManager: d.data().requiresManager || false }; });
+    const isConfirmed = await showConfirm(`¿Estás seguro de cargar todo el mes de ${monthVal} al borrador?`, "Cargar a Borrador", "#0d6efd");
+    if (!isConfirmed) return;
+
+    showToast("Cargando turnos al borrador...", "info");
 
     const shiftsSnap = await db.collection('shifts').where('date', '>=', startDate).where('date', '<=', endDate).get();
     if (shiftsSnap.empty) { showToast("No hay turnos publicados para este mes.", "info"); return; }
-    draftSchedule = [];
     
+    // Process them into draft in chunks
+    const chunks = [];
+    let currentBatch = db.batch();
+    let currentCount = 0;
+
     shiftsSnap.forEach(doc => {
         const s = doc.data();
-        let assignedPubs = [];
-        (s.participants || []).forEach(pubId => {
-            let pubObj = allPublishers.find(p => p.id === pubId);
-            if (pubObj) assignedPubs.push(pubObj);
-        });
-        const [y, m, d] = s.date.split('-');
-        const dateObj = new Date(parseInt(y), parseInt(m)-1, parseInt(d));
-        const dayName = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][dateObj.getDay()];
+        const draftRef = db.collection('draft_shifts').doc(doc.id); // preserve ID
+        currentBatch.set(draftRef, s);
         
-        const locId = s.locationId || locMap[s.location]?.id;
-        
-        const availKey = `${locId}_${dayName}_${s.time.split('-')[0]}`;
-        let taskPool = [];
-        
-        allPublishers.forEach(pub => { if ((pub.availability || []).includes(availKey)) taskPool.push(pub); });
-        
-        const locRequiresManager = locMap[s.location]?.requiresManager || false;
-
-        draftSchedule.push({
-            docId: doc.id, dateObj: dateObj, dateString: s.date, 
-            location: s.location, locationId: locId, 
-            requiresManager: locRequiresManager,
-            time: s.time, capacity: s.capacity || 2, 
-            availKey: availKey, pool: taskPool, assigned: assignedPubs
-        });
+        currentCount++;
+        if (currentCount >= 490) {
+            chunks.push(currentBatch.commit());
+            currentBatch = db.batch();
+            currentCount = 0;
+        }
     });
-    draftSchedule.sort((a,b) => a.dateObj - b.dateObj);
-    renderPreviewTable();
-    showToast("Mes cargado correctamente.");
-  } catch (error) { showToast("Error al cargar: " + error.message, "error"); }
+
+    if (currentCount > 0) {
+        chunks.push(currentBatch.commit());
+    }
+
+    await Promise.all(chunks);
+    showToast("Mes cargado al borrador exitosamente.");
+  } catch(e) { showToast("Error cargando: " + e.message, "error"); }
 }
 
 async function deletePublishedMonth() {
   const monthVal = document.getElementById('gen-month').value; 
-  const isConfirmed = await showConfirm(`⚠️ PELIGRO: Estás a punto de ELIMINAR todo el mes de ${monthVal}.\n\nEsta acción no se puede deshacer y todos perderán sus asignaciones. ¿Eliminar mes?`, "Eliminar Todo el Mes", "#dc3545");
+  const isConfirmed = await showConfirm(`⚠️ PELIGRO: Estás a punto de ELIMINAR todo el mes de ${monthVal}.\n\nEsta acción no se puede deshacer y todos perderán sus asignaciones. ¿Eliminar mes en vivo?`, "Eliminar Todo el Mes", "#dc3545");
   if (!isConfirmed) return;
 
   try {
       const shiftsSnap = await db.collection('shifts').where('date', '>=', `${monthVal}-01`).where('date', '<=', `${monthVal}-31`).get();
       if (shiftsSnap.empty) { showToast("No hay turnos para eliminar en este mes.", "info"); return; }
       
-      const batch = db.batch();
-      shiftsSnap.forEach(doc => batch.delete(doc.ref));
-      await batch.commit();
-      
-      showToast("Mes eliminado con éxito.");
-      document.getElementById('schedule-preview-container').style.display = 'none';
-      draftSchedule = []; checkMonthStatus(); 
+      const chunks = [];
+      let currentBatch = db.batch();
+      let currentCount = 0;
+
+      shiftsSnap.forEach(doc => {
+          currentBatch.delete(doc.ref);
+          currentCount++;
+
+          if (currentCount >= 490) {
+              chunks.push(currentBatch.commit());
+              currentBatch = db.batch();
+              currentCount = 0;
+          }
+      });
+
+      if (currentCount > 0) {
+          chunks.push(currentBatch.commit());
+      }
+
+      await Promise.all(chunks);
+      showToast("Mes eliminado del calendario en vivo con éxito.");
   } catch(e) { showToast("Error al eliminar: " + e.message, "error"); }
 }
 
@@ -873,7 +962,12 @@ function renderPreviewTable() {
         <span style="font-size:0.85em; opacity: 0.8;">(${shift.assigned.length}/${shift.capacity})</span>
         ${warningHtml}
       </td>
-      <td style="width: 100px; text-align: right;"><button type="button" onclick="openShiftEditModal(${index})" class="btn-action btn-info"><span class="material-symbols-outlined" style="font-size:18px;">edit</span> Editar</button></td>
+      <td>
+        <div style="display:flex; gap: 5px;">
+          <button onclick="openShiftEditModal(${index})" class="btn-action btn-primary" style="padding: 6px 12px; font-size: 0.9em;"><span class="material-symbols-outlined" style="font-size:16px;">edit</span> Editar</button>
+          <button onclick="deleteDraftShift('${shift.docId}')" class="btn-action btn-danger" style="padding: 6px 12px; font-size: 0.9em;" title="Eliminar este turno"><span class="material-symbols-outlined" style="font-size:16px;">delete</span></button>
+        </div>
+      </td>
     `;
     tbody.appendChild(row);
   });
@@ -955,7 +1049,8 @@ async function manualAdd(shiftIndex) {
       if(!forceWarn) return; 
   }
   
-  shift.assigned.push(pub); renderPreviewTable(); openShiftEditModal(shiftIndex); 
+  shift.assigned.push(pub);
+  updateDraftShiftDb(shift);
 }
 
 async function manualRemove(shiftIndex, pubId) {
@@ -973,45 +1068,126 @@ async function manualRemove(shiftIndex, pubId) {
   }
   
   shift.assigned = shift.assigned.filter(p => p.id !== pubId);
-  renderPreviewTable(); openShiftEditModal(shiftIndex); 
+  updateDraftShiftDb(shift);
+}
+
+// --- DRAFT DB HELPERS ---
+async function updateDraftShiftDb(shiftObj) {
+    if(!shiftObj.docId) return;
+    const participantIds = [];
+    shiftObj.assigned.forEach(p => participantIds.push(p.id));
+    while(participantIds.length < shiftObj.capacity) { participantIds.push("Disponible"); }
+
+    try {
+        await db.collection('draft_shifts').doc(shiftObj.docId).update({ participants: participantIds });
+        showToast("Turno actualizado en borrador.", "info");
+        // We do NOT need to call renderPreviewTable() or openShiftEditModal() because the onSnapshot listener will do it automatically when it detects the DB change!
+        // We will just close the modal for a cleaner UX, or re-open it. Since it auto-updates, let's close it so the user sees the table refresh.
+        closeShiftEditModal();
+    } catch(e) {
+        showToast("Error actualizando turno.", "error");
+    }
+}
+
+async function deleteDraftShift(docId) {
+    if(!docId) return;
+    const confirmDelete = await showConfirm("¿Estás seguro de eliminar este turno del borrador?", "Eliminar Turno");
+    if(!confirmDelete) return;
+
+    try {
+        await db.collection('draft_shifts').doc(docId).delete();
+        showToast("Turno eliminado del borrador.");
+    } catch(e) {
+        showToast("Error eliminando turno.", "error");
+    }
 }
 
 async function publishSchedule() {
   if (draftSchedule.length === 0) return;
-  const isConfirmed = await showConfirm('¿Estás seguro de guardar y publicar este programa?', 'Guardar Programa', '#28a745');
+  const isConfirmed = await showConfirm('¿Estás seguro de guardar y publicar este programa? Esto añadirá los turnos del borrador al calendario en vivo.', 'Guardar Programa', '#28a745');
   if (!isConfirmed) return;
   
   const btn = document.getElementById('btn-publish-bottom'); 
   btn.innerHTML = `<span class="material-symbols-outlined">sync</span> Guardando...`; btn.disabled = true;
   
   try {
-    for (const shift of draftSchedule) {
-      if (shift.docId) { 
-          await db.collection('shifts').doc(shift.docId).update({
-              participants: shift.assigned.map(p => p.id),
-              requiresManager: shift.requiresManager || false
-          });
-      } else { 
-          await db.collection('shifts').add({ 
-              date: shift.dateString, 
-              location: shift.location, 
-              locationId: shift.locationId, 
-              requiresManager: shift.requiresManager || false,
-              time: shift.time, 
-              capacity: shift.capacity, 
-              participants: shift.assigned.map(p => p.id) 
-          }); 
-      }
+    // 1. Fetch current draft from DB to ensure we publish exactly what is saved
+    const draftSnap = await db.collection('draft_shifts').get();
+
+    // 2. Queue all draft shifts to be added to the live 'shifts' collection, grouped into chunks
+    const chunks = [];
+    let currentBatch = db.batch();
+    let currentCount = 0;
+
+    draftSnap.forEach(doc => {
+        const liveDocRef = db.collection('shifts').doc(); // New ID for live
+        const data = doc.data();
+        currentBatch.set(liveDocRef, data);
+        currentBatch.delete(doc.ref);
+
+        currentCount += 2; // Two operations: 1 set, 1 delete
+
+        // Firestore batch limit is 500 operations
+        if (currentCount >= 490) {
+            chunks.push(currentBatch.commit());
+            currentBatch = db.batch();
+            currentCount = 0;
+        }
+    });
+
+    // Commit the remaining operations
+    if (currentCount > 0) {
+        chunks.push(currentBatch.commit());
     }
-    showToast('¡Programa guardado y publicado exitosamente!'); 
+
+    // 4. Wait for all batch commits to complete
+    await Promise.all(chunks);
+
+    showToast('¡Borrador publicado exitosamente!');
     document.getElementById('schedule-preview-container').style.display = 'none';
-    draftSchedule = []; checkMonthStatus(); 
+    // The real-time listener will automatically empty the draft array and hide the UI
+    checkMonthStatus();
   } catch (error) { 
-      showToast("Error: " + error.message, "error"); 
+      showToast("Error publicando: " + error.message, "error");
   } finally { 
       btn.innerHTML = `<span class="material-symbols-outlined">cloud_upload</span> Guardar y Publicar`; btn.disabled = false; 
   }
 }
+
+async function clearDraft() {
+    if (draftSchedule.length === 0) return;
+    const isConfirmed = await showConfirm('¿Estás seguro de limpiar y eliminar todo el borrador?', 'Limpiar Borrador', '#dc3545');
+    if (!isConfirmed) return;
+
+    try {
+        const draftSnap = await db.collection('draft_shifts').get();
+
+        const chunks = [];
+        let currentBatch = db.batch();
+        let currentCount = 0;
+
+        draftSnap.forEach(doc => {
+            currentBatch.delete(doc.ref);
+            currentCount++;
+
+            if (currentCount >= 490) {
+                chunks.push(currentBatch.commit());
+                currentBatch = db.batch();
+                currentCount = 0;
+            }
+        });
+
+        if (currentCount > 0) {
+            chunks.push(currentBatch.commit());
+        }
+
+        await Promise.all(chunks);
+        showToast('Borrador eliminado.');
+    } catch(e) {
+        showToast("Error limpiando borrador.", "error");
+    }
+}
+window.clearDraft = clearDraft;
 
 // ==========================================
 // MANUAL SHIFT INJECTION
@@ -1173,5 +1349,56 @@ function compressImage(file, maxWidth) {
             img.onerror = error => reject(error);
         };
         reader.onerror = error => reject(error);
+    });
+}
+
+// --- DRAFT REAL-TIME LISTENER ---
+let draftUnsubscribe = null;
+
+async function initDraftListener() {
+    if (draftUnsubscribe) draftUnsubscribe();
+
+    // Fetch locations to know which ones require a manager
+    const locsSnap = await db.collection('locations').get();
+    const locMap = {};
+    locsSnap.forEach(d => { locMap[d.data().name] = { id: d.id, requiresManager: d.data().requiresManager || false }; });
+
+    draftUnsubscribe = db.collection('draft_shifts').orderBy('date', 'asc').onSnapshot(snapshot => {
+        draftSchedule = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            data.id = doc.id; // Keep the document ID
+
+            // Map the "participants" UID array back into the "assigned" object array expected by the UI
+            const assignedPubs = [];
+            (data.participants || []).forEach(uid => {
+                if (uid && uid !== "Disponible") {
+                    const pub = allPublishers.find(p => p.id === uid);
+                    if (pub) assignedPubs.push(pub);
+                }
+            });
+
+            const locRequiresManager = locMap[data.location]?.requiresManager || false;
+
+            draftSchedule.push({
+                docId: doc.id,
+                dateString: data.date,
+                location: data.location,
+                locationId: data.locationId,
+                time: data.time,
+                capacity: data.capacity,
+                assigned: assignedPubs,
+                requiresManager: locRequiresManager
+            });
+        });
+
+        if(draftSchedule.length > 0) {
+            document.getElementById('schedule-preview-container').style.display = 'block';
+            renderPreviewTable();
+        } else {
+            document.getElementById('schedule-preview-container').style.display = 'none';
+        }
+    }, error => {
+        console.error("Error fetching draft: ", error);
     });
 }

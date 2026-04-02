@@ -106,7 +106,10 @@ function switchAdminTab(tabId) {
   document.getElementById('tab-' + tabId).classList.add('active');
   if (tabId === 'locations') loadLocations();
   if (tabId === 'users') loadPublishers();
-  if (tabId === 'schedule') checkMonthStatus(); 
+  if (tabId === 'schedule') {
+    loadLocations();
+    checkMonthStatus();
+  }
 }
 
 // ==========================================
@@ -456,7 +459,7 @@ async function loadLocations() {
     listDiv.innerHTML = '';
     const generatorLocsDiv = document.getElementById('generator-locations');
     if (generatorLocsDiv) generatorLocsDiv.innerHTML = '';
-
+    
     snapshot.forEach(doc => {
       const loc = doc.data();
       const card = document.createElement('div');
@@ -469,7 +472,7 @@ async function loadLocations() {
         <button onclick='editLocation("${doc.id}")' class="btn-action btn-primary">Editar</button>
       `;
       listDiv.appendChild(card);
-
+      
       // Populate Generator Checkboxes for active locations
       if (loc.isActive !== false && generatorLocsDiv) {
           const cbDiv = document.createElement('div');
@@ -481,7 +484,7 @@ async function loadLocations() {
           generatorLocsDiv.appendChild(cbDiv);
       }
     });
-
+    
     if(generatorLocsDiv && generatorLocsDiv.innerHTML === '') {
         generatorLocsDiv.innerHTML = '<p style="color:#dc3545; font-size:0.9em; margin:0;">No hay ubicaciones activas disponibles.</p>';
     }
@@ -553,7 +556,7 @@ async function saveLocation() {
   const requiresManager = document.getElementById('loc-req-manager').checked;
   const mapsUrl = document.getElementById('loc-maps-url').value.trim();
   const infoHtml = quillEditor ? quillEditor.root.innerHTML.trim() : "";
-
+  
   if (!name) { showToast("El nombre es obligatorio", "error"); return; }
   
   const templates = [];
@@ -603,10 +606,50 @@ async function deleteLocation() {
 let draftSchedule = []; 
 
 async function checkMonthStatus() {
-    // The previous month selection logic was removed in favor of persistent drafts.
-    // We only need to load day managers when switching to this tab.
-
     await loadDayManagers();
+    await loadPublishedMonthsList();
+}
+
+async function loadPublishedMonthsList() {
+    const select = document.getElementById('gen-month');
+    if (!select) return;
+
+    select.innerHTML = '<option value="">Cargando meses publicados...</option>';
+    select.disabled = true;
+
+    try {
+        // Query to find distinct months that have shifts. Since we can't do distinct in Firestore easily, 
+        // we'll fetch all shifts or group them if there's a tracker. Alternatively, we just query limits.
+        // For efficiency, we will assume a reasonable window or fetch active shifts.
+        const shiftsSnap = await db.collection('shifts').orderBy('date', 'desc').get();
+        const monthsSet = new Set();
+        
+        shiftsSnap.forEach(doc => {
+            const dateStr = doc.data().date; // YYYY-MM-DD
+            if (dateStr) {
+                monthsSet.add(dateStr.substring(0, 7)); // YYYY-MM
+            }
+        });
+
+        const monthsArray = Array.from(monthsSet).sort().reverse();
+        
+        select.innerHTML = '';
+        if (monthsArray.length === 0) {
+            select.innerHTML = '<option value="">Ningún mes publicado</option>';
+        } else {
+            const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+            monthsArray.forEach(m => {
+                const [yyyy, mm] = m.split('-');
+                const name = `${monthNames[parseInt(mm)-1]} ${yyyy}`;
+                select.innerHTML += `<option value="${m}">${name}</option>`;
+            });
+        }
+    } catch (e) {
+        select.innerHTML = '<option value="">Error cargando meses</option>';
+        console.error(e);
+    } finally {
+        select.disabled = false;
+    }
 }
 
 async function loadDayManagers() {
@@ -615,14 +658,14 @@ async function loadDayManagers() {
     try {
         const settingsDoc = await db.collection('settings').doc('dayManagers').get();
         const settings = settingsDoc.exists ? settingsDoc.data() : {};
-
+        
         let pubOptions = `<option value="">Ninguno</option>`;
         const sortedPubs = [...allPublishers].sort((a,b) => (a.firstName || '').localeCompare(b.firstName || ''));
         sortedPubs.forEach(p => pubOptions += `<option value="${p.id}">${p.firstName} ${p.lastName}</option>`);
 
         const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
         container.innerHTML = '';
-
+        
         days.forEach(day => {
             const currentId = settings[day] || '';
             const div = document.createElement('div');
@@ -645,7 +688,7 @@ async function saveDayManagers() {
     days.forEach(day => {
         data[day] = document.getElementById(`day-manager-${day}`).value;
     });
-
+    
     try {
         await db.collection('settings').doc('dayManagers').set(data, {merge: true});
         showToast('Encargados del día guardados exitosamente.');
@@ -661,16 +704,16 @@ async function generateDraft() {
   try {
     const startDateStr = document.getElementById('gen-start-date').value;
     const endDateStr = document.getElementById('gen-end-date').value;
-
+    
     if (!startDateStr || !endDateStr) {
         showToast("Selecciona la fecha de inicio y fin.", "error");
         btn.innerHTML = `<span class="material-symbols-outlined">magic_button</span> Añadir al Borrador`; btn.disabled = false;
         return;
     }
-
+    
     const startDate = new Date(startDateStr + 'T00:00:00');
     const endDate = new Date(endDateStr + 'T00:00:00');
-
+    
     if (startDate > endDate) {
         showToast("La fecha de inicio no puede ser mayor a la de fin.", "error");
         btn.innerHTML = `<span class="material-symbols-outlined">magic_button</span> Añadir al Borrador`; btn.disabled = false;
@@ -682,7 +725,7 @@ async function generateDraft() {
     document.querySelectorAll('#generator-locations input[type="checkbox"]:checked').forEach(cb => {
         selectedLocIds.push(cb.value);
     });
-
+    
     if (selectedLocIds.length === 0) {
         showToast("Selecciona al menos una ubicación.", "error");
         btn.innerHTML = `<span class="material-symbols-outlined">magic_button</span> Añadir al Borrador`; btn.disabled = false;
@@ -690,16 +733,16 @@ async function generateDraft() {
     }
 
     const locsSnap = await db.collection('locations').where('isActive', '==', true).get();
-    const locations = [];
-    locsSnap.forEach(d => {
+    const locations = []; 
+    locsSnap.forEach(d => { 
         if(selectedLocIds.includes(d.id)) {
-            let l=d.data(); l.id=d.id; locations.push(l);
+            let l=d.data(); l.id=d.id; locations.push(l); 
         }
     });
 
     const daysMap = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
     let shiftTasks = [];
-
+    
     // Iterate through dates
     let currentDate = new Date(startDate);
     while (currentDate <= endDate) {
@@ -710,7 +753,7 @@ async function generateDraft() {
         (loc.templates || []).forEach(t => {
           if (t.day === dayName) {
             shiftTasks.push({
-              docId: null, dateObj: new Date(currentDate), dateString: dateString,
+              docId: null, dateObj: new Date(currentDate), dateString: dateString, 
               location: loc.name, 
               locationId: loc.id, 
               requiresManager: loc.requiresManager || false,
@@ -765,7 +808,7 @@ async function generateDraft() {
                 assignedCounts[manager.id] = (assignedCounts[manager.id] || 0) + 1;
                 if(!assignedDates[manager.id]) assignedDates[manager.id] = new Set();
                 assignedDates[manager.id].add(task.dateString);
-
+                
                 // If they have a hard pair, pull them in too if possible
                 if (manager.hardPair && manager.partner && task.assigned.length < task.capacity) {
                     const partner = allPublishers.find(p => p.id === manager.partner);
@@ -810,20 +853,20 @@ async function generateDraft() {
       });
     });
 
-    const finalShifts = shiftTasks.sort((a,b) => a.dateObj - b.dateObj);
-
+    const finalShifts = shiftTasks.sort((a,b) => a.dateObj - b.dateObj); 
+    
     // Save to Firestore draft_shifts collection using a chunked Batch
     const draftRef = db.collection('draft_shifts');
     const chunks = [];
     let currentBatch = db.batch();
     let currentCount = 0;
-
+    
     finalShifts.forEach(shift => {
         const docRef = draftRef.doc(); // Auto ID
         const participantIds = [];
         shift.assigned.forEach(p => participantIds.push(p.id));
         while(participantIds.length < shift.capacity) { participantIds.push("Disponible"); }
-
+        
         currentBatch.set(docRef, {
             date: shift.dateString,
             location: shift.location,
@@ -840,7 +883,7 @@ async function generateDraft() {
             currentCount = 0;
         }
     });
-
+    
     if (currentCount > 0) {
         chunks.push(currentBatch.commit());
     }
@@ -884,11 +927,11 @@ async function loadPublishedMonth() {
             currentCount = 0;
         }
     });
-
+    
     if (currentCount > 0) {
         chunks.push(currentBatch.commit());
     }
-
+    
     await Promise.all(chunks);
     showToast("Mes cargado al borrador exitosamente.");
   } catch(e) { showToast("Error cargando: " + e.message, "error"); }
@@ -936,7 +979,7 @@ function renderPreviewTable() {
   draftSchedule.forEach((shift, index) => {
     let namesHtml = '';
     let hasManager = false;
-
+    
     shift.assigned.forEach(p => {
         const warn = p.status === 'Entrenamiento' ? `<span class="material-symbols-outlined" style="font-size:14px; color:#ffc107; vertical-align:-2px;" title="En Entrenamiento">warning</span>` : '';
         const mgrBadge = p.isShiftManager ? `<span class="material-symbols-outlined" style="font-size:14px; color:#dc3545; vertical-align:-2px;" title="Encargado Físico">local_police</span>` : '';
@@ -1077,7 +1120,7 @@ async function updateDraftShiftDb(shiftObj) {
     const participantIds = [];
     shiftObj.assigned.forEach(p => participantIds.push(p.id));
     while(participantIds.length < shiftObj.capacity) { participantIds.push("Disponible"); }
-
+    
     try {
         await db.collection('draft_shifts').doc(shiftObj.docId).update({ participants: participantIds });
         showToast("Turno actualizado en borrador.", "info");
@@ -1093,7 +1136,7 @@ async function deleteDraftShift(docId) {
     if(!docId) return;
     const confirmDelete = await showConfirm("¿Estás seguro de eliminar este turno del borrador?", "Eliminar Turno");
     if(!confirmDelete) return;
-
+    
     try {
         await db.collection('draft_shifts').doc(docId).delete();
         showToast("Turno eliminado del borrador.");
@@ -1113,18 +1156,18 @@ async function publishSchedule() {
   try {
     // 1. Fetch current draft from DB to ensure we publish exactly what is saved
     const draftSnap = await db.collection('draft_shifts').get();
-
+    
     // 2. Queue all draft shifts to be added to the live 'shifts' collection, grouped into chunks
     const chunks = [];
     let currentBatch = db.batch();
     let currentCount = 0;
 
     draftSnap.forEach(doc => {
-        const liveDocRef = db.collection('shifts').doc(); // New ID for live
+        const liveDocRef = db.collection('shifts').doc(doc.id); // Preserve original ID to avoid duplicating published shifts
         const data = doc.data();
         currentBatch.set(liveDocRef, data);
         currentBatch.delete(doc.ref);
-
+        
         currentCount += 2; // Two operations: 1 set, 1 delete
 
         // Firestore batch limit is 500 operations
@@ -1134,21 +1177,21 @@ async function publishSchedule() {
             currentCount = 0;
         }
     });
-
+    
     // Commit the remaining operations
     if (currentCount > 0) {
         chunks.push(currentBatch.commit());
     }
-
+    
     // 4. Wait for all batch commits to complete
     await Promise.all(chunks);
-
-    showToast('¡Borrador publicado exitosamente!');
+    
+    showToast('¡Borrador publicado exitosamente!'); 
     document.getElementById('schedule-preview-container').style.display = 'none';
     // The real-time listener will automatically empty the draft array and hide the UI
-    checkMonthStatus();
+    checkMonthStatus(); 
   } catch (error) { 
-      showToast("Error publicando: " + error.message, "error");
+      showToast("Error publicando: " + error.message, "error"); 
   } finally { 
       btn.innerHTML = `<span class="material-symbols-outlined">cloud_upload</span> Guardar y Publicar`; btn.disabled = false; 
   }
@@ -1158,10 +1201,10 @@ async function clearDraft() {
     if (draftSchedule.length === 0) return;
     const isConfirmed = await showConfirm('¿Estás seguro de limpiar y eliminar todo el borrador?', 'Limpiar Borrador', '#dc3545');
     if (!isConfirmed) return;
-
+    
     try {
         const draftSnap = await db.collection('draft_shifts').get();
-
+        
         const chunks = [];
         let currentBatch = db.batch();
         let currentCount = 0;
@@ -1278,7 +1321,7 @@ function initQuill() {
 }
 document.addEventListener('DOMContentLoaded', () => {
    // Wait for DOM to load before init
-   setTimeout(initQuill, 500);
+   setTimeout(initQuill, 500); 
 });
 
 window.initQuill = initQuill;
@@ -1304,7 +1347,7 @@ function imageHandler() {
             const storageRef = storage.ref();
             const fileName = `locations/${Date.now()}_${file.name}`;
             const imageRef = storageRef.child(fileName);
-
+            
             await imageRef.put(compressedBlob);
             const downloadUrl = await imageRef.getDownloadURL();
 
@@ -1340,7 +1383,7 @@ function compressImage(file, maxWidth) {
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
-
+                
                 // Compress to JPEG with 0.7 quality
                 canvas.toBlob((blob) => {
                     resolve(blob);
@@ -1357,18 +1400,18 @@ let draftUnsubscribe = null;
 
 async function initDraftListener() {
     if (draftUnsubscribe) draftUnsubscribe();
-
+    
     // Fetch locations to know which ones require a manager
     const locsSnap = await db.collection('locations').get();
     const locMap = {};
     locsSnap.forEach(d => { locMap[d.data().name] = { id: d.id, requiresManager: d.data().requiresManager || false }; });
-
+    
     draftUnsubscribe = db.collection('draft_shifts').orderBy('date', 'asc').onSnapshot(snapshot => {
         draftSchedule = [];
         snapshot.forEach(doc => {
             const data = doc.data();
             data.id = doc.id; // Keep the document ID
-
+            
             // Map the "participants" UID array back into the "assigned" object array expected by the UI
             const assignedPubs = [];
             (data.participants || []).forEach(uid => {
@@ -1377,9 +1420,9 @@ async function initDraftListener() {
                     if (pub) assignedPubs.push(pub);
                 }
             });
-
+            
             const locRequiresManager = locMap[data.location]?.requiresManager || false;
-
+            
             draftSchedule.push({
                 docId: doc.id,
                 dateString: data.date,
@@ -1391,7 +1434,7 @@ async function initDraftListener() {
                 requiresManager: locRequiresManager
             });
         });
-
+        
         if(draftSchedule.length > 0) {
             document.getElementById('schedule-preview-container').style.display = 'block';
             renderPreviewTable();

@@ -106,7 +106,10 @@ function switchAdminTab(tabId) {
   document.getElementById('tab-' + tabId).classList.add('active');
   if (tabId === 'locations') loadLocations();
   if (tabId === 'users') loadPublishers();
-  if (tabId === 'schedule') checkMonthStatus(); 
+  if (tabId === 'schedule') {
+    loadLocations();
+    checkMonthStatus();
+  }
 }
 
 // ==========================================
@@ -603,10 +606,50 @@ async function deleteLocation() {
 let draftSchedule = []; 
 
 async function checkMonthStatus() {
-    // The previous month selection logic was removed in favor of persistent drafts.
-    // We only need to load day managers when switching to this tab.
-
     await loadDayManagers();
+    await loadPublishedMonthsList();
+}
+
+async function loadPublishedMonthsList() {
+    const select = document.getElementById('gen-month');
+    if (!select) return;
+
+    select.innerHTML = '<option value="">Cargando meses publicados...</option>';
+    select.disabled = true;
+
+    try {
+        // Query to find distinct months that have shifts. Since we can't do distinct in Firestore easily,
+        // we'll fetch all shifts or group them if there's a tracker. Alternatively, we just query limits.
+        // For efficiency, we will assume a reasonable window or fetch active shifts.
+        const shiftsSnap = await db.collection('shifts').orderBy('date', 'desc').get();
+        const monthsSet = new Set();
+
+        shiftsSnap.forEach(doc => {
+            const dateStr = doc.data().date; // YYYY-MM-DD
+            if (dateStr) {
+                monthsSet.add(dateStr.substring(0, 7)); // YYYY-MM
+            }
+        });
+
+        const monthsArray = Array.from(monthsSet).sort().reverse();
+
+        select.innerHTML = '';
+        if (monthsArray.length === 0) {
+            select.innerHTML = '<option value="">Ningún mes publicado</option>';
+        } else {
+            const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+            monthsArray.forEach(m => {
+                const [yyyy, mm] = m.split('-');
+                const name = `${monthNames[parseInt(mm)-1]} ${yyyy}`;
+                select.innerHTML += `<option value="${m}">${name}</option>`;
+            });
+        }
+    } catch (e) {
+        select.innerHTML = '<option value="">Error cargando meses</option>';
+        console.error(e);
+    } finally {
+        select.disabled = false;
+    }
 }
 
 async function loadDayManagers() {
@@ -1120,7 +1163,7 @@ async function publishSchedule() {
     let currentCount = 0;
 
     draftSnap.forEach(doc => {
-        const liveDocRef = db.collection('shifts').doc(); // New ID for live
+        const liveDocRef = db.collection('shifts').doc(doc.id); // Preserve original ID to avoid duplicating published shifts
         const data = doc.data();
         currentBatch.set(liveDocRef, data);
         currentBatch.delete(doc.ref);

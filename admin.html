@@ -369,26 +369,57 @@
         </div>
 
         <div class="panel" style="background:#fcfcfc;">
-            <h3 style="margin-top: 0; color: #5d7aa9; display: flex; align-items: center; gap: 8px;"><span class="material-symbols-outlined">auto_awesome</span> Gestión del Programa Mensual</h3>
-            <p style="color: #666; font-size: 0.95em;">Genera un mes nuevo automáticamente o edita uno que ya fue publicado.</p>
+            <h3 style="margin-top: 0; color: #5d7aa9; display: flex; align-items: center; gap: 8px;"><span class="material-symbols-outlined">edit_calendar</span> Gestión de Turnos Publicados</h3>
+            <p style="color: #666; font-size: 0.95em;">Edita o elimina un mes completo que ya está publicado en el calendario en vivo.</p>
             
-            <div class="form-group" style="max-width: 400px; margin-top: 20px;">
-                <label>Seleccionar Mes Objetivo</label>
-                <select id="gen-month" onchange="checkMonthStatus()">
+            <div class="form-group" style="max-width: 400px; margin-top: 15px;">
+                <label>Seleccionar Mes</label>
+                <select id="gen-month">
+                    <option value="2026-01">Enero 2026</option>
+                    <option value="2026-02">Febrero 2026</option>
                     <option value="2026-03">Marzo 2026</option>
                     <option value="2026-04">Abril 2026</option>
                     <option value="2026-05">Mayo 2026</option>
                     <option value="2026-06">Junio 2026</option>
+                    <option value="2026-07">Julio 2026</option>
+                    <option value="2026-08">Agosto 2026</option>
+                    <option value="2026-09">Septiembre 2026</option>
+                    <option value="2026-10">Octubre 2026</option>
+                    <option value="2026-11">Noviembre 2026</option>
+                    <option value="2026-12">Diciembre 2026</option>
                 </select>
             </div>
             
-            <div style="display:flex; gap:15px; margin-top:20px; flex-wrap: wrap;">
-                <button id="btn-gen-draft" onclick="generateDraft()" class="btn-action btn-primary" style="flex:1; min-width: 200px; padding: 12px; font-size: 1em; display:none;"><span class="material-symbols-outlined">magic_button</span> 1. Generar Borrador Nuevo</button>
-                <button id="btn-load-month" onclick="loadPublishedMonth()" class="btn-action btn-info" style="flex:1; min-width: 200px; padding: 12px; font-size: 1em; display:none;"><span class="material-symbols-outlined">download</span> 2. Cargar Mes Publicado</button>
+            <div style="display:flex; gap:15px; margin-top:15px; flex-wrap: wrap;">
+                <button onclick="loadPublishedMonth()" class="btn-action btn-info" style="flex:1; min-width: 200px;"><span class="material-symbols-outlined">download</span> Cargar a Borrador</button>
+                <button onclick="deletePublishedMonth()" class="btn-action btn-danger" style="flex:1; min-width: 200px;"><span class="material-symbols-outlined">delete_forever</span> Eliminar Mes Completo</button>
             </div>
+        </div>
+
+        <div class="panel" style="background:#fcfcfc; margin-top: 25px;">
+            <h3 style="margin-top: 0; color: #5d7aa9; display: flex; align-items: center; gap: 8px;"><span class="material-symbols-outlined">auto_awesome</span> Generador de Turnos (Borrador)</h3>
+            <p style="color: #666; font-size: 0.95em;">Selecciona el rango de fechas y las ubicaciones para generar un borrador. El borrador se guarda automáticamente en la nube y puedes ir agregando más fechas poco a poco antes de publicarlo.</p>
             
-            <div id="container-delete-month" style="text-align:right; margin-top:25px; border-top: 1px solid #eee; padding-top: 20px; display:none;">
-                <button onclick="deletePublishedMonth()" class="btn-action btn-danger"><span class="material-symbols-outlined">delete_forever</span> Eliminar Mes Completo</button>
+            <div style="display:flex; gap:15px; margin-top: 20px; flex-wrap: wrap;">
+                <div class="form-group" style="flex:1; min-width: 150px;">
+                    <label>Fecha de Inicio</label>
+                    <input type="date" id="gen-start-date" style="width:100%; box-sizing:border-box;">
+                </div>
+                <div class="form-group" style="flex:1; min-width: 150px;">
+                    <label>Fecha de Fin</label>
+                    <input type="date" id="gen-end-date" style="width:100%; box-sizing:border-box;">
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 15px;">
+                <label>Ubicaciones a Generar</label>
+                <div id="generator-locations" style="display: flex; gap: 15px; flex-wrap: wrap; background: #fff; padding: 15px; border: 1px solid #ddd; border-radius: 8px;">
+                    <p style="color:#666; font-size:0.9em; margin:0;">Cargando ubicaciones activas...</p>
+                </div>
+            </div>
+
+            <div style="display:flex; gap:15px; margin-top:20px; flex-wrap: wrap;">
+                <button id="btn-gen-draft" onclick="generateDraft()" class="btn-action btn-primary" style="flex:1; min-width: 200px; padding: 12px; font-size: 1em;"><span class="material-symbols-outlined">magic_button</span> Añadir al Borrador</button>
             </div>
         </div>
         
@@ -407,7 +438,8 @@
             <div style="overflow-x:auto;">
                 <table id="preview-table"><thead id="preview-head"></thead><tbody id="preview-body"></tbody></table>
             </div>
-            <div style="margin-top:25px; text-align:right;">
+            <div style="margin-top:25px; text-align:right; display:flex; justify-content:space-between;">
+               <button id="btn-clear-draft" onclick="clearDraft()" class="btn-action btn-danger" style="padding:12px 30px; font-size: 1em;"><span class="material-symbols-outlined">delete_sweep</span> Limpiar Borrador</button>
                <button id="btn-publish-bottom" onclick="publishSchedule()" class="btn-action btn-success" style="padding:12px 30px; font-size: 1em;"><span class="material-symbols-outlined">cloud_upload</span> Guardar y Publicar</button>
             </div>
         </div>

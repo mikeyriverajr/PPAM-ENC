@@ -818,39 +818,99 @@ async function generateDraft() {
                         if(!assignedDates[partner.id]) assignedDates[partner.id] = new Set();
                         assignedDates[partner.id].add(task.dateString);
                     }
+                } else if (!manager.hardPair && task.assigned.length < task.capacity) {
+                    // Manager was assigned solo, we need to complete the pair with same gender
+                    const sameGenderPartner = task.pool.find(p => p.id !== manager.id && p.gender === manager.gender && !p.hardPair && canAssign(p.id, task.dateObj, task.dateString));
+                    if (sameGenderPartner) {
+                        task.assigned.push(sameGenderPartner);
+                        assignedCounts[sameGenderPartner.id] = (assignedCounts[sameGenderPartner.id] || 0) + 1;
+                        if(!assignedDates[sameGenderPartner.id]) assignedDates[sameGenderPartner.id] = new Set();
+                        assignedDates[sameGenderPartner.id].add(task.dateString);
+                    } else {
+                        // Insert 'Disponible' to close the pair because no same-gender match found
+                        task.assigned.push({ id: "Disponible" });
+                    }
                 }
             }
         }
     });
 
-    // 2. Second Pass: Fill remaining spots with anyone
+    // 2. Second Pass: Fill remaining spots with anyone, enforcing same-sex pairs
     shiftTasks.forEach(task => {
-      task.pool.forEach(pub => {
-        if (task.assigned.length >= task.capacity) return; 
-        if (task.assigned.find(a => a.id === pub.id)) return; 
-        if (!canAssign(pub.id, task.dateObj, task.dateString)) return; 
+        while (task.assigned.length < task.capacity) {
+            // If length is odd, we must complete a pair with the SAME GENDER as the last assigned person
+            if (task.assigned.length % 2 !== 0) {
+                const lastAssigned = task.assigned[task.assigned.length - 1];
 
-        if (pub.hardPair && pub.partner) {
-          let partner = allPublishers.find(p => p.id === pub.partner);
-          if (!partner) return;
-          if (!task.pool.find(p => p.id === partner.id)) return; 
-          if (!canAssign(partner.id, task.dateObj, task.dateString)) return; 
+                // If the last assigned was already a dummy 'Disponible', we can't match it.
+                // We just add another 'Disponible' to close the pair.
+                if (lastAssigned.id === "Disponible" || !lastAssigned.gender) {
+                    task.assigned.push({ id: "Disponible" });
+                    continue;
+                }
 
-          if (task.assigned.length + 2 <= task.capacity) { 
-            task.assigned.push(pub); task.assigned.push(partner);
-            assignedCounts[pub.id] = (assignedCounts[pub.id] || 0) + 1;
-            assignedCounts[partner.id] = (assignedCounts[partner.id] || 0) + 1;
-            if(!assignedDates[pub.id]) assignedDates[pub.id] = new Set();
-            if(!assignedDates[partner.id]) assignedDates[partner.id] = new Set();
-            assignedDates[pub.id].add(task.dateString); assignedDates[partner.id].add(task.dateString);
-          }
-        } else if (!pub.hardPair) {
-          task.assigned.push(pub);
-          assignedCounts[pub.id] = (assignedCounts[pub.id] || 0) + 1;
-          if(!assignedDates[pub.id]) assignedDates[pub.id] = new Set();
-          assignedDates[pub.id].add(task.dateString);
+                // Look for a solo person of the SAME gender
+                const sameGenderMatch = task.pool.find(p =>
+                    !task.assigned.find(a => a.id === p.id) && // Not already assigned
+                    p.gender === lastAssigned.gender &&        // Same gender
+                    !p.hardPair &&                             // Must be solo (hard pairs take 2 spots)
+                    canAssign(p.id, task.dateObj, task.dateString)
+                );
+
+                if (sameGenderMatch) {
+                    task.assigned.push(sameGenderMatch);
+                    assignedCounts[sameGenderMatch.id] = (assignedCounts[sameGenderMatch.id] || 0) + 1;
+                    if(!assignedDates[sameGenderMatch.id]) assignedDates[sameGenderMatch.id] = new Set();
+                    assignedDates[sameGenderMatch.id].add(task.dateString);
+                } else {
+                    // No match found, leave empty to close the pair
+                    task.assigned.push({ id: "Disponible" });
+                }
+            }
+            // If length is even, we are starting a NEW pair
+            else {
+                // Find next available person (or hard pair)
+                const nextPerson = task.pool.find(p =>
+                    !task.assigned.find(a => a.id === p.id) &&
+                    canAssign(p.id, task.dateObj, task.dateString)
+                );
+
+                if (!nextPerson) {
+                    // Pool is exhausted, pad the rest of the shift with 'Disponible'
+                    while (task.assigned.length < task.capacity) {
+                        task.assigned.push({ id: "Disponible" });
+                    }
+                    break;
+                }
+
+                if (nextPerson.hardPair && nextPerson.partner) {
+                    // It's a hard pair, try to assign both
+                    let partner = allPublishers.find(p => p.id === nextPerson.partner);
+                    if (partner && task.pool.find(p => p.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString) && task.assigned.length + 2 <= task.capacity) {
+                        task.assigned.push(nextPerson);
+                        task.assigned.push(partner);
+                        assignedCounts[nextPerson.id] = (assignedCounts[nextPerson.id] || 0) + 1;
+                        assignedCounts[partner.id] = (assignedCounts[partner.id] || 0) + 1;
+                        if(!assignedDates[nextPerson.id]) assignedDates[nextPerson.id] = new Set();
+                        if(!assignedDates[partner.id]) assignedDates[partner.id] = new Set();
+                        assignedDates[nextPerson.id].add(task.dateString);
+                        assignedDates[partner.id].add(task.dateString);
+                    } else {
+                        // Hard pair partner not available, skip the first person and let them be found later if pool changes (unlikely, but standard fallback)
+                        // To avoid infinite loop since we skip them, we temporarily mark them as "checked" or we pad.
+                        // For simplicity, we just add a "Disponible" to advance the loop, effectively leaving a hole.
+                        // Actually, better to remove them from this shift's pool so we don't infinitely loop on them.
+                        task.pool = task.pool.filter(p => p.id !== nextPerson.id);
+                    }
+                } else {
+                    // It's a solo person, assign them to start the new pair
+                    task.assigned.push(nextPerson);
+                    assignedCounts[nextPerson.id] = (assignedCounts[nextPerson.id] || 0) + 1;
+                    if(!assignedDates[nextPerson.id]) assignedDates[nextPerson.id] = new Set();
+                    assignedDates[nextPerson.id].add(task.dateString);
+                }
+            }
         }
-      });
     });
 
     const finalShifts = shiftTasks.sort((a,b) => a.dateObj - b.dateObj); 

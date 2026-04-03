@@ -246,12 +246,11 @@
         <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#28a745;">notifications_active</span> Notificaciones Push</h3>
         <p style="font-size:0.9em; color:#666; margin-top:0;">Recibe alertas instantáneas en tu celular cuando se liberen turnos o haya cambios en tu programa.</p>
         <div style="background:#f9f9f9; padding:15px; border-radius:8px; border:1px solid #eee; display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
-            <span id="push-status-text" style="font-weight:600; color:#555;">Estado: Sin activar</span>
-            <div style="margin-top: 15px; display: flex; gap: 10px; align-items: center;">
-    <button id="btn-enable-push" onclick="enablePushNotifications()" class="btn-action btn-success">Activar Notificaciones</button>
-    <button id="btn-disable-push" onclick="disablePushNotifications()" class="btn-action btn-danger" style="display: none;">Desactivar</button>
-    <span id="push-status-text" style="font-size: 0.9em; color: #666;">Estado: Desactivadas</span>
-</div>
+            <span id="push-status-text" style="font-weight:600; color:#555;">Estado: Desactivadas</span>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button id="btn-enable-push" onclick="enablePushNotifications()" class="btn-action btn-success">Activar Notificaciones</button>
+                <button id="btn-disable-push" onclick="disablePushNotifications()" class="btn-action btn-danger" style="display: none;">Desactivar</button>
+            </div>
         </div>
 
         <hr class="profile-divider">

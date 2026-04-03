@@ -1134,20 +1134,20 @@ async function updateDraftShiftDb(shiftObj) {
 
 async function deleteDraftShift(docId) {
     if(!docId) return;
-    const confirmDelete = await showConfirm("¿Estás seguro de eliminar este turno del borrador?", "Eliminar Turno");
+    const confirmDelete = await showConfirm("¿Estás seguro de eliminar este turno de la mesa de trabajo? (Se eliminará del calendario oficial al guardar)", "Descartar Turno");
     if(!confirmDelete) return;
     
     try {
-        await db.collection('draft_shifts').doc(docId).delete();
-        showToast("Turno eliminado del borrador.");
+        // Instead of hard deleting, we mark it so it can be deleted from the live DB upon publishing
+        await db.collection('draft_shifts').doc(docId).update({ markedForDeletion: true });
+        showToast("Turno marcado para eliminar.");
     } catch(e) {
         showToast("Error eliminando turno.", "error");
     }
 }
 
 async function publishSchedule() {
-  if (draftSchedule.length === 0) return;
-  const isConfirmed = await showConfirm('¿Estás seguro de guardar y publicar este programa? Esto añadirá los turnos del borrador al calendario en vivo.', 'Guardar Programa', '#28a745');
+  const isConfirmed = await showConfirm('¿Estás seguro de guardar los cambios en el Calendario Oficial? Esto aplicará todas las creaciones, ediciones y eliminaciones.', 'Guardar en Calendario Oficial', '#28a745');
   if (!isConfirmed) return;
   
   const btn = document.getElementById('btn-publish-bottom'); 
@@ -1156,6 +1156,10 @@ async function publishSchedule() {
   try {
     // 1. Fetch current draft from DB to ensure we publish exactly what is saved
     const draftSnap = await db.collection('draft_shifts').get();
+    if (draftSnap.empty) {
+        btn.innerHTML = `<span class="material-symbols-outlined">cloud_upload</span> Guardar en Calendario Oficial`; btn.disabled = false;
+        return;
+    }
     
     // 2. Queue all draft shifts to be added to the live 'shifts' collection, grouped into chunks
     const chunks = [];
@@ -1165,10 +1169,19 @@ async function publishSchedule() {
     draftSnap.forEach(doc => {
         const liveDocRef = db.collection('shifts').doc(doc.id); // Preserve original ID to avoid duplicating published shifts
         const data = doc.data();
-        currentBatch.set(liveDocRef, data);
+        
+        if (data.markedForDeletion) {
+            // If the user discarded this shift from the workspace, delete it from the LIVE calendar too
+            currentBatch.delete(liveDocRef);
+        } else {
+            // Otherwise, set/update it in the LIVE calendar
+            currentBatch.set(liveDocRef, data);
+        }
+        
+        // Either way, delete it from the DRAFT workspace
         currentBatch.delete(doc.ref);
         
-        currentCount += 2; // Two operations: 1 set, 1 delete
+        currentCount += 2; // Two operations: 1 live (set/delete), 1 draft delete
 
         // Firestore batch limit is 500 operations
         if (currentCount >= 490) {
@@ -1410,6 +1423,8 @@ async function initDraftListener() {
         draftSchedule = [];
         snapshot.forEach(doc => {
             const data = doc.data();
+            if (data.markedForDeletion) return; // Hide deleted shifts from UI workspace
+            
             data.id = doc.id; // Keep the document ID
             
             // Map the "participants" UID array back into the "assigned" object array expected by the UI
@@ -1435,7 +1450,9 @@ async function initDraftListener() {
             });
         });
         
-        if(draftSchedule.length > 0) {
+        // Show container if there is AT LEAST ONE document in the snapshot (even if markedForDeletion)
+        // so the user can still click 'Guardar y Publicar' to execute the deletions.
+        if(!snapshot.empty) {
             document.getElementById('schedule-preview-container').style.display = 'block';
             renderPreviewTable();
         } else {

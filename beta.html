@@ -246,12 +246,11 @@
         <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#28a745;">notifications_active</span> Notificaciones Push</h3>
         <p style="font-size:0.9em; color:#666; margin-top:0;">Recibe alertas instantáneas en tu celular cuando se liberen turnos o haya cambios en tu programa.</p>
         <div style="background:#f9f9f9; padding:15px; border-radius:8px; border:1px solid #eee; display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
-            <span id="push-status-text" style="font-weight:600; color:#555;">Estado: Sin activar</span>
-            <div style="margin-top: 15px; display: flex; gap: 10px; align-items: center;">
-    <button id="btn-enable-push" onclick="enablePushNotifications()" class="btn-action btn-success">Activar Notificaciones</button>
-    <button id="btn-disable-push" onclick="disablePushNotifications()" class="btn-action btn-danger" style="display: none;">Desactivar</button>
-    <span id="push-status-text" style="font-size: 0.9em; color: #666;">Estado: Desactivadas</span>
-</div>
+            <span id="push-status-text" style="font-weight:600; color:#555;">Estado: Desactivadas</span>
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button id="btn-enable-push" onclick="enablePushNotifications()" class="btn-action btn-success">Activar Notificaciones</button>
+                <button id="btn-disable-push" onclick="disablePushNotifications()" class="btn-action btn-danger" style="display: none;">Desactivar</button>
+            </div>
         </div>
 
         <hr class="profile-divider">
@@ -314,21 +313,21 @@
       </div>
     </div>
   </div>
-
+  
   <!-- Location Info Modal -->
   <div id="location-info-modal" class="modal">
     <div class="modal-content" style="max-width: 600px; padding: 25px; border-radius: 15px;">
       <span class="close-modal" onclick="closeLocationInfoModal()" style="font-size: 28px; background: rgba(0,0,0,0.05); border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;"><span class="material-symbols-outlined">close</span></span>
       <h3 id="info-modal-title" style="margin-top: 0; color: #333; font-size: 1.5em; margin-bottom: 20px; padding-right: 30px;">Información de Ubicación</h3>
-
+      
       <div id="info-modal-map-btn-container" style="margin-bottom: 25px;">
           <!-- Maps button injected here if it exists -->
       </div>
-
+      
       <div id="info-modal-content" style="color: #444; line-height: 1.6; font-size: 1.05em; margin-bottom: 30px; border-top: 1px solid #eee; padding-top: 20px;">
           <!-- Rich text instructions injected here -->
       </div>
-
+      
       <button onclick="closeLocationInfoModal()" class="btn-primary" style="width: 100%; border-radius: 8px; font-weight: bold; background-color: #5d7aa9; padding: 14px; font-size: 1.1em;">Cerrar</button>
     </div>
   </div>

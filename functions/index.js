@@ -395,3 +395,34 @@ exports.deleteUserAccount = functions.https.onCall(async (data, context) => {
         throw new functions.https.HttpsError('internal', 'No se pudo eliminar la cuenta de autenticación: ' + error.message);
     }
 });
+
+// Securely force a password reset for a user
+exports.resetUserPassword = functions.https.onCall(async (data, context) => {
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+
+    const db = admin.firestore();
+    const callerRef = db.collection('users').doc(context.auth.uid);
+    const callerDoc = await callerRef.get();
+
+    if (!callerDoc.exists || callerDoc.data().role !== 'admin') {
+         throw new functions.https.HttpsError('permission-denied', 'Only administrators can reset passwords.');
+    }
+
+    const targetUid = data.uid;
+    const newPassword = data.newPassword;
+
+    if (!targetUid || typeof targetUid !== 'string' || !newPassword || typeof newPassword !== 'string' || newPassword.length < 6) {
+        throw new functions.https.HttpsError('invalid-argument', 'Invalid uid or password format.');
+    }
+
+    try {
+        await admin.auth().updateUser(targetUid, { password: newPassword });
+        console.log(`[CEREBRO] ✅ Contraseña de Auth restablecida con éxito: ${targetUid} (Solicitado por admin ${context.auth.uid})`);
+        return { success: true, message: 'Contraseña actualizada.' };
+    } catch (error) {
+        console.error(`[CEREBRO] ❌ Error restableciendo contraseña de Auth ${targetUid}:`, error);
+        throw new functions.https.HttpsError('internal', 'No se pudo restablecer la contraseña: ' + error.message);
+    }
+});

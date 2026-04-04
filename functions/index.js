@@ -354,3 +354,44 @@ exports.sendDailyReminders = onSchedule({
     console.log(`[CEREBRO] ✅ Recordatorios procesados. Push: ${pushPromises.length}, Emails: ${emailPromises.length}`);
     return null;
 });
+
+// Securely delete a user's Firebase Auth account.
+// This must be a callable function so the Admin frontend can trigger it.
+exports.deleteUserAccount = functions.https.onCall(async (data, context) => {
+    // 1. Verify Authentication & Authorization
+    if (!context.auth) {
+        throw new functions.https.HttpsError('unauthenticated', 'The function must be called while authenticated.');
+    }
+
+    // We must verify the caller is an admin.
+    const db = admin.firestore();
+    const callerRef = db.collection('users').doc(context.auth.uid);
+    const callerDoc = await callerRef.get();
+
+    if (!callerDoc.exists || callerDoc.data().role !== 'admin') {
+         throw new functions.https.HttpsError('permission-denied', 'Only administrators can delete user accounts.');
+    }
+
+    // 2. Validate input
+    const targetUid = data.uid;
+    if (!targetUid || typeof targetUid !== 'string') {
+        throw new functions.https.HttpsError('invalid-argument', 'The function must be called with a valid target uid.');
+    }
+
+    try {
+        // 3. Delete from Firebase Auth
+        await admin.auth().deleteUser(targetUid);
+        console.log(`[CEREBRO] ✅ Usuario de Auth eliminado con éxito: ${targetUid} (Solicitado por admin ${context.auth.uid})`);
+        return { success: true, message: 'Usuario eliminado del sistema de autenticación.' };
+    } catch (error) {
+        console.error(`[CEREBRO] ❌ Error eliminando usuario de Auth ${targetUid}:`, error);
+
+        // If the user was already deleted from Auth, treat it as a success for idempotency
+        if (error.code === 'auth/user-not-found') {
+             console.log(`[CEREBRO] ⚠️ El usuario ${targetUid} ya no existía en Auth. Continuando...`);
+             return { success: true, message: 'El usuario ya no existía en el sistema de autenticación.' };
+        }
+
+        throw new functions.https.HttpsError('internal', 'No se pudo eliminar la cuenta de autenticación: ' + error.message);
+    }
+});

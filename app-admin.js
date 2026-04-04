@@ -393,13 +393,37 @@ async function deletePublisher() {
   const isConfirmed = await showConfirm("¿Estás seguro de eliminar este publicador de la congregación?", "Eliminar Publicador");
   if (!isConfirmed) return;
   try {
-    await db.collection('publishers').doc(id).delete();
+    // Find the linked user document to get the UID for Auth deletion
     const userQuery = await db.collection('users').where('publisherId', '==', id).get();
-    userQuery.forEach(async (doc) => { await db.collection('users').doc(doc.id).delete(); });
-    showToast("Publicador eliminado.");
+    let authUid = null;
+    let userDocId = null;
+
+    if (!userQuery.empty) {
+        userDocId = userQuery.docs[0].id;
+        authUid = userDocId; // The user doc ID is always the Auth UID
+    }
+
+    // 1. If an Auth account exists, delete it via Cloud Function first
+    if (authUid) {
+        const deleteUserAccount = firebase.functions().httpsCallable('deleteUserAccount');
+        await deleteUserAccount({ uid: authUid });
+    }
+
+    // 2. Delete the user document
+    if (userDocId) {
+        await db.collection('users').doc(userDocId).delete();
+    }
+
+    // 3. Delete the publisher document
+    await db.collection('publishers').doc(id).delete();
+
+    showToast("Publicador y cuenta de acceso eliminados.");
     closePubEditModal();
     loadPublishers();
-  } catch (error) { showToast("Error: " + error.message, "error"); }
+  } catch (error) {
+      showToast("Error al eliminar: " + error.message, "error");
+      console.error(error);
+  }
 }
 
 function clearPublisherForm() {
@@ -1102,6 +1126,11 @@ function openShiftEditModal(shiftIndex) {
   let traineeHtml = `<optgroup label="⚠️ En Entrenamiento (Asignar Manualmente)">`; 
   let unavailableHtml = `<optgroup label="❌ No Disponibles / Ausentes">`;
   
+  const daysMap = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']; // JS getDay is 0=Sun, we need to map to string
+  const shiftDateObj = new Date(shift.dateString + 'T00:00:00');
+  const dayName = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][shiftDateObj.getDay()];
+  const availKey = `${shift.locationId}_${dayName}_${shift.time.split('-')[0]}`;
+
   const sortedPubs = [...allPublishers].sort((a,b) => (a.firstName || '').localeCompare(b.firstName || ''));
   sortedPubs.forEach(pub => {
     if(shift.assigned.find(p => p.id === pub.id)) return;
@@ -1109,11 +1138,13 @@ function openShiftEditModal(shiftIndex) {
     let isAway = false;
     if(pub.absences) { isAway = pub.absences.some(abs => shift.dateString >= abs.start && shift.dateString <= abs.end); }
 
+    const isAvailableInProfile = (pub.availability || []).includes(availKey);
+
     if (isAway) {
         unavailableHtml += `<option value="${pub.id}">✈️ ${pub.firstName} ${pub.lastName} (Vacaciones)</option>`;
     } else if (pub.status === 'Entrenamiento') {
         traineeHtml += `<option value="${pub.id}">⚠️ ${pub.firstName} ${pub.lastName}</option>`;
-    } else if(shift.pool.find(p => p.id === pub.id)) { 
+    } else if(isAvailableInProfile) {
         availableHtml += `<option value="${pub.id}">✅ ${pub.firstName} ${pub.lastName}</option>`; 
     } else { 
         unavailableHtml += `<option value="${pub.id}">❌ ${pub.firstName} ${pub.lastName}</option>`; 

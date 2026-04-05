@@ -93,12 +93,12 @@ auth.onAuthStateChanged(async user => {
             document.getElementById('app-content').style.display = 'block';
 
             const pubSnap = await db.collection('publishers').get();
-            pubSnap.forEach(d => {
+            pubSnap.forEach(d => { 
                 publisherCache[d.id] = {
                     name: `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(),
                     phone: d.data().phone || '',
                     isShiftManager: d.data().isShiftManager || false
-                };
+                }; 
             });
 
             document.getElementById('header-user-name').innerText = `| ${publisherCache[currentUserPublisherId]?.name || ""}`;
@@ -159,12 +159,12 @@ async function submitForcedPassword() {
       document.getElementById('force-password-modal').style.display = 'none';
       document.getElementById('app-content').style.display = 'block';
       const pubSnap = await db.collection('publishers').get();
-      pubSnap.forEach(d => {
+      pubSnap.forEach(d => { 
           publisherCache[d.id] = {
               name: `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(),
               phone: d.data().phone || '',
               isShiftManager: d.data().isShiftManager || false
-          };
+          }; 
       });
       document.getElementById('header-user-name').innerText = `| ${publisherCache[currentUserPublisherId]?.name || ""}`;
 
@@ -301,7 +301,7 @@ async function loadDayManagers() {
 
 function getShiftContactHtml(shift) {
     let contactHtml = '';
-
+    
     // Check if local manager is required and present
     if (shift.requiresManager) {
         const localManagerId = (shift.participants || []).find(id => publisherCache[id]?.isShiftManager);
@@ -316,12 +316,12 @@ function getShiftContactHtml(shift) {
             return contactHtml; // If local manager found, return it and stop.
         }
     }
-
+    
     // If no local manager required or found, fallback to Day Manager
     const [y, m, d] = shift.date.split('-');
     const dateObj = new Date(parseInt(y), parseInt(m)-1, parseInt(d));
     const dayName = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][dateObj.getDay()];
-
+    
     const dayManagerId = dayManagersCache[dayName];
     if (dayManagerId && publisherCache[dayManagerId]) {
         const mgr = publisherCache[dayManagerId];
@@ -332,7 +332,7 @@ function getShiftContactHtml(shift) {
             contactHtml = `<span style="display:inline-flex; align-items:center; gap:5px; background:#f0f0f0; color:#555; padding:4px 10px; border-radius:12px; font-size:0.85em; margin-top:5px; font-weight:600;"><span class="material-symbols-outlined" style="font-size:14px;">support_agent</span> Encargado: ${mgr.name}</span>`;
         }
     }
-
+    
     return contactHtml;
 }
 
@@ -775,12 +775,16 @@ async function saveProfile() {
     emailNotificationsEnabled: document.getElementById('prof-email-notif').checked,
     emergencyName: document.getElementById('prof-emerg-name').value.trim(),
     emergencyPhone: document.getElementById('prof-emerg-phone').value.trim(),
-    maxShifts: parseInt(document.getElementById('prof-max').value),
+    maxShifts: parseInt(document.getElementById('prof-max').value) || 5,
     partner: partnerId,
     partnerName: partnerName,
     hardPair: document.getElementById('prof-hardpair').checked,
     absences: myAbsences
   };
+
+  // Firestore throws errors if you attempt to save `undefined`. 
+  // Strip out any undefined properties from the payload.
+  Object.keys(profileData).forEach(key => profileData[key] === undefined && delete profileData[key]);
 
   try {
     await db.collection('publishers').doc(currentUserPublisherId).update(profileData);
@@ -800,7 +804,7 @@ async function saveProfile() {
 // --- LOCATION INFO MODAL ---
 async function openLocationInfoModal(locationId, locationName) {
     if(!locationId) { showToast("No se encontró información de la ubicación."); return; }
-
+    
     document.getElementById('location-info-modal').style.display = 'flex';
     document.getElementById('info-modal-title').innerText = locationName || 'Información de Ubicación';
     document.getElementById('info-modal-map-btn-container').innerHTML = '<p style="color: #666;">Cargando...</p>';
@@ -813,9 +817,9 @@ async function openLocationInfoModal(locationId, locationName) {
             document.getElementById('info-modal-map-btn-container').innerHTML = '';
             return;
         }
-
+        
         const loc = doc.data();
-
+        
         // Render Maps Button
         if(loc.mapsUrl) {
             document.getElementById('info-modal-map-btn-container').innerHTML = `
@@ -826,11 +830,11 @@ async function openLocationInfoModal(locationId, locationName) {
         } else {
              document.getElementById('info-modal-map-btn-container').innerHTML = '';
         }
-
+        
         // Render Info HTML
         if(loc.infoHtml && loc.infoHtml.trim() !== '') {
             document.getElementById('info-modal-content').innerHTML = loc.infoHtml;
-
+            
             // Adjust any images in the quill HTML to be responsive
             const imgs = document.getElementById('info-modal-content').querySelectorAll('img');
             imgs.forEach(img => {
@@ -841,7 +845,7 @@ async function openLocationInfoModal(locationId, locationName) {
         } else {
             document.getElementById('info-modal-content').innerHTML = '<p style="color: #666; font-style: italic;">No hay instrucciones adicionales para esta ubicación.</p>';
         }
-
+        
     } catch(e) {
         console.error("Error loading location info:", e);
         document.getElementById('info-modal-content').innerHTML = '<p style="color: red;">Error al cargar la información.</p>';

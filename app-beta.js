@@ -775,12 +775,16 @@ async function saveProfile() {
     emailNotificationsEnabled: document.getElementById('prof-email-notif').checked,
     emergencyName: document.getElementById('prof-emerg-name').value.trim(),
     emergencyPhone: document.getElementById('prof-emerg-phone').value.trim(),
-    maxShifts: parseInt(document.getElementById('prof-max').value),
+    maxShifts: parseInt(document.getElementById('prof-max').value) || 5,
     partner: partnerId,
     partnerName: partnerName,
     hardPair: document.getElementById('prof-hardpair').checked,
     absences: myAbsences
   };
+
+  // Firestore throws errors if you attempt to save `undefined`.
+  // Strip out any undefined properties from the payload.
+  Object.keys(profileData).forEach(key => profileData[key] === undefined && delete profileData[key]);
 
   try {
     await db.collection('publishers').doc(currentUserPublisherId).update(profileData);

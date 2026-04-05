@@ -262,7 +262,13 @@
           </h4>
           <p id="account-status-msg" style="font-size:0.85em; color:#666; margin-top:0; margin-bottom:15px;">Opcional al crear un usuario nuevo.</p>
           <div class="form-group" style="margin-bottom: 10px;"><label>Usuario (Sin espacios)</label><input type="text" id="pub-username" placeholder="ej. juanperez"></div>
-          <div class="form-group" style="margin-bottom: 10px;"><label>Contraseña Temporal</label><input type="text" id="pub-password" placeholder="Mínimo 6 caracteres"></div>
+          <div class="form-group" style="margin-bottom: 10px;">
+              <label>Contraseña Temporal</label>
+              <div style="display:flex; gap:10px;">
+                  <input type="text" id="pub-password" placeholder="Mínimo 6 caracteres" style="flex:1;">
+                  <button type="button" id="btn-reset-pw" onclick="adminResetPassword()" class="btn-action btn-info" style="display:none; padding:12px; height:43px;">Restablecer</button>
+              </div>
+          </div>
           <div class="form-group"><label>Rol</label><select id="pub-role"><option value="user">Publicador</option><option value="admin">Administrador</option></select></div>
           
           <div style="display: flex; justify-content: space-between; margin-top: 30px; border-top:1px solid #eee; padding-top: 20px;">

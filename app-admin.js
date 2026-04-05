@@ -292,11 +292,12 @@ async function editPublisher(id) {
      document.getElementById('pub-username').value = userData.username || '';
      document.getElementById('pub-password').value = '';
      document.getElementById('pub-username').disabled = true;
-     document.getElementById('pub-password').disabled = true;
+     document.getElementById('pub-password').disabled = false; // Enabled for resetting
      document.getElementById('pub-role').value = userData.role || 'user';
-     document.getElementById('pub-password').placeholder = "Cuenta vinculada";
+     document.getElementById('pub-password').placeholder = "Nueva contraseña";
      document.getElementById('account-status-msg').innerText = "✅ Este publicador ya tiene cuenta vinculada.";
      document.getElementById('btn-unlink').style.display = 'inline-flex';
+     document.getElementById('btn-reset-pw').style.display = 'block';
   } else {
      currentLinkedUserDocId = null;
      document.getElementById('pub-username').value = '';
@@ -307,6 +308,7 @@ async function editPublisher(id) {
      document.getElementById('pub-password').placeholder = "Mínimo 6 caracteres";
      document.getElementById('account-status-msg').innerText = "Opcional al crear un usuario nuevo.";
      document.getElementById('btn-unlink').style.display = 'none';
+     document.getElementById('btn-reset-pw').style.display = 'none';
   }
   
   document.getElementById('pub-edit-modal').style.display = 'flex';
@@ -1552,4 +1554,35 @@ async function initDraftListener() {
     }, error => {
         console.error("Error fetching draft: ", error);
     });
+}
+
+async function adminResetPassword() {
+  const newPassword = document.getElementById('pub-password').value;
+  if (!newPassword || newPassword.length < 6) {
+      showToast("La contraseña debe tener al menos 6 caracteres.", "error");
+      return;
+  }
+
+  if (!currentLinkedUserDocId) {
+      showToast("No hay una cuenta vinculada para restablecer.", "error");
+      return;
+  }
+
+  const isConfirmed = await showConfirm(`¿Estás seguro de forzar el cambio de contraseña para este usuario?`, "Restablecer Contraseña");
+  if (!isConfirmed) return;
+
+  const btn = document.getElementById('btn-reset-pw');
+  btn.innerText = "Cambiando..."; btn.disabled = true;
+
+  try {
+      const resetUserPassword = firebase.functions().httpsCallable('resetUserPassword');
+      await resetUserPassword({ uid: currentLinkedUserDocId, newPassword: newPassword });
+      showToast("Contraseña actualizada exitosamente.");
+      document.getElementById('pub-password').value = '';
+  } catch (error) {
+      showToast("Error al restablecer: " + error.message, "error");
+      console.error(error);
+  } finally {
+      btn.innerText = "Restablecer"; btn.disabled = false;
+  }
 }

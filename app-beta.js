@@ -469,7 +469,9 @@ async function loadAvailableShifts() {
       let shift = doc.data(); shift.id = doc.id;
       const capacity = shift.capacity || 2; 
       const participants = shift.participants || [];
-      if (participants.length < capacity && !participants.includes(currentUserPublisherId) && shift.date >= todayStr) {
+      const realParticipants = participants.filter(id => id && id !== "Disponible");
+      
+      if (realParticipants.length < capacity && !realParticipants.includes(currentUserPublisherId) && shift.date >= todayStr) {
           openShifts.push(shift);
       }
     });
@@ -478,9 +480,10 @@ async function loadAvailableShifts() {
 
     container.innerHTML = '';
     openShifts.forEach(shift => {
-      const names = (shift.participants || []).map(id => publisherCache[id]?.name || 'Alguien').join(', ') || 'Vacío';
+      const realParticipants = (shift.participants || []).filter(id => id && id !== "Disponible");
+      const names = realParticipants.map(id => publisherCache[id]?.name || 'Alguien').join(', ') || 'Vacío';
       const capacity = shift.capacity || 2;
-      const availableSpots = capacity - (shift.participants || []).length;
+      const availableSpots = capacity - realParticipants.length;
       const contactHtml = getShiftContactHtml(shift);
 
       const card = document.createElement('div');

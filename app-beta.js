@@ -93,12 +93,12 @@ auth.onAuthStateChanged(async user => {
             document.getElementById('app-content').style.display = 'block';
 
             const pubSnap = await db.collection('publishers').get();
-            pubSnap.forEach(d => { 
+            pubSnap.forEach(d => {
                 publisherCache[d.id] = {
                     name: `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(),
                     phone: d.data().phone || '',
                     isShiftManager: d.data().isShiftManager || false
-                }; 
+                };
             });
 
             document.getElementById('header-user-name').innerText = `| ${publisherCache[currentUserPublisherId]?.name || ""}`;
@@ -159,12 +159,12 @@ async function submitForcedPassword() {
       document.getElementById('force-password-modal').style.display = 'none';
       document.getElementById('app-content').style.display = 'block';
       const pubSnap = await db.collection('publishers').get();
-      pubSnap.forEach(d => { 
+      pubSnap.forEach(d => {
           publisherCache[d.id] = {
               name: `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(),
               phone: d.data().phone || '',
               isShiftManager: d.data().isShiftManager || false
-          }; 
+          };
       });
       document.getElementById('header-user-name').innerText = `| ${publisherCache[currentUserPublisherId]?.name || ""}`;
 
@@ -301,7 +301,7 @@ async function loadDayManagers() {
 
 function getShiftContactHtml(shift) {
     let contactHtml = '';
-    
+
     // Check if local manager is required and present
     if (shift.requiresManager) {
         const localManagerId = (shift.participants || []).find(id => publisherCache[id]?.isShiftManager);
@@ -309,30 +309,39 @@ function getShiftContactHtml(shift) {
             const mgr = publisherCache[localManagerId];
             if (mgr.phone) {
                 const msg = encodeURIComponent(`Hola ${mgr.name}, te escribo sobre el turno en ${shift.location} de las ${shift.time}.`);
-                contactHtml = `<a href="https://wa.me/${mgr.phone.replace(/\D/g,'')}?text=${msg}" target="_blank" style="display:inline-flex; align-items:center; gap:6px; background:transparent; border:1px solid #5d7aa9; color:#5d7aa9; padding:4px 10px; border-radius:12px; font-size:0.85em; font-weight:600; text-decoration:none; margin-top:5px; transition:all 0.2s;"><svg style="width:14px; height:14px; fill:#5d7aa9;" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg> Encargado: ${mgr.name}</a>`;
+                let cleanPhone = mgr.phone.replace(/\D/g, ''); // Extract digits
+                // Graceful fallback for legacy numbers missing the country code (assuming Paraguay +595)
+                if (cleanPhone.startsWith('09')) cleanPhone = '595' + cleanPhone.substring(1);
+                else if (cleanPhone.startsWith('9')) cleanPhone = '595' + cleanPhone;
+
+                contactHtml = `<a href="https://wa.me/${cleanPhone}?text=${msg}" target="_blank" style="display:inline-flex; align-items:center; gap:6px; background:transparent; border:1px solid #5d7aa9; color:#5d7aa9; padding:4px 10px; border-radius:12px; font-size:0.85em; font-weight:600; text-decoration:none; margin-top:5px; transition:all 0.2s;"><svg style="width:14px; height:14px; fill:#5d7aa9;" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg> Encargado: ${mgr.name}</a>`;
             } else {
                 contactHtml = `<span style="display:inline-flex; align-items:center; gap:5px; background:#f0f0f0; color:#555; padding:4px 10px; border-radius:12px; font-size:0.85em; margin-top:5px; font-weight:600;"><span class="material-symbols-outlined" style="font-size:14px;">local_police</span> Encargado: ${mgr.name}</span>`;
             }
             return contactHtml; // If local manager found, return it and stop.
         }
     }
-    
+
     // If no local manager required or found, fallback to Day Manager
     const [y, m, d] = shift.date.split('-');
     const dateObj = new Date(parseInt(y), parseInt(m)-1, parseInt(d));
     const dayName = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][dateObj.getDay()];
-    
+
     const dayManagerId = dayManagersCache[dayName];
     if (dayManagerId && publisherCache[dayManagerId]) {
         const mgr = publisherCache[dayManagerId];
         if (mgr.phone) {
             const msg = encodeURIComponent(`Hola ${mgr.name}, te escribo sobre el turno en ${shift.location} de las ${shift.time} (${shift.date}).`);
-            contactHtml = `<a href="https://wa.me/${mgr.phone.replace(/\D/g,'')}?text=${msg}" target="_blank" style="display:inline-flex; align-items:center; gap:6px; background:transparent; border:1px solid #5d7aa9; color:#5d7aa9; padding:4px 10px; border-radius:12px; font-size:0.85em; font-weight:600; text-decoration:none; margin-top:5px; transition:all 0.2s;"><svg style="width:14px; height:14px; fill:#5d7aa9;" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg> Encargado: ${mgr.name}</a>`;
+            let cleanPhone = mgr.phone.replace(/\D/g, '');
+            if (cleanPhone.startsWith('09')) cleanPhone = '595' + cleanPhone.substring(1);
+            else if (cleanPhone.startsWith('9')) cleanPhone = '595' + cleanPhone;
+
+            contactHtml = `<a href="https://wa.me/${cleanPhone}?text=${msg}" target="_blank" style="display:inline-flex; align-items:center; gap:6px; background:transparent; border:1px solid #28a745; color:#28a745; padding:4px 10px; border-radius:12px; font-size:0.85em; font-weight:600; text-decoration:none; margin-top:5px; transition:all 0.2s;"><svg style="width:14px; height:14px; fill:#28a745;" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg> Encargado: ${mgr.name}</a>`;
         } else {
             contactHtml = `<span style="display:inline-flex; align-items:center; gap:5px; background:#f0f0f0; color:#555; padding:4px 10px; border-radius:12px; font-size:0.85em; margin-top:5px; font-weight:600;"><span class="material-symbols-outlined" style="font-size:14px;">support_agent</span> Encargado: ${mgr.name}</span>`;
         }
     }
-    
+
     return contactHtml;
 }
 
@@ -768,6 +777,17 @@ async function saveProfile() {
       if (emailVal.toLowerCase().endsWith('@jwpub.org')) { showToast("No se permiten correos @jwpub.org. Usa un correo personal.", "error"); return; }
   }
 
+  const phoneVal = document.getElementById('prof-phone').value.trim();
+  const ePhoneVal = document.getElementById('prof-emerg-phone').value.trim();
+  const phoneRegex = /^\+\d+$/; // Must start with + followed by only digits
+
+  if (phoneVal && !phoneRegex.test(phoneVal.replace(/\s/g, ''))) {
+      showToast("El teléfono debe incluir el código de país (ej. +595).", "error"); return;
+  }
+  if (ePhoneVal && !phoneRegex.test(ePhoneVal.replace(/\s/g, ''))) {
+      showToast("El teléfono de emergencia debe incluir el código de país (ej. +595).", "error"); return;
+  }
+
   const partnerId = document.getElementById('prof-partner').value;
   let partnerName = "";
   if (partnerId) { partnerName = publisherCache[partnerId]?.name; }
@@ -785,7 +805,7 @@ async function saveProfile() {
     absences: myAbsences
   };
 
-  // Firestore throws errors if you attempt to save `undefined`. 
+  // Firestore throws errors if you attempt to save `undefined`.
   // Strip out any undefined properties from the payload.
   Object.keys(profileData).forEach(key => profileData[key] === undefined && delete profileData[key]);
 
@@ -807,7 +827,7 @@ async function saveProfile() {
 // --- LOCATION INFO MODAL ---
 async function openLocationInfoModal(locationId, locationName) {
     if(!locationId) { showToast("No se encontró información de la ubicación."); return; }
-    
+
     document.getElementById('location-info-modal').style.display = 'flex';
     document.getElementById('info-modal-title').innerText = locationName || 'Información de Ubicación';
     document.getElementById('info-modal-map-btn-container').innerHTML = '<p style="color: #666;">Cargando...</p>';
@@ -820,9 +840,9 @@ async function openLocationInfoModal(locationId, locationName) {
             document.getElementById('info-modal-map-btn-container').innerHTML = '';
             return;
         }
-        
+
         const loc = doc.data();
-        
+
         // Render Maps Button
         if(loc.mapsUrl) {
             document.getElementById('info-modal-map-btn-container').innerHTML = `
@@ -833,11 +853,11 @@ async function openLocationInfoModal(locationId, locationName) {
         } else {
              document.getElementById('info-modal-map-btn-container').innerHTML = '';
         }
-        
+
         // Render Info HTML
         if(loc.infoHtml && loc.infoHtml.trim() !== '') {
             document.getElementById('info-modal-content').innerHTML = loc.infoHtml;
-            
+
             // Adjust any images in the quill HTML to be responsive
             const imgs = document.getElementById('info-modal-content').querySelectorAll('img');
             imgs.forEach(img => {
@@ -848,7 +868,7 @@ async function openLocationInfoModal(locationId, locationName) {
         } else {
             document.getElementById('info-modal-content').innerHTML = '<p style="color: #666; font-style: italic;">No hay instrucciones adicionales para esta ubicación.</p>';
         }
-        
+
     } catch(e) {
         console.error("Error loading location info:", e);
         document.getElementById('info-modal-content').innerHTML = '<p style="color: red;">Error al cargar la información.</p>';

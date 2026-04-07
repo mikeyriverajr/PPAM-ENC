@@ -332,6 +332,10 @@ async function savePublisher() {
   const emailNotificationsEnabled = document.getElementById('pub-email-notif').checked;
   const availability = Array.from(document.querySelectorAll('.admin-avail-checkbox:checked')).map(cb => cb.value);
 
+  const phoneRegex = /^\+\d+$/;
+  if (phone && !phoneRegex.test(phone.replace(/\s/g, ''))) { showToast("El teléfono debe incluir el código de país (ej. +595)", "error"); return; }
+  if (emergencyPhone && !phoneRegex.test(emergencyPhone.replace(/\s/g, ''))) { showToast("El tel. de emergencia debe incluir el código de país (ej. +595)", "error"); return; }
+
   const username = document.getElementById('pub-username').value.trim();
   const password = document.getElementById('pub-password').value;
   const role = document.getElementById('pub-role').value;

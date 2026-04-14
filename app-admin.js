@@ -839,17 +839,21 @@ async function generateDraft() {
                 if(!assignedDates[manager.id]) assignedDates[manager.id] = new Set();
                 assignedDates[manager.id].add(task.dateString);
 
-                // If they have a hard pair, pull them in too if possible
-                if (manager.hardPair && manager.partner && task.assigned.length < task.capacity) {
+                // Priority: Pull in their preferred partner (Soft or Hard Pair)
+                let partnerAssigned = false;
+                if (manager.partner && task.assigned.length < task.capacity) {
                     const partner = allPublishers.find(p => p.id === manager.partner);
                     if (partner && task.pool.find(p => p.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString)) {
                         task.assigned.push(partner);
                         assignedCounts[partner.id] = (assignedCounts[partner.id] || 0) + 1;
                         if(!assignedDates[partner.id]) assignedDates[partner.id] = new Set();
                         assignedDates[partner.id].add(task.dateString);
+                        partnerAssigned = true;
                     }
-                } else if (!manager.hardPair && task.assigned.length < task.capacity) {
-                    // Manager was assigned solo, we need to complete the pair with same gender
+                }
+
+                if (!partnerAssigned && task.assigned.length < task.capacity) {
+                    // Fallback: Manager was assigned solo, we need to complete the pair with same gender
                     const sameGenderPartner = task.pool.find(p => p.id !== manager.id && p.gender === manager.gender && !p.hardPair && canAssign(p.id, task.dateObj, task.dateString));
                     if (sameGenderPartner) {
                         task.assigned.push(sameGenderPartner);
@@ -879,11 +883,28 @@ async function generateDraft() {
                     continue;
                 }
 
-                // Look for a solo person of the SAME gender
+                // Priority 1: Look for a PREFERRED PARTNER (Soft Pair) bypassing gender rules
+                // They match if: Last person preferred them OR they preferred the last person
+                const preferredPartnerMatch = task.pool.find(p =>
+                    !task.assigned.find(a => a.id === p.id) && // Not already assigned
+                    !p.hardPair &&                             // Must be solo (hard pairs take 2 spots)
+                    (lastAssigned.partner === p.id || p.partner === lastAssigned.id) &&
+                    canAssign(p.id, task.dateObj, task.dateString)
+                );
+
+                if (preferredPartnerMatch) {
+                    task.assigned.push(preferredPartnerMatch);
+                    assignedCounts[preferredPartnerMatch.id] = (assignedCounts[preferredPartnerMatch.id] || 0) + 1;
+                    if(!assignedDates[preferredPartnerMatch.id]) assignedDates[preferredPartnerMatch.id] = new Set();
+                    assignedDates[preferredPartnerMatch.id].add(task.dateString);
+                    continue; // Successfully paired
+                }
+
+                // Priority 2: Look for a solo person of the SAME gender
                 const sameGenderMatch = task.pool.find(p =>
                     !task.assigned.find(a => a.id === p.id) && // Not already assigned
                     p.gender === lastAssigned.gender &&        // Same gender
-                    !p.hardPair &&                             // Must be solo (hard pairs take 2 spots)
+                    !p.hardPair &&                             // Must be solo
                     canAssign(p.id, task.dateObj, task.dateString)
                 );
 
@@ -899,11 +920,33 @@ async function generateDraft() {
             }
             // If length is even, we are starting a NEW pair
             else {
-                // Find next available person (or hard pair)
-                const nextPerson = task.pool.find(p =>
-                    !task.assigned.find(a => a.id === p.id) &&
-                    canAssign(p.id, task.dateObj, task.dateString)
-                );
+                // Priority 1: Find a person who has an available PREFERRED PARTNER (Soft Pair)
+                // We do this to ensure soft pairs get assigned together before their halves get swept up as solo matches
+                let nextPerson = null;
+                let softPartnerMatch = null;
+
+                for (let i = 0; i < task.pool.length; i++) {
+                    const p = task.pool[i];
+                    if (!task.assigned.find(a => a.id === p.id) && canAssign(p.id, task.dateObj, task.dateString) && !p.hardPair) {
+                        // Check if they have a preferred partner who is also in the pool, unassigned, and available
+                        if (p.partner) {
+                            const partnerCandidate = task.pool.find(partner => partner.id === p.partner && !task.assigned.find(a => a.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString));
+                            if (partnerCandidate) {
+                                nextPerson = p;
+                                softPartnerMatch = partnerCandidate;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // If no intact soft pair was found, fallback to the standard first available person
+                if (!nextPerson) {
+                    nextPerson = task.pool.find(p =>
+                        !task.assigned.find(a => a.id === p.id) &&
+                        canAssign(p.id, task.dateObj, task.dateString)
+                    );
+                }
 
                 if (!nextPerson) {
                     // Pool is exhausted, pad the rest of the shift with 'Disponible'
@@ -913,7 +956,17 @@ async function generateDraft() {
                     break;
                 }
 
-                if (nextPerson.hardPair && nextPerson.partner) {
+                if (softPartnerMatch && task.assigned.length + 2 <= task.capacity) {
+                    // We found a Soft Pair! Assign both immediately, bypassing gender rules.
+                    task.assigned.push(nextPerson);
+                    task.assigned.push(softPartnerMatch);
+                    assignedCounts[nextPerson.id] = (assignedCounts[nextPerson.id] || 0) + 1;
+                    assignedCounts[softPartnerMatch.id] = (assignedCounts[softPartnerMatch.id] || 0) + 1;
+                    if(!assignedDates[nextPerson.id]) assignedDates[nextPerson.id] = new Set();
+                    if(!assignedDates[softPartnerMatch.id]) assignedDates[softPartnerMatch.id] = new Set();
+                    assignedDates[nextPerson.id].add(task.dateString);
+                    assignedDates[softPartnerMatch.id].add(task.dateString);
+                } else if (nextPerson.hardPair && nextPerson.partner) {
                     // It's a hard pair, try to assign both
                     let partner = allPublishers.find(p => p.id === nextPerson.partner);
                     if (partner && task.pool.find(p => p.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString) && task.assigned.length + 2 <= task.capacity) {
@@ -926,10 +979,6 @@ async function generateDraft() {
                         assignedDates[nextPerson.id].add(task.dateString);
                         assignedDates[partner.id].add(task.dateString);
                     } else {
-                        // Hard pair partner not available, skip the first person and let them be found later if pool changes (unlikely, but standard fallback)
-                        // To avoid infinite loop since we skip them, we temporarily mark them as "checked" or we pad.
-                        // For simplicity, we just add a "Disponible" to advance the loop, effectively leaving a hole.
-                        // Actually, better to remove them from this shift's pool so we don't infinitely loop on them.
                         task.pool = task.pool.filter(p => p.id !== nextPerson.id);
                     }
                 } else {

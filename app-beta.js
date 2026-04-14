@@ -479,7 +479,7 @@ async function loadAvailableShifts() {
       const capacity = shift.capacity || 2; 
       const participants = shift.participants || [];
       const realParticipants = participants.filter(id => id && id !== "Disponible");
-      
+
       if (realParticipants.length < capacity && !realParticipants.includes(currentUserPublisherId) && shift.date >= todayStr) {
           openShifts.push(shift);
       }

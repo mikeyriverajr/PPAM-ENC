@@ -115,7 +115,7 @@ function switchAdminTab(tabId) {
 // ==========================================
 // TAB 1: DIRECTORIO 
 // ==========================================
-let allPublishers = []; 
+var allPublishers = [];
 let currentLinkedUserDocId = null; 
 let currentAbsences = [];
 let currentViewId = null;
@@ -157,12 +157,12 @@ async function loadPublishers() {
       const statusBadge = pub.status === 'Entrenamiento' ? `<span class="badge-warning">Entrenamiento</span>` : '';
       const hardPairBadge = pub.hardPair ? `<span class="badge-red">Pareja Estricta</span>` : '';
       card.innerHTML = `
-        <div><h4 class="pub-name" style="margin:0 0 5px 0; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="color:#5d7aa9;">${genderIcon}</span> ${pub.firstName} ${pub.lastName} ${statusBadge} ${hardPairBadge}</h4>
+        <div><h4 class="pub-name" style="margin:0 0 5px 0; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="color:#5d7aa9;">${genderIcon}</span> ${pub.firstName} ${pub.lastName || ''} ${statusBadge} ${hardPairBadge}</h4>
         <p style="margin:0; font-size:0.85em; color:#666; margin-left: 30px;">Turnos al mes: ${pub.maxShifts || '5'} | Compañero: ${pub.partnerName || 'Ninguno'}</p></div>
         <span class="material-symbols-outlined" style="color:#ccc;">chevron_right</span>
       `;
       listDiv.appendChild(card);
-      partnerSelect.innerHTML += `<option value="${pub.id}">${pub.firstName} ${pub.lastName}</option>`;
+      partnerSelect.innerHTML += `<option value="${pub.id}">${pub.firstName} ${pub.lastName || ''}</option>`;
     });
   } catch (error) { listDiv.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar.</p>'; }
 }
@@ -172,7 +172,7 @@ function viewPublisher(id) {
     if(!pub) return;
     currentViewId = id;
     
-    document.getElementById('view-pub-name').innerHTML = `<span class="material-symbols-outlined" style="color:#5d7aa9; font-size:32px;">${pub.gender === 'M' ? 'woman' : 'man'}</span> ${pub.firstName} ${pub.lastName}`;
+    document.getElementById('view-pub-name').innerHTML = `<span class="material-symbols-outlined" style="color:#5d7aa9; font-size:32px;">${pub.gender === 'M' ? 'woman' : 'man'}</span> ${pub.firstName} ${pub.lastName || ''}`;
     document.getElementById('view-pub-status').innerHTML = pub.status === 'Entrenamiento' ? '<span style="color:#856404; font-weight:bold;">⚠️ Entrenamiento</span>' : '✅ Aprobado';
     document.getElementById('view-pub-max').innerText = `${pub.maxShifts || 5} turnos`;
     document.getElementById('view-pub-partner').innerText = pub.partnerName ? `${pub.partnerName} ${pub.hardPair ? '(Estricto)' : ''}` : 'Ninguno';
@@ -633,7 +633,7 @@ async function deleteLocation() {
 // ==========================================
 // TAB 3: GENERATOR (ABSENCE/TRAINEE LOGIC)
 // ==========================================
-let draftSchedule = []; 
+var draftSchedule = [];
 
 async function checkMonthStatus() {
     await loadDayManagers();
@@ -1172,7 +1172,7 @@ function openShiftEditModal(shiftIndex) {
   assignedContainer.innerHTML = '';
   shift.assigned.forEach(pub => {
     const warn = pub.status === 'Entrenamiento' ? `<span class="badge-warning">Entrenamiento</span>` : '';
-    assignedContainer.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#f9f9f9; padding:12px; border-radius:8px; border:1px solid #eee;"><span>${pub.firstName} ${pub.lastName} ${warn}</span><button type="button" onclick="manualRemove(${shiftIndex}, '${pub.id}')" class="btn-action btn-danger" style="padding:6px 12px;">Quitar</button></div>`;
+    assignedContainer.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#f9f9f9; padding:12px; border-radius:8px; border:1px solid #eee;"><span>${pub.firstName} ${pub.lastName || ''} ${warn}</span><button type="button" onclick="manualRemove(${shiftIndex}, '${pub.id}')" class="btn-action btn-danger" style="padding:6px 12px;">Quitar</button></div>`;
   });
   
   const select = document.getElementById('shift-add-select');
@@ -1196,13 +1196,13 @@ function openShiftEditModal(shiftIndex) {
     const isAvailableInProfile = (pub.availability || []).includes(availKey);
 
     if (isAway) {
-        unavailableHtml += `<option value="${pub.id}">✈️ ${pub.firstName} ${pub.lastName} (Vacaciones)</option>`;
+        unavailableHtml += `<option value="${pub.id}">✈️ ${pub.firstName} ${pub.lastName || ''} (Vacaciones)</option>`;
     } else if (pub.status === 'Entrenamiento') {
         traineeHtml += `<option value="${pub.id}">⚠️ ${pub.firstName} ${pub.lastName}</option>`;
     } else if(isAvailableInProfile) { 
         availableHtml += `<option value="${pub.id}">✅ ${pub.firstName} ${pub.lastName}</option>`; 
     } else { 
-        unavailableHtml += `<option value="${pub.id}">❌ ${pub.firstName} ${pub.lastName}</option>`; 
+        unavailableHtml += `<option value="${pub.id}">❌ ${pub.firstName} ${pub.lastName || ''}</option>`;
     }
   });
   select.innerHTML = optionsHtml + availableHtml + `</optgroup>` + traineeHtml + `</optgroup>` + unavailableHtml + `</optgroup>`;
@@ -1638,4 +1638,98 @@ async function adminResetPassword() {
   } finally {
       btn.innerText = "Restablecer"; btn.disabled = false;
   }
+}
+
+// --- DRAFT STATISTICS ---
+function openDraftStatsModal() {
+  if (!draftSchedule || draftSchedule.length === 0) {
+      showToast("No hay turnos en el borrador para analizar.", "error");
+      return;
+  }
+
+  let totalShifts = draftSchedule.length;
+  let emptySpots = 0;
+  let pubCounts = {};
+
+  // Initialize counts for all active publishers to catch the 0-shift people
+  allPublishers.forEach(pub => {
+      if (pub.status !== 'Entrenamiento') { // Exclude trainees from stats as they are manually handled
+          pubCounts[pub.id] = 0;
+      }
+  });
+
+  // Count assignments and empty spots
+  draftSchedule.forEach(shift => {
+      const assignedCount = shift.assigned.filter(p => p.id && p.id !== "Disponible").length;
+      emptySpots += (shift.capacity - assignedCount);
+
+      shift.assigned.forEach(p => {
+          if (p.id && p.id !== "Disponible" && pubCounts[p.id] !== undefined) {
+              pubCounts[p.id]++;
+          }
+      });
+  });
+
+  // Calculate Distribution
+  const distribution = { 0: [], 1: [], 2: [], 3: [], 4: [], '5+': [] };
+
+  Object.keys(pubCounts).forEach(pubId => {
+      const count = pubCounts[pubId];
+      const pub = allPublishers.find(p => p.id === pubId);
+      if (!pub) return;
+
+      if (count === 0) distribution[0].push(pub);
+      else if (count === 1) distribution[1].push(pub);
+      else if (count === 2) distribution[2].push(pub);
+      else if (count === 3) distribution[3].push(pub);
+      else if (count === 4) distribution[4].push(pub);
+      else distribution['5+'].push(pub);
+  });
+
+  // Populate Header
+  document.getElementById('stat-total-shifts').innerText = totalShifts;
+  document.getElementById('stat-empty-spots').innerText = emptySpots;
+
+  // Build Distribution Bars
+  const distContainer = document.getElementById('stat-distribution-bars');
+  distContainer.innerHTML = '';
+
+  const maxGroupSize = Math.max(...Object.values(distribution).map(arr => arr.length)) || 1; // Prevent division by zero
+
+  ['0', '1', '2', '3', '4', '5+'].forEach(key => {
+      const count = distribution[key].length;
+      const pct = (count / maxGroupSize) * 100;
+      const barColor = key === '0' || key === '1' ? '#dc3545' : '#5d7aa9';
+
+      distContainer.innerHTML += `
+        <div style="display:flex; align-items:center; margin-bottom:8px;">
+            <span style="width:70px; font-weight:600; color:#555;">${key} turnos:</span>
+            <div style="flex:1; background:#ddd; height:12px; border-radius:6px; overflow:hidden; margin:0 10px;">
+                <div style="width:${pct}%; background:${barColor}; height:100%; transition: width 0.5s;"></div>
+            </div>
+            <span style="width:30px; text-align:right; color:#333; font-weight:bold;">${count}</span>
+        </div>
+      `;
+  });
+
+  // Build "Needs Attention" List
+  const attentionList = document.getElementById('stat-attention-list');
+  attentionList.innerHTML = '';
+
+  const needyPubs = [...distribution[0], ...distribution[1]].sort((a,b) => (a.firstName || '').localeCompare(b.firstName || ''));
+  if (needyPubs.length === 0) {
+      attentionList.innerHTML = '<li style="list-style:none; color:#28a745; font-weight:bold;">✅ ¡Excelente! Todos los publicadores aprobados tienen al menos 2 turnos.</li>';
+  } else {
+      needyPubs.forEach(pub => {
+          const shiftCount = pubCounts[pub.id];
+          const badge = shiftCount === 0 ? `<span style="background:#dc3545; color:white; padding:2px 6px; border-radius:4px; font-size:0.8em; margin-left:5px;">0 Turnos</span>` : `<span style="background:#f59f00; color:white; padding:2px 6px; border-radius:4px; font-size:0.8em; margin-left:5px;">1 Turno</span>`;
+          attentionList.innerHTML += `<li style="margin-bottom:5px;"><strong>${pub.firstName} ${pub.lastName || ''}</strong> ${badge}</li>`;
+      });
+  }
+
+  document.getElementById('stats-modal').style.display = 'flex';
+}
+
+function closeDraftStatsModal() {
+    document.getElementById('stats-modal').style.display = 'none';
 }

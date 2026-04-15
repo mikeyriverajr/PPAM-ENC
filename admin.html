@@ -436,9 +436,43 @@
             </div>
             <div style="margin-top:25px; text-align:right; display:flex; justify-content:space-between;">
                <button id="btn-clear-draft" onclick="clearDraft()" class="btn-action btn-danger" style="padding:12px 30px; font-size: 1em;"><span class="material-symbols-outlined">delete_sweep</span> Descartar todo</button>
-               <button id="btn-publish-bottom" onclick="publishSchedule()" class="btn-action btn-success" style="padding:12px 30px; font-size: 1em;"><span class="material-symbols-outlined">cloud_upload</span> Guardar en Calendario Oficial</button>
+               <div style="display:flex; gap:10px;">
+                   <button id="btn-stats-draft" onclick="openDraftStatsModal()" class="btn-action btn-info" style="padding:12px 20px; font-size: 1em;"><span class="material-symbols-outlined">query_stats</span> Ver Estadísticas</button>
+                   <button id="btn-publish-bottom" onclick="publishSchedule()" class="btn-action btn-success" style="padding:12px 30px; font-size: 1em;"><span class="material-symbols-outlined">cloud_upload</span> Guardar en Calendario Oficial</button>
+               </div>
             </div>
         </div>
+    </div>
+
+    <!-- Estadísticas del Borrador Modal -->
+    <div id="stats-modal" class="modal">
+      <div class="modal-content" style="max-width: 600px;">
+          <span class="close-modal" onclick="closeDraftStatsModal()"><span class="material-symbols-outlined">close</span></span>
+          <h3 style="margin-top: 0; color: #5d7aa9; border-bottom: 1px solid #f0f0f0; padding-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+              <span class="material-symbols-outlined">analytics</span> Estadísticas del Borrador
+          </h3>
+
+          <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+              <div style="flex: 1; background: #eef2f5; padding: 15px; border-radius: 8px; text-align: center;">
+                  <h2 id="stat-total-shifts" style="margin:0; color:#333; font-size: 2em;">0</h2>
+                  <p style="margin: 5px 0 0 0; color:#666; font-size: 0.9em;">Total de Turnos</p>
+              </div>
+              <div style="flex: 1; background: #eef2f5; padding: 15px; border-radius: 8px; text-align: center;">
+                  <h2 id="stat-empty-spots" style="margin:0; color:#dc3545; font-size: 2em;">0</h2>
+                  <p style="margin: 5px 0 0 0; color:#666; font-size: 0.9em;">Espacios Libres (Disponibles)</p>
+              </div>
+          </div>
+
+          <h4 style="color:#5d7aa9; margin-bottom: 10px;">Distribución de Turnos por Publicador</h4>
+          <div id="stat-distribution-bars" style="margin-bottom: 25px; padding: 15px; background: #f9f9f9; border-radius: 8px; border: 1px solid #eee;">
+              <!-- Inserted via JS -->
+          </div>
+
+          <h4 style="color:#dc3545; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;">⚠️ Atención Requerida (0 - 1 Turnos)</h4>
+          <ul id="stat-attention-list" style="margin: 0; padding-left: 20px; color: #555; max-height: 150px; overflow-y: auto;">
+              <!-- Inserted via JS -->
+          </ul>
+      </div>
     </div>
 
     <div id="shift-edit-modal" class="modal">

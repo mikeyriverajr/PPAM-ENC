@@ -403,7 +403,7 @@ async function deletePublisher() {
     const userQuery = await db.collection('users').where('publisherId', '==', id).get();
     let authUid = null;
     let userDocId = null;
-    
+
     if (!userQuery.empty) {
         userDocId = userQuery.docs[0].id;
         authUid = userDocId; // The user doc ID is always the Auth UID
@@ -422,12 +422,12 @@ async function deletePublisher() {
 
     // 3. Delete the publisher document
     await db.collection('publishers').doc(id).delete();
-    
+
     showToast("Publicador y cuenta de acceso eliminados.");
     closePubEditModal();
     loadPublishers();
-  } catch (error) { 
-      showToast("Error al eliminar: " + error.message, "error"); 
+  } catch (error) {
+      showToast("Error al eliminar: " + error.message, "error");
       console.error(error);
   }
 }
@@ -489,7 +489,7 @@ async function loadLocations() {
     listDiv.innerHTML = '';
     const generatorLocsDiv = document.getElementById('generator-locations');
     if (generatorLocsDiv) generatorLocsDiv.innerHTML = '';
-    
+
     snapshot.forEach(doc => {
       const loc = doc.data();
       const card = document.createElement('div');
@@ -502,7 +502,7 @@ async function loadLocations() {
         <button onclick='editLocation("${doc.id}")' class="btn-action btn-primary">Editar</button>
       `;
       listDiv.appendChild(card);
-      
+
       // Populate Generator Checkboxes for active locations
       if (loc.isActive !== false && generatorLocsDiv) {
           const cbDiv = document.createElement('div');
@@ -514,7 +514,7 @@ async function loadLocations() {
           generatorLocsDiv.appendChild(cbDiv);
       }
     });
-    
+
     if(generatorLocsDiv && generatorLocsDiv.innerHTML === '') {
         generatorLocsDiv.innerHTML = '<p style="color:#dc3545; font-size:0.9em; margin:0;">No hay ubicaciones activas disponibles.</p>';
     }
@@ -586,7 +586,7 @@ async function saveLocation() {
   const requiresManager = document.getElementById('loc-req-manager').checked;
   const mapsUrl = document.getElementById('loc-maps-url').value.trim();
   const infoHtml = quillEditor ? quillEditor.root.innerHTML.trim() : "";
-  
+
   if (!name) { showToast("El nombre es obligatorio", "error"); return; }
   
   const templates = [];
@@ -648,12 +648,12 @@ async function loadPublishedMonthsList() {
     select.disabled = true;
 
     try {
-        // Query to find distinct months that have shifts. Since we can't do distinct in Firestore easily, 
+        // Query to find distinct months that have shifts. Since we can't do distinct in Firestore easily,
         // we'll fetch all shifts or group them if there's a tracker. Alternatively, we just query limits.
         // For efficiency, we will assume a reasonable window or fetch active shifts.
         const shiftsSnap = await db.collection('shifts').orderBy('date', 'desc').get();
         const monthsSet = new Set();
-        
+
         shiftsSnap.forEach(doc => {
             const dateStr = doc.data().date; // YYYY-MM-DD
             if (dateStr) {
@@ -662,7 +662,7 @@ async function loadPublishedMonthsList() {
         });
 
         const monthsArray = Array.from(monthsSet).sort().reverse();
-        
+
         select.innerHTML = '';
         if (monthsArray.length === 0) {
             select.innerHTML = '<option value="">Ningún mes publicado</option>';
@@ -688,14 +688,14 @@ async function loadDayManagers() {
     try {
         const settingsDoc = await db.collection('settings').doc('dayManagers').get();
         const settings = settingsDoc.exists ? settingsDoc.data() : {};
-        
+
         let pubOptions = `<option value="">Ninguno</option>`;
         const sortedPubs = [...allPublishers].sort((a,b) => (a.firstName || '').localeCompare(b.firstName || ''));
         sortedPubs.forEach(p => pubOptions += `<option value="${p.id}">${p.firstName} ${p.lastName}</option>`);
 
         const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
         container.innerHTML = '';
-        
+
         days.forEach(day => {
             const currentId = settings[day] || '';
             const div = document.createElement('div');
@@ -718,7 +718,7 @@ async function saveDayManagers() {
     days.forEach(day => {
         data[day] = document.getElementById(`day-manager-${day}`).value;
     });
-    
+
     try {
         await db.collection('settings').doc('dayManagers').set(data, {merge: true});
         showToast('Encargados del día guardados exitosamente.');
@@ -734,16 +734,16 @@ async function generateDraft() {
   try {
     const startDateStr = document.getElementById('gen-start-date').value;
     const endDateStr = document.getElementById('gen-end-date').value;
-    
+
     if (!startDateStr || !endDateStr) {
         showToast("Selecciona la fecha de inicio y fin.", "error");
         btn.innerHTML = `<span class="material-symbols-outlined">magic_button</span> Añadir al Borrador`; btn.disabled = false;
         return;
     }
-    
+
     const startDate = new Date(startDateStr + 'T00:00:00');
     const endDate = new Date(endDateStr + 'T00:00:00');
-    
+
     if (startDate > endDate) {
         showToast("La fecha de inicio no puede ser mayor a la de fin.", "error");
         btn.innerHTML = `<span class="material-symbols-outlined">magic_button</span> Añadir al Borrador`; btn.disabled = false;
@@ -755,7 +755,7 @@ async function generateDraft() {
     document.querySelectorAll('#generator-locations input[type="checkbox"]:checked').forEach(cb => {
         selectedLocIds.push(cb.value);
     });
-    
+
     if (selectedLocIds.length === 0) {
         showToast("Selecciona al menos una ubicación.", "error");
         btn.innerHTML = `<span class="material-symbols-outlined">magic_button</span> Añadir al Borrador`; btn.disabled = false;
@@ -763,16 +763,16 @@ async function generateDraft() {
     }
 
     const locsSnap = await db.collection('locations').where('isActive', '==', true).get();
-    const locations = []; 
-    locsSnap.forEach(d => { 
+    const locations = [];
+    locsSnap.forEach(d => {
         if(selectedLocIds.includes(d.id)) {
-            let l=d.data(); l.id=d.id; locations.push(l); 
+            let l=d.data(); l.id=d.id; locations.push(l);
         }
     });
 
     const daysMap = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
     let shiftTasks = [];
-    
+
     // Iterate through dates
     let currentDate = new Date(startDate);
     while (currentDate <= endDate) {
@@ -783,7 +783,7 @@ async function generateDraft() {
         (loc.templates || []).forEach(t => {
           if (t.day === dayName) {
             shiftTasks.push({
-              docId: null, dateObj: new Date(currentDate), dateString: dateString, 
+              docId: null, dateObj: new Date(currentDate), dateString: dateString,
               location: loc.name, 
               locationId: loc.id, 
               requiresManager: loc.requiresManager || false,
@@ -828,17 +828,42 @@ async function generateDraft() {
       return true;
     }
 
+
+    // Sorting utility to balance shifts and space them out
+    function sortCandidatesByPriority(candidates, dateObj) {
+        return candidates.sort((a, b) => {
+            const countA = assignedCounts[a.id] || 0;
+            const countB = assignedCounts[b.id] || 0;
+            if (countA !== countB) {
+                return countA - countB;
+            }
+            function getLastShiftTime(pubId) {
+                const dates = assignedDates[pubId];
+                if (!dates || dates.size === 0) return 0;
+                const maxDateStr = Array.from(dates).reduce((d1, d2) => d1 > d2 ? d1 : d2);
+                return new Date(maxDateStr + "T00:00:00").getTime();
+            }
+            const timeA = getLastShiftTime(a.id);
+            const timeB = getLastShiftTime(b.id);
+            if (timeA === 0 && timeB !== 0) return -1;
+            if (timeB === 0 && timeA !== 0) return 1;
+            return timeA - timeB;
+        });
+    }
+
     // 1. First Pass: Assign Required Local Managers
     shiftTasks.forEach(task => {
         if (task.requiresManager && task.assigned.length < task.capacity) {
-            // Find an available manager in the pool
-            const manager = task.pool.find(p => p.isShiftManager && canAssign(p.id, task.dateObj, task.dateString));
+            const eligibleManagers = task.pool.filter(p => p.isShiftManager && canAssign(p.id, task.dateObj, task.dateString));
+            sortCandidatesByPriority(eligibleManagers, task.dateObj);
+            const manager = eligibleManagers.length > 0 ? eligibleManagers[0] : null;
+
             if (manager) {
                 task.assigned.push(manager);
                 assignedCounts[manager.id] = (assignedCounts[manager.id] || 0) + 1;
                 if(!assignedDates[manager.id]) assignedDates[manager.id] = new Set();
                 assignedDates[manager.id].add(task.dateString);
-                
+
                 // Priority: Pull in their preferred partner (Soft or Hard Pair)
                 let partnerAssigned = false;
                 if (manager.partner && task.assigned.length < task.capacity) {
@@ -850,21 +875,45 @@ async function generateDraft() {
                         assignedDates[partner.id].add(task.dateString);
                         partnerAssigned = true;
                     }
-                } 
-                
+                }
+
                 if (!partnerAssigned && task.assigned.length < task.capacity) {
                     // Fallback: Manager was assigned solo, we need to complete the pair with same gender
-                    const sameGenderPartner = task.pool.find(p => p.id !== manager.id && p.gender === manager.gender && !p.hardPair && canAssign(p.id, task.dateObj, task.dateString));
+                    const eligibleSameGender = task.pool.filter(p => p.id !== manager.id && p.gender === manager.gender && !p.hardPair && canAssign(p.id, task.dateObj, task.dateString));
+                    sortCandidatesByPriority(eligibleSameGender, task.dateObj);
+                    const sameGenderPartner = eligibleSameGender.length > 0 ? eligibleSameGender[0] : null;
+
                     if (sameGenderPartner) {
                         task.assigned.push(sameGenderPartner);
                         assignedCounts[sameGenderPartner.id] = (assignedCounts[sameGenderPartner.id] || 0) + 1;
                         if(!assignedDates[sameGenderPartner.id]) assignedDates[sameGenderPartner.id] = new Set();
                         assignedDates[sameGenderPartner.id].add(task.dateString);
                     } else {
-                        // Insert 'Disponible' to close the pair because no same-gender match found
                         task.assigned.push({ id: "Disponible" });
                     }
                 }
+            }
+        }
+    });
+
+    // 1.5. Intermediate Pass: Handle Hard Pairs unconditionally first
+    shiftTasks.forEach(task => {
+        // Find all intact hard pairs
+        const eligibleHardPairs = task.pool.filter(p => p.hardPair && p.partner && !task.assigned.find(a => a.id === p.id) && canAssign(p.id, task.dateObj, task.dateString) && task.pool.find(partner => partner.id === p.partner && !task.assigned.find(a => a.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString)));
+        sortCandidatesByPriority(eligibleHardPairs, task.dateObj);
+
+        for (const p of eligibleHardPairs) {
+            if (task.assigned.length + 2 <= task.capacity && !task.assigned.find(a => a.id === p.id)) {
+                const partner = task.pool.find(pt => pt.id === p.partner);
+                task.assigned.push(p);
+                task.assigned.push(partner);
+
+                assignedCounts[p.id] = (assignedCounts[p.id] || 0) + 1;
+                assignedCounts[partner.id] = (assignedCounts[partner.id] || 0) + 1;
+                if(!assignedDates[p.id]) assignedDates[p.id] = new Set();
+                if(!assignedDates[partner.id]) assignedDates[partner.id] = new Set();
+                assignedDates[p.id].add(task.dateString);
+                assignedDates[partner.id].add(task.dateString);
             }
         }
     });
@@ -875,8 +924,8 @@ async function generateDraft() {
             // If length is odd, we must complete a pair with the SAME GENDER as the last assigned person
             if (task.assigned.length % 2 !== 0) {
                 const lastAssigned = task.assigned[task.assigned.length - 1];
-                
-                // If the last assigned was already a dummy 'Disponible', we can't match it. 
+
+                // If the last assigned was already a dummy 'Disponible', we can't match it.
                 // We just add another 'Disponible' to close the pair.
                 if (lastAssigned.id === "Disponible" || !lastAssigned.gender) {
                     task.assigned.push({ id: "Disponible" });
@@ -884,13 +933,14 @@ async function generateDraft() {
                 }
 
                 // Priority 1: Look for a PREFERRED PARTNER (Soft Pair) bypassing gender rules
-                // They match if: Last person preferred them OR they preferred the last person
-                const preferredPartnerMatch = task.pool.find(p => 
+                const eligiblePreferredPartners = task.pool.filter(p =>
                     !task.assigned.find(a => a.id === p.id) && // Not already assigned
                     !p.hardPair &&                             // Must be solo (hard pairs take 2 spots)
-                    (lastAssigned.partner === p.id || p.partner === lastAssigned.id) && 
+                    (lastAssigned.partner === p.id || p.partner === lastAssigned.id) &&
                     canAssign(p.id, task.dateObj, task.dateString)
                 );
+                sortCandidatesByPriority(eligiblePreferredPartners, task.dateObj);
+                const preferredPartnerMatch = eligiblePreferredPartners.length > 0 ? eligiblePreferredPartners[0] : null;
 
                 if (preferredPartnerMatch) {
                     task.assigned.push(preferredPartnerMatch);
@@ -901,12 +951,14 @@ async function generateDraft() {
                 }
 
                 // Priority 2: Look for a solo person of the SAME gender
-                const sameGenderMatch = task.pool.find(p => 
+                const eligibleSameGender = task.pool.filter(p =>
                     !task.assigned.find(a => a.id === p.id) && // Not already assigned
                     p.gender === lastAssigned.gender &&        // Same gender
                     !p.hardPair &&                             // Must be solo
                     canAssign(p.id, task.dateObj, task.dateString)
                 );
+                sortCandidatesByPriority(eligibleSameGender, task.dateObj);
+                const sameGenderMatch = eligibleSameGender.length > 0 ? eligibleSameGender[0] : null;
 
                 if (sameGenderMatch) {
                     task.assigned.push(sameGenderMatch);
@@ -917,35 +969,35 @@ async function generateDraft() {
                     // No match found, leave empty to close the pair
                     task.assigned.push({ id: "Disponible" });
                 }
-            } 
+            }
             // If length is even, we are starting a NEW pair
             else {
-                // Priority 1: Find a person who has an available PREFERRED PARTNER (Soft Pair)
-                // We do this to ensure soft pairs get assigned together before their halves get swept up as solo matches
                 let nextPerson = null;
                 let softPartnerMatch = null;
-                
-                for (let i = 0; i < task.pool.length; i++) {
-                    const p = task.pool[i];
-                    if (!task.assigned.find(a => a.id === p.id) && canAssign(p.id, task.dateObj, task.dateString) && !p.hardPair) {
-                        // Check if they have a preferred partner who is also in the pool, unassigned, and available
-                        if (p.partner) {
-                            const partnerCandidate = task.pool.find(partner => partner.id === p.partner && !task.assigned.find(a => a.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString));
-                            if (partnerCandidate) {
-                                nextPerson = p;
-                                softPartnerMatch = partnerCandidate;
-                                break;
-                            }
-                        }
-                    }
+
+                // Priority 1: Find a person who has an available PREFERRED PARTNER (Soft Pair)
+                const eligibleSoftPairStarters = task.pool.filter(p => {
+                    if (task.assigned.find(a => a.id === p.id) || !canAssign(p.id, task.dateObj, task.dateString) || p.hardPair) return false;
+                    if (!p.partner) return false;
+                    const partnerCandidate = task.pool.find(partner => partner.id === p.partner && !task.assigned.find(a => a.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString));
+                    return !!partnerCandidate;
+                });
+
+                if (eligibleSoftPairStarters.length > 0) {
+                    sortCandidatesByPriority(eligibleSoftPairStarters, task.dateObj);
+                    nextPerson = eligibleSoftPairStarters[0];
+                    softPartnerMatch = task.pool.find(partner => partner.id === nextPerson.partner && !task.assigned.find(a => a.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString));
                 }
 
                 // If no intact soft pair was found, fallback to the standard first available person
                 if (!nextPerson) {
-                    nextPerson = task.pool.find(p => 
-                        !task.assigned.find(a => a.id === p.id) && 
-                        canAssign(p.id, task.dateObj, task.dateString)
+                    const eligibleNextPersons = task.pool.filter(p =>
+                        !task.assigned.find(a => a.id === p.id) &&
+                        canAssign(p.id, task.dateObj, task.dateString) &&
+                        !p.hardPair
                     );
+                    sortCandidatesByPriority(eligibleNextPersons, task.dateObj);
+                    nextPerson = eligibleNextPersons.length > 0 ? eligibleNextPersons[0] : null;
                 }
 
                 if (!nextPerson) {
@@ -956,56 +1008,36 @@ async function generateDraft() {
                     break;
                 }
 
-                if (softPartnerMatch && task.assigned.length + 2 <= task.capacity) {
-                    // We found a Soft Pair! Assign both immediately, bypassing gender rules.
-                    task.assigned.push(nextPerson);
+                task.assigned.push(nextPerson);
+                assignedCounts[nextPerson.id] = (assignedCounts[nextPerson.id] || 0) + 1;
+                if(!assignedDates[nextPerson.id]) assignedDates[nextPerson.id] = new Set();
+                assignedDates[nextPerson.id].add(task.dateString);
+
+                // If we found a partner in the first step, immediately assign them to complete the pair
+                if (softPartnerMatch) {
                     task.assigned.push(softPartnerMatch);
-                    assignedCounts[nextPerson.id] = (assignedCounts[nextPerson.id] || 0) + 1;
                     assignedCounts[softPartnerMatch.id] = (assignedCounts[softPartnerMatch.id] || 0) + 1;
-                    if(!assignedDates[nextPerson.id]) assignedDates[nextPerson.id] = new Set();
                     if(!assignedDates[softPartnerMatch.id]) assignedDates[softPartnerMatch.id] = new Set();
-                    assignedDates[nextPerson.id].add(task.dateString);
                     assignedDates[softPartnerMatch.id].add(task.dateString);
-                } else if (nextPerson.hardPair && nextPerson.partner) {
-                    // It's a hard pair, try to assign both
-                    let partner = allPublishers.find(p => p.id === nextPerson.partner);
-                    if (partner && task.pool.find(p => p.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString) && task.assigned.length + 2 <= task.capacity) {
-                        task.assigned.push(nextPerson);
-                        task.assigned.push(partner);
-                        assignedCounts[nextPerson.id] = (assignedCounts[nextPerson.id] || 0) + 1;
-                        assignedCounts[partner.id] = (assignedCounts[partner.id] || 0) + 1;
-                        if(!assignedDates[nextPerson.id]) assignedDates[nextPerson.id] = new Set();
-                        if(!assignedDates[partner.id]) assignedDates[partner.id] = new Set();
-                        assignedDates[nextPerson.id].add(task.dateString);
-                        assignedDates[partner.id].add(task.dateString);
-                    } else {
-                        task.pool = task.pool.filter(p => p.id !== nextPerson.id);
-                    }
-                } else {
-                    // It's a solo person, assign them to start the new pair
-                    task.assigned.push(nextPerson);
-                    assignedCounts[nextPerson.id] = (assignedCounts[nextPerson.id] || 0) + 1;
-                    if(!assignedDates[nextPerson.id]) assignedDates[nextPerson.id] = new Set();
-                    assignedDates[nextPerson.id].add(task.dateString);
                 }
             }
         }
     });
 
-    const finalShifts = shiftTasks.sort((a,b) => a.dateObj - b.dateObj); 
-    
+    const finalShifts = shiftTasks.sort((a,b) => a.dateObj - b.dateObj);
+
     // Save to Firestore draft_shifts collection using a chunked Batch
     const draftRef = db.collection('draft_shifts');
     const chunks = [];
     let currentBatch = db.batch();
     let currentCount = 0;
-    
+
     finalShifts.forEach(shift => {
         const docRef = draftRef.doc(); // Auto ID
         const participantIds = [];
         shift.assigned.forEach(p => participantIds.push(p.id));
         while(participantIds.length < shift.capacity) { participantIds.push("Disponible"); }
-        
+
         currentBatch.set(docRef, {
             date: shift.dateString,
             location: shift.location,
@@ -1022,7 +1054,7 @@ async function generateDraft() {
             currentCount = 0;
         }
     });
-    
+
     if (currentCount > 0) {
         chunks.push(currentBatch.commit());
     }
@@ -1066,11 +1098,11 @@ async function loadPublishedMonth() {
             currentCount = 0;
         }
     });
-    
+
     if (currentCount > 0) {
         chunks.push(currentBatch.commit());
     }
-    
+
     await Promise.all(chunks);
     showToast("Mes cargado al borrador exitosamente.");
   } catch(e) { showToast("Error cargando: " + e.message, "error"); }
@@ -1118,7 +1150,7 @@ function renderPreviewTable() {
   draftSchedule.forEach((shift, index) => {
     let namesHtml = '';
     let hasManager = false;
-    
+
     shift.assigned.forEach(p => {
         const warn = p.status === 'Entrenamiento' ? `<span class="material-symbols-outlined" style="font-size:14px; color:#ffc107; vertical-align:-2px;" title="En Entrenamiento">warning</span>` : '';
         const mgrBadge = p.isShiftManager ? `<span class="material-symbols-outlined" style="font-size:14px; color:#dc3545; vertical-align:-2px;" title="Encargado Físico">local_police</span>` : '';
@@ -1199,7 +1231,7 @@ function openShiftEditModal(shiftIndex) {
         unavailableHtml += `<option value="${pub.id}">✈️ ${pub.firstName} ${pub.lastName || ''} (Vacaciones)</option>`;
     } else if (pub.status === 'Entrenamiento') {
         traineeHtml += `<option value="${pub.id}">⚠️ ${pub.firstName} ${pub.lastName}</option>`;
-    } else if(isAvailableInProfile) { 
+    } else if(isAvailableInProfile) {
         availableHtml += `<option value="${pub.id}">✅ ${pub.firstName} ${pub.lastName}</option>`; 
     } else { 
         unavailableHtml += `<option value="${pub.id}">❌ ${pub.firstName} ${pub.lastName || ''}</option>`;
@@ -1266,7 +1298,7 @@ async function updateDraftShiftDb(shiftObj) {
     const participantIds = [];
     shiftObj.assigned.forEach(p => participantIds.push(p.id));
     while(participantIds.length < shiftObj.capacity) { participantIds.push("Disponible"); }
-    
+
     try {
         await db.collection('draft_shifts').doc(shiftObj.docId).update({ participants: participantIds });
         showToast("Turno actualizado en borrador.", "info");
@@ -1282,7 +1314,7 @@ async function deleteDraftShift(docId) {
     if(!docId) return;
     const confirmDelete = await showConfirm("¿Estás seguro de eliminar este turno de la mesa de trabajo? (Se eliminará del calendario oficial al guardar)", "Descartar Turno");
     if(!confirmDelete) return;
-    
+
     try {
         // Instead of hard deleting, we mark it so it can be deleted from the live DB upon publishing
         await db.collection('draft_shifts').doc(docId).update({ markedForDeletion: true });
@@ -1306,7 +1338,7 @@ async function publishSchedule() {
         btn.innerHTML = `<span class="material-symbols-outlined">cloud_upload</span> Guardar en Calendario Oficial`; btn.disabled = false;
         return;
     }
-    
+
     // 2. Queue all draft shifts to be added to the live 'shifts' collection, grouped into chunks
     const chunks = [];
     let currentBatch = db.batch();
@@ -1315,7 +1347,7 @@ async function publishSchedule() {
     draftSnap.forEach(doc => {
         const liveDocRef = db.collection('shifts').doc(doc.id); // Preserve original ID to avoid duplicating published shifts
         const data = doc.data();
-        
+
         if (data.markedForDeletion) {
             // If the user discarded this shift from the workspace, delete it from the LIVE calendar too
             currentBatch.delete(liveDocRef);
@@ -1323,10 +1355,10 @@ async function publishSchedule() {
             // Otherwise, set/update it in the LIVE calendar
             currentBatch.set(liveDocRef, data);
         }
-        
+
         // Either way, delete it from the DRAFT workspace
         currentBatch.delete(doc.ref);
-        
+
         currentCount += 2; // Two operations: 1 live (set/delete), 1 draft delete
 
         // Firestore batch limit is 500 operations
@@ -1336,21 +1368,21 @@ async function publishSchedule() {
             currentCount = 0;
         }
     });
-    
+
     // Commit the remaining operations
     if (currentCount > 0) {
         chunks.push(currentBatch.commit());
     }
-    
+
     // 4. Wait for all batch commits to complete
     await Promise.all(chunks);
-    
-    showToast('¡Borrador publicado exitosamente!'); 
+
+    showToast('¡Borrador publicado exitosamente!');
     document.getElementById('schedule-preview-container').style.display = 'none';
     // The real-time listener will automatically empty the draft array and hide the UI
-    checkMonthStatus(); 
+    checkMonthStatus();
   } catch (error) { 
-      showToast("Error publicando: " + error.message, "error"); 
+      showToast("Error publicando: " + error.message, "error");
   } finally { 
       btn.innerHTML = `<span class="material-symbols-outlined">cloud_upload</span> Guardar y Publicar`; btn.disabled = false; 
   }
@@ -1360,10 +1392,10 @@ async function clearDraft() {
     if (draftSchedule.length === 0) return;
     const isConfirmed = await showConfirm('¿Estás seguro de limpiar y eliminar todo el borrador?', 'Limpiar Borrador', '#dc3545');
     if (!isConfirmed) return;
-    
+
     try {
         const draftSnap = await db.collection('draft_shifts').get();
-        
+
         const chunks = [];
         let currentBatch = db.batch();
         let currentCount = 0;
@@ -1480,7 +1512,7 @@ function initQuill() {
 }
 document.addEventListener('DOMContentLoaded', () => {
    // Wait for DOM to load before init
-   setTimeout(initQuill, 500); 
+   setTimeout(initQuill, 500);
 });
 
 window.initQuill = initQuill;
@@ -1506,7 +1538,7 @@ function imageHandler() {
             const storageRef = storage.ref();
             const fileName = `locations/${Date.now()}_${file.name}`;
             const imageRef = storageRef.child(fileName);
-            
+
             await imageRef.put(compressedBlob);
             const downloadUrl = await imageRef.getDownloadURL();
 
@@ -1542,7 +1574,7 @@ function compressImage(file, maxWidth) {
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
-                
+
                 // Compress to JPEG with 0.7 quality
                 canvas.toBlob((blob) => {
                     resolve(blob);
@@ -1559,20 +1591,20 @@ let draftUnsubscribe = null;
 
 async function initDraftListener() {
     if (draftUnsubscribe) draftUnsubscribe();
-    
+
     // Fetch locations to know which ones require a manager
     const locsSnap = await db.collection('locations').get();
     const locMap = {};
     locsSnap.forEach(d => { locMap[d.data().name] = { id: d.id, requiresManager: d.data().requiresManager || false }; });
-    
+
     draftUnsubscribe = db.collection('draft_shifts').orderBy('date', 'asc').onSnapshot(snapshot => {
         draftSchedule = [];
         snapshot.forEach(doc => {
             const data = doc.data();
             if (data.markedForDeletion) return; // Hide deleted shifts from UI workspace
-            
+
             data.id = doc.id; // Keep the document ID
-            
+
             // Map the "participants" UID array back into the "assigned" object array expected by the UI
             const assignedPubs = [];
             (data.participants || []).forEach(uid => {
@@ -1581,9 +1613,9 @@ async function initDraftListener() {
                     if (pub) assignedPubs.push(pub);
                 }
             });
-            
+
             const locRequiresManager = locMap[data.location]?.requiresManager || false;
-            
+
             draftSchedule.push({
                 docId: doc.id,
                 dateString: data.date,
@@ -1595,7 +1627,7 @@ async function initDraftListener() {
                 requiresManager: locRequiresManager
             });
         });
-        
+
         // Show container if there is AT LEAST ONE document in the snapshot (even if markedForDeletion)
         // so the user can still click 'Guardar y Publicar' to execute the deletions.
         if(!snapshot.empty) {
@@ -1615,18 +1647,18 @@ async function adminResetPassword() {
       showToast("La contraseña debe tener al menos 6 caracteres.", "error");
       return;
   }
-  
+
   if (!currentLinkedUserDocId) {
       showToast("No hay una cuenta vinculada para restablecer.", "error");
       return;
   }
-  
+
   const isConfirmed = await showConfirm(`¿Estás seguro de forzar el cambio de contraseña para este usuario?`, "Restablecer Contraseña");
   if (!isConfirmed) return;
-  
+
   const btn = document.getElementById('btn-reset-pw');
   btn.innerText = "Cambiando..."; btn.disabled = true;
-  
+
   try {
       const resetUserPassword = firebase.functions().httpsCallable('resetUserPassword');
       await resetUserPassword({ uid: currentLinkedUserDocId, newPassword: newPassword });

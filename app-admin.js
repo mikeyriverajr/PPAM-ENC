@@ -808,6 +808,14 @@ async function generateDraft() {
 
     let assignedCounts = {}; let assignedDates = {};  
 
+    // Pre-calculate total monthly availability and random tie-breaker
+    let totalAvailability = {};
+    let randomTieBreakers = {};
+    allPublishers.forEach(pub => {
+        totalAvailability[pub.id] = shiftTasks.filter(task => task.pool.some(p => p.id === pub.id)).length;
+        randomTieBreakers[pub.id] = Math.random();
+    });
+
     function isAbsent(pub, dateString) {
         if (!pub.absences) return false;
         return pub.absences.some(abs => dateString >= abs.start && dateString <= abs.end);
@@ -832,22 +840,49 @@ async function generateDraft() {
     // Sorting utility to balance shifts and space them out
     function sortCandidatesByPriority(candidates, dateObj) {
         return candidates.sort((a, b) => {
+            // 1. Lowest current shift count
             const countA = assignedCounts[a.id] || 0;
             const countB = assignedCounts[b.id] || 0;
             if (countA !== countB) {
                 return countA - countB;
             }
-            function getLastShiftTime(pubId) {
-                const dates = assignedDates[pubId];
-                if (!dates || dates.size === 0) return 0;
-                const maxDateStr = Array.from(dates).reduce((d1, d2) => d1 > d2 ? d1 : d2);
-                return new Date(maxDateStr + "T00:00:00").getTime();
+
+            // 2. Lowest overall availability (prioritize people with fewer available slots)
+            const availA = totalAvailability[a.id] || 0;
+            const availB = totalAvailability[b.id] || 0;
+            if (availA !== availB) {
+                return availA - availB;
             }
-            const timeA = getLastShiftTime(a.id);
-            const timeB = getLastShiftTime(b.id);
-            if (timeA === 0 && timeB !== 0) return -1;
-            if (timeB === 0 && timeA !== 0) return 1;
-            return timeA - timeB;
+
+            // 3. Maximum distance between shifts
+            function getMinDistanceToShift(pubId, targetTime) {
+                const dates = assignedDates[pubId];
+                if (!dates || dates.size === 0) return Infinity; // No shifts yet, max distance
+
+                let minDistance = Infinity;
+                dates.forEach(dateStr => {
+                    const shiftTime = new Date(dateStr + "T00:00:00").getTime();
+                    const distance = Math.abs(shiftTime - targetTime);
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                    }
+                });
+                return minDistance;
+            }
+
+            const targetTime = dateObj.getTime();
+            const distA = getMinDistanceToShift(a.id, targetTime);
+            const distB = getMinDistanceToShift(b.id, targetTime);
+
+            if (distA !== distB) {
+                // Higher distance is better (we want to space them out)
+                return distB - distA;
+            }
+
+            // 4. Random tie-breaker (to avoid alphabetical bias)
+            const tieA = randomTieBreakers[a.id] !== undefined ? randomTieBreakers[a.id] : Math.random();
+            const tieB = randomTieBreakers[b.id] !== undefined ? randomTieBreakers[b.id] : Math.random();
+            return tieA - tieB;
         });
     }
 
@@ -989,7 +1024,29 @@ async function generateDraft() {
                     softPartnerMatch = task.pool.find(partner => partner.id === nextPerson.partner && !task.assigned.find(a => a.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString));
                 }
 
-                // If no intact soft pair was found, fallback to the standard first available person
+                // Priority 2: Find a person who has at least one SAME GENDER partner available
+                if (!nextPerson) {
+                    const eligibleSameGenderStarters = task.pool.filter(p => {
+                        if (task.assigned.find(a => a.id === p.id) || !canAssign(p.id, task.dateObj, task.dateString) || p.hardPair) return false;
+
+                        // Check if there is someone else available with the same gender
+                        const sameGenderCandidate = task.pool.find(partner =>
+                            partner.id !== p.id &&
+                            partner.gender === p.gender &&
+                            !task.assigned.find(a => a.id === partner.id) &&
+                            !partner.hardPair &&
+                            canAssign(partner.id, task.dateObj, task.dateString)
+                        );
+                        return !!sameGenderCandidate;
+                    });
+
+                    if (eligibleSameGenderStarters.length > 0) {
+                        sortCandidatesByPriority(eligibleSameGenderStarters, task.dateObj);
+                        nextPerson = eligibleSameGenderStarters[0];
+                    }
+                }
+
+                // If no valid pair is possible, fallback to the standard first available person (will result in "Disponible" partner)
                 if (!nextPerson) {
                     const eligibleNextPersons = task.pool.filter(p => 
                         !task.assigned.find(a => a.id === p.id) && 

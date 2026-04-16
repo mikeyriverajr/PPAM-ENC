@@ -115,7 +115,7 @@ function switchAdminTab(tabId) {
 // ==========================================
 // TAB 1: DIRECTORIO 
 // ==========================================
-let allPublishers = []; 
+var allPublishers = [];
 let currentLinkedUserDocId = null; 
 let currentAbsences = [];
 let currentViewId = null;
@@ -157,12 +157,12 @@ async function loadPublishers() {
       const statusBadge = pub.status === 'Entrenamiento' ? `<span class="badge-warning">Entrenamiento</span>` : '';
       const hardPairBadge = pub.hardPair ? `<span class="badge-red">Pareja Estricta</span>` : '';
       card.innerHTML = `
-        <div><h4 class="pub-name" style="margin:0 0 5px 0; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="color:#5d7aa9;">${genderIcon}</span> ${pub.firstName} ${pub.lastName} ${statusBadge} ${hardPairBadge}</h4>
+        <div><h4 class="pub-name" style="margin:0 0 5px 0; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="color:#5d7aa9;">${genderIcon}</span> ${pub.firstName} ${pub.lastName || ''} ${statusBadge} ${hardPairBadge}</h4>
         <p style="margin:0; font-size:0.85em; color:#666; margin-left: 30px;">Turnos al mes: ${pub.maxShifts || '5'} | Compañero: ${pub.partnerName || 'Ninguno'}</p></div>
         <span class="material-symbols-outlined" style="color:#ccc;">chevron_right</span>
       `;
       listDiv.appendChild(card);
-      partnerSelect.innerHTML += `<option value="${pub.id}">${pub.firstName} ${pub.lastName}</option>`;
+      partnerSelect.innerHTML += `<option value="${pub.id}">${pub.firstName} ${pub.lastName || ''}</option>`;
     });
   } catch (error) { listDiv.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar.</p>'; }
 }
@@ -172,7 +172,7 @@ function viewPublisher(id) {
     if(!pub) return;
     currentViewId = id;
     
-    document.getElementById('view-pub-name').innerHTML = `<span class="material-symbols-outlined" style="color:#5d7aa9; font-size:32px;">${pub.gender === 'M' ? 'woman' : 'man'}</span> ${pub.firstName} ${pub.lastName}`;
+    document.getElementById('view-pub-name').innerHTML = `<span class="material-symbols-outlined" style="color:#5d7aa9; font-size:32px;">${pub.gender === 'M' ? 'woman' : 'man'}</span> ${pub.firstName} ${pub.lastName || ''}`;
     document.getElementById('view-pub-status').innerHTML = pub.status === 'Entrenamiento' ? '<span style="color:#856404; font-weight:bold;">⚠️ Entrenamiento</span>' : '✅ Aprobado';
     document.getElementById('view-pub-max').innerText = `${pub.maxShifts || 5} turnos`;
     document.getElementById('view-pub-partner').innerText = pub.partnerName ? `${pub.partnerName} ${pub.hardPair ? '(Estricto)' : ''}` : 'Ninguno';
@@ -403,7 +403,7 @@ async function deletePublisher() {
     const userQuery = await db.collection('users').where('publisherId', '==', id).get();
     let authUid = null;
     let userDocId = null;
-
+    
     if (!userQuery.empty) {
         userDocId = userQuery.docs[0].id;
         authUid = userDocId; // The user doc ID is always the Auth UID
@@ -422,12 +422,12 @@ async function deletePublisher() {
 
     // 3. Delete the publisher document
     await db.collection('publishers').doc(id).delete();
-
+    
     showToast("Publicador y cuenta de acceso eliminados.");
     closePubEditModal();
     loadPublishers();
-  } catch (error) {
-      showToast("Error al eliminar: " + error.message, "error");
+  } catch (error) { 
+      showToast("Error al eliminar: " + error.message, "error"); 
       console.error(error);
   }
 }
@@ -489,7 +489,7 @@ async function loadLocations() {
     listDiv.innerHTML = '';
     const generatorLocsDiv = document.getElementById('generator-locations');
     if (generatorLocsDiv) generatorLocsDiv.innerHTML = '';
-
+    
     snapshot.forEach(doc => {
       const loc = doc.data();
       const card = document.createElement('div');
@@ -502,7 +502,7 @@ async function loadLocations() {
         <button onclick='editLocation("${doc.id}")' class="btn-action btn-primary">Editar</button>
       `;
       listDiv.appendChild(card);
-
+      
       // Populate Generator Checkboxes for active locations
       if (loc.isActive !== false && generatorLocsDiv) {
           const cbDiv = document.createElement('div');
@@ -514,7 +514,7 @@ async function loadLocations() {
           generatorLocsDiv.appendChild(cbDiv);
       }
     });
-
+    
     if(generatorLocsDiv && generatorLocsDiv.innerHTML === '') {
         generatorLocsDiv.innerHTML = '<p style="color:#dc3545; font-size:0.9em; margin:0;">No hay ubicaciones activas disponibles.</p>';
     }
@@ -586,7 +586,7 @@ async function saveLocation() {
   const requiresManager = document.getElementById('loc-req-manager').checked;
   const mapsUrl = document.getElementById('loc-maps-url').value.trim();
   const infoHtml = quillEditor ? quillEditor.root.innerHTML.trim() : "";
-
+  
   if (!name) { showToast("El nombre es obligatorio", "error"); return; }
   
   const templates = [];
@@ -633,7 +633,7 @@ async function deleteLocation() {
 // ==========================================
 // TAB 3: GENERATOR (ABSENCE/TRAINEE LOGIC)
 // ==========================================
-let draftSchedule = []; 
+var draftSchedule = [];
 
 async function checkMonthStatus() {
     await loadDayManagers();
@@ -648,12 +648,12 @@ async function loadPublishedMonthsList() {
     select.disabled = true;
 
     try {
-        // Query to find distinct months that have shifts. Since we can't do distinct in Firestore easily,
+        // Query to find distinct months that have shifts. Since we can't do distinct in Firestore easily, 
         // we'll fetch all shifts or group them if there's a tracker. Alternatively, we just query limits.
         // For efficiency, we will assume a reasonable window or fetch active shifts.
         const shiftsSnap = await db.collection('shifts').orderBy('date', 'desc').get();
         const monthsSet = new Set();
-
+        
         shiftsSnap.forEach(doc => {
             const dateStr = doc.data().date; // YYYY-MM-DD
             if (dateStr) {
@@ -662,7 +662,7 @@ async function loadPublishedMonthsList() {
         });
 
         const monthsArray = Array.from(monthsSet).sort().reverse();
-
+        
         select.innerHTML = '';
         if (monthsArray.length === 0) {
             select.innerHTML = '<option value="">Ningún mes publicado</option>';
@@ -688,14 +688,14 @@ async function loadDayManagers() {
     try {
         const settingsDoc = await db.collection('settings').doc('dayManagers').get();
         const settings = settingsDoc.exists ? settingsDoc.data() : {};
-
+        
         let pubOptions = `<option value="">Ninguno</option>`;
         const sortedPubs = [...allPublishers].sort((a,b) => (a.firstName || '').localeCompare(b.firstName || ''));
         sortedPubs.forEach(p => pubOptions += `<option value="${p.id}">${p.firstName} ${p.lastName}</option>`);
 
         const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
         container.innerHTML = '';
-
+        
         days.forEach(day => {
             const currentId = settings[day] || '';
             const div = document.createElement('div');
@@ -718,7 +718,7 @@ async function saveDayManagers() {
     days.forEach(day => {
         data[day] = document.getElementById(`day-manager-${day}`).value;
     });
-
+    
     try {
         await db.collection('settings').doc('dayManagers').set(data, {merge: true});
         showToast('Encargados del día guardados exitosamente.');
@@ -734,16 +734,16 @@ async function generateDraft() {
   try {
     const startDateStr = document.getElementById('gen-start-date').value;
     const endDateStr = document.getElementById('gen-end-date').value;
-
+    
     if (!startDateStr || !endDateStr) {
         showToast("Selecciona la fecha de inicio y fin.", "error");
         btn.innerHTML = `<span class="material-symbols-outlined">magic_button</span> Añadir al Borrador`; btn.disabled = false;
         return;
     }
-
+    
     const startDate = new Date(startDateStr + 'T00:00:00');
     const endDate = new Date(endDateStr + 'T00:00:00');
-
+    
     if (startDate > endDate) {
         showToast("La fecha de inicio no puede ser mayor a la de fin.", "error");
         btn.innerHTML = `<span class="material-symbols-outlined">magic_button</span> Añadir al Borrador`; btn.disabled = false;
@@ -755,7 +755,7 @@ async function generateDraft() {
     document.querySelectorAll('#generator-locations input[type="checkbox"]:checked').forEach(cb => {
         selectedLocIds.push(cb.value);
     });
-
+    
     if (selectedLocIds.length === 0) {
         showToast("Selecciona al menos una ubicación.", "error");
         btn.innerHTML = `<span class="material-symbols-outlined">magic_button</span> Añadir al Borrador`; btn.disabled = false;
@@ -763,16 +763,16 @@ async function generateDraft() {
     }
 
     const locsSnap = await db.collection('locations').where('isActive', '==', true).get();
-    const locations = [];
-    locsSnap.forEach(d => {
+    const locations = []; 
+    locsSnap.forEach(d => { 
         if(selectedLocIds.includes(d.id)) {
-            let l=d.data(); l.id=d.id; locations.push(l);
+            let l=d.data(); l.id=d.id; locations.push(l); 
         }
     });
 
     const daysMap = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
     let shiftTasks = [];
-
+    
     // Iterate through dates
     let currentDate = new Date(startDate);
     while (currentDate <= endDate) {
@@ -783,7 +783,7 @@ async function generateDraft() {
         (loc.templates || []).forEach(t => {
           if (t.day === dayName) {
             shiftTasks.push({
-              docId: null, dateObj: new Date(currentDate), dateString: dateString,
+              docId: null, dateObj: new Date(currentDate), dateString: dateString, 
               location: loc.name, 
               locationId: loc.id, 
               requiresManager: loc.requiresManager || false,
@@ -828,7 +828,7 @@ async function generateDraft() {
       return true;
     }
 
-
+    
     // Sorting utility to balance shifts and space them out
     function sortCandidatesByPriority(candidates, dateObj) {
         return candidates.sort((a, b) => {
@@ -857,13 +857,13 @@ async function generateDraft() {
             const eligibleManagers = task.pool.filter(p => p.isShiftManager && canAssign(p.id, task.dateObj, task.dateString));
             sortCandidatesByPriority(eligibleManagers, task.dateObj);
             const manager = eligibleManagers.length > 0 ? eligibleManagers[0] : null;
-
+            
             if (manager) {
                 task.assigned.push(manager);
                 assignedCounts[manager.id] = (assignedCounts[manager.id] || 0) + 1;
                 if(!assignedDates[manager.id]) assignedDates[manager.id] = new Set();
                 assignedDates[manager.id].add(task.dateString);
-
+                
                 // Priority: Pull in their preferred partner (Soft or Hard Pair)
                 let partnerAssigned = false;
                 if (manager.partner && task.assigned.length < task.capacity) {
@@ -901,13 +901,13 @@ async function generateDraft() {
         // Find all intact hard pairs
         const eligibleHardPairs = task.pool.filter(p => p.hardPair && p.partner && !task.assigned.find(a => a.id === p.id) && canAssign(p.id, task.dateObj, task.dateString) && task.pool.find(partner => partner.id === p.partner && !task.assigned.find(a => a.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString)));
         sortCandidatesByPriority(eligibleHardPairs, task.dateObj);
-
+        
         for (const p of eligibleHardPairs) {
             if (task.assigned.length + 2 <= task.capacity && !task.assigned.find(a => a.id === p.id)) {
                 const partner = task.pool.find(pt => pt.id === p.partner);
                 task.assigned.push(p);
                 task.assigned.push(partner);
-
+                
                 assignedCounts[p.id] = (assignedCounts[p.id] || 0) + 1;
                 assignedCounts[partner.id] = (assignedCounts[partner.id] || 0) + 1;
                 if(!assignedDates[p.id]) assignedDates[p.id] = new Set();
@@ -924,8 +924,8 @@ async function generateDraft() {
             // If length is odd, we must complete a pair with the SAME GENDER as the last assigned person
             if (task.assigned.length % 2 !== 0) {
                 const lastAssigned = task.assigned[task.assigned.length - 1];
-
-                // If the last assigned was already a dummy 'Disponible', we can't match it.
+                
+                // If the last assigned was already a dummy 'Disponible', we can't match it. 
                 // We just add another 'Disponible' to close the pair.
                 if (lastAssigned.id === "Disponible" || !lastAssigned.gender) {
                     task.assigned.push({ id: "Disponible" });
@@ -933,10 +933,10 @@ async function generateDraft() {
                 }
 
                 // Priority 1: Look for a PREFERRED PARTNER (Soft Pair) bypassing gender rules
-                const eligiblePreferredPartners = task.pool.filter(p =>
+                const eligiblePreferredPartners = task.pool.filter(p => 
                     !task.assigned.find(a => a.id === p.id) && // Not already assigned
                     !p.hardPair &&                             // Must be solo (hard pairs take 2 spots)
-                    (lastAssigned.partner === p.id || p.partner === lastAssigned.id) &&
+                    (lastAssigned.partner === p.id || p.partner === lastAssigned.id) && 
                     canAssign(p.id, task.dateObj, task.dateString)
                 );
                 sortCandidatesByPriority(eligiblePreferredPartners, task.dateObj);
@@ -951,7 +951,7 @@ async function generateDraft() {
                 }
 
                 // Priority 2: Look for a solo person of the SAME gender
-                const eligibleSameGender = task.pool.filter(p =>
+                const eligibleSameGender = task.pool.filter(p => 
                     !task.assigned.find(a => a.id === p.id) && // Not already assigned
                     p.gender === lastAssigned.gender &&        // Same gender
                     !p.hardPair &&                             // Must be solo
@@ -969,12 +969,12 @@ async function generateDraft() {
                     // No match found, leave empty to close the pair
                     task.assigned.push({ id: "Disponible" });
                 }
-            }
+            } 
             // If length is even, we are starting a NEW pair
             else {
                 let nextPerson = null;
                 let softPartnerMatch = null;
-
+                
                 // Priority 1: Find a person who has an available PREFERRED PARTNER (Soft Pair)
                 const eligibleSoftPairStarters = task.pool.filter(p => {
                     if (task.assigned.find(a => a.id === p.id) || !canAssign(p.id, task.dateObj, task.dateString) || p.hardPair) return false;
@@ -982,7 +982,7 @@ async function generateDraft() {
                     const partnerCandidate = task.pool.find(partner => partner.id === p.partner && !task.assigned.find(a => a.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString));
                     return !!partnerCandidate;
                 });
-
+                
                 if (eligibleSoftPairStarters.length > 0) {
                     sortCandidatesByPriority(eligibleSoftPairStarters, task.dateObj);
                     nextPerson = eligibleSoftPairStarters[0];
@@ -991,8 +991,8 @@ async function generateDraft() {
 
                 // If no intact soft pair was found, fallback to the standard first available person
                 if (!nextPerson) {
-                    const eligibleNextPersons = task.pool.filter(p =>
-                        !task.assigned.find(a => a.id === p.id) &&
+                    const eligibleNextPersons = task.pool.filter(p => 
+                        !task.assigned.find(a => a.id === p.id) && 
                         canAssign(p.id, task.dateObj, task.dateString) &&
                         !p.hardPair
                     );
@@ -1024,20 +1024,20 @@ async function generateDraft() {
         }
     });
 
-    const finalShifts = shiftTasks.sort((a,b) => a.dateObj - b.dateObj);
-
+    const finalShifts = shiftTasks.sort((a,b) => a.dateObj - b.dateObj); 
+    
     // Save to Firestore draft_shifts collection using a chunked Batch
     const draftRef = db.collection('draft_shifts');
     const chunks = [];
     let currentBatch = db.batch();
     let currentCount = 0;
-
+    
     finalShifts.forEach(shift => {
         const docRef = draftRef.doc(); // Auto ID
         const participantIds = [];
         shift.assigned.forEach(p => participantIds.push(p.id));
         while(participantIds.length < shift.capacity) { participantIds.push("Disponible"); }
-
+        
         currentBatch.set(docRef, {
             date: shift.dateString,
             location: shift.location,
@@ -1054,7 +1054,7 @@ async function generateDraft() {
             currentCount = 0;
         }
     });
-
+    
     if (currentCount > 0) {
         chunks.push(currentBatch.commit());
     }
@@ -1098,11 +1098,11 @@ async function loadPublishedMonth() {
             currentCount = 0;
         }
     });
-
+    
     if (currentCount > 0) {
         chunks.push(currentBatch.commit());
     }
-
+    
     await Promise.all(chunks);
     showToast("Mes cargado al borrador exitosamente.");
   } catch(e) { showToast("Error cargando: " + e.message, "error"); }
@@ -1150,7 +1150,7 @@ function renderPreviewTable() {
   draftSchedule.forEach((shift, index) => {
     let namesHtml = '';
     let hasManager = false;
-
+    
     shift.assigned.forEach(p => {
         const warn = p.status === 'Entrenamiento' ? `<span class="material-symbols-outlined" style="font-size:14px; color:#ffc107; vertical-align:-2px;" title="En Entrenamiento">warning</span>` : '';
         const mgrBadge = p.isShiftManager ? `<span class="material-symbols-outlined" style="font-size:14px; color:#dc3545; vertical-align:-2px;" title="Encargado Físico">local_police</span>` : '';
@@ -1204,7 +1204,7 @@ function openShiftEditModal(shiftIndex) {
   assignedContainer.innerHTML = '';
   shift.assigned.forEach(pub => {
     const warn = pub.status === 'Entrenamiento' ? `<span class="badge-warning">Entrenamiento</span>` : '';
-    assignedContainer.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#f9f9f9; padding:12px; border-radius:8px; border:1px solid #eee;"><span>${pub.firstName} ${pub.lastName} ${warn}</span><button type="button" onclick="manualRemove(${shiftIndex}, '${pub.id}')" class="btn-action btn-danger" style="padding:6px 12px;">Quitar</button></div>`;
+    assignedContainer.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#f9f9f9; padding:12px; border-radius:8px; border:1px solid #eee;"><span>${pub.firstName} ${pub.lastName || ''} ${warn}</span><button type="button" onclick="manualRemove(${shiftIndex}, '${pub.id}')" class="btn-action btn-danger" style="padding:6px 12px;">Quitar</button></div>`;
   });
   
   const select = document.getElementById('shift-add-select');
@@ -1228,13 +1228,13 @@ function openShiftEditModal(shiftIndex) {
     const isAvailableInProfile = (pub.availability || []).includes(availKey);
 
     if (isAway) {
-        unavailableHtml += `<option value="${pub.id}">✈️ ${pub.firstName} ${pub.lastName} (Vacaciones)</option>`;
+        unavailableHtml += `<option value="${pub.id}">✈️ ${pub.firstName} ${pub.lastName || ''} (Vacaciones)</option>`;
     } else if (pub.status === 'Entrenamiento') {
         traineeHtml += `<option value="${pub.id}">⚠️ ${pub.firstName} ${pub.lastName}</option>`;
-    } else if(isAvailableInProfile) {
+    } else if(isAvailableInProfile) { 
         availableHtml += `<option value="${pub.id}">✅ ${pub.firstName} ${pub.lastName}</option>`; 
     } else { 
-        unavailableHtml += `<option value="${pub.id}">❌ ${pub.firstName} ${pub.lastName}</option>`; 
+        unavailableHtml += `<option value="${pub.id}">❌ ${pub.firstName} ${pub.lastName || ''}</option>`;
     }
   });
   select.innerHTML = optionsHtml + availableHtml + `</optgroup>` + traineeHtml + `</optgroup>` + unavailableHtml + `</optgroup>`;
@@ -1298,7 +1298,7 @@ async function updateDraftShiftDb(shiftObj) {
     const participantIds = [];
     shiftObj.assigned.forEach(p => participantIds.push(p.id));
     while(participantIds.length < shiftObj.capacity) { participantIds.push("Disponible"); }
-
+    
     try {
         await db.collection('draft_shifts').doc(shiftObj.docId).update({ participants: participantIds });
         showToast("Turno actualizado en borrador.", "info");
@@ -1314,7 +1314,7 @@ async function deleteDraftShift(docId) {
     if(!docId) return;
     const confirmDelete = await showConfirm("¿Estás seguro de eliminar este turno de la mesa de trabajo? (Se eliminará del calendario oficial al guardar)", "Descartar Turno");
     if(!confirmDelete) return;
-
+    
     try {
         // Instead of hard deleting, we mark it so it can be deleted from the live DB upon publishing
         await db.collection('draft_shifts').doc(docId).update({ markedForDeletion: true });
@@ -1338,7 +1338,7 @@ async function publishSchedule() {
         btn.innerHTML = `<span class="material-symbols-outlined">cloud_upload</span> Guardar en Calendario Oficial`; btn.disabled = false;
         return;
     }
-
+    
     // 2. Queue all draft shifts to be added to the live 'shifts' collection, grouped into chunks
     const chunks = [];
     let currentBatch = db.batch();
@@ -1347,7 +1347,7 @@ async function publishSchedule() {
     draftSnap.forEach(doc => {
         const liveDocRef = db.collection('shifts').doc(doc.id); // Preserve original ID to avoid duplicating published shifts
         const data = doc.data();
-
+        
         if (data.markedForDeletion) {
             // If the user discarded this shift from the workspace, delete it from the LIVE calendar too
             currentBatch.delete(liveDocRef);
@@ -1355,10 +1355,10 @@ async function publishSchedule() {
             // Otherwise, set/update it in the LIVE calendar
             currentBatch.set(liveDocRef, data);
         }
-
+        
         // Either way, delete it from the DRAFT workspace
         currentBatch.delete(doc.ref);
-
+        
         currentCount += 2; // Two operations: 1 live (set/delete), 1 draft delete
 
         // Firestore batch limit is 500 operations
@@ -1368,21 +1368,21 @@ async function publishSchedule() {
             currentCount = 0;
         }
     });
-
+    
     // Commit the remaining operations
     if (currentCount > 0) {
         chunks.push(currentBatch.commit());
     }
-
+    
     // 4. Wait for all batch commits to complete
     await Promise.all(chunks);
-
-    showToast('¡Borrador publicado exitosamente!');
+    
+    showToast('¡Borrador publicado exitosamente!'); 
     document.getElementById('schedule-preview-container').style.display = 'none';
     // The real-time listener will automatically empty the draft array and hide the UI
-    checkMonthStatus();
+    checkMonthStatus(); 
   } catch (error) { 
-      showToast("Error publicando: " + error.message, "error");
+      showToast("Error publicando: " + error.message, "error"); 
   } finally { 
       btn.innerHTML = `<span class="material-symbols-outlined">cloud_upload</span> Guardar y Publicar`; btn.disabled = false; 
   }
@@ -1392,10 +1392,10 @@ async function clearDraft() {
     if (draftSchedule.length === 0) return;
     const isConfirmed = await showConfirm('¿Estás seguro de limpiar y eliminar todo el borrador?', 'Limpiar Borrador', '#dc3545');
     if (!isConfirmed) return;
-
+    
     try {
         const draftSnap = await db.collection('draft_shifts').get();
-
+        
         const chunks = [];
         let currentBatch = db.batch();
         let currentCount = 0;
@@ -1512,7 +1512,7 @@ function initQuill() {
 }
 document.addEventListener('DOMContentLoaded', () => {
    // Wait for DOM to load before init
-   setTimeout(initQuill, 500);
+   setTimeout(initQuill, 500); 
 });
 
 window.initQuill = initQuill;
@@ -1538,7 +1538,7 @@ function imageHandler() {
             const storageRef = storage.ref();
             const fileName = `locations/${Date.now()}_${file.name}`;
             const imageRef = storageRef.child(fileName);
-
+            
             await imageRef.put(compressedBlob);
             const downloadUrl = await imageRef.getDownloadURL();
 
@@ -1574,7 +1574,7 @@ function compressImage(file, maxWidth) {
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
-
+                
                 // Compress to JPEG with 0.7 quality
                 canvas.toBlob((blob) => {
                     resolve(blob);
@@ -1591,20 +1591,20 @@ let draftUnsubscribe = null;
 
 async function initDraftListener() {
     if (draftUnsubscribe) draftUnsubscribe();
-
+    
     // Fetch locations to know which ones require a manager
     const locsSnap = await db.collection('locations').get();
     const locMap = {};
     locsSnap.forEach(d => { locMap[d.data().name] = { id: d.id, requiresManager: d.data().requiresManager || false }; });
-
+    
     draftUnsubscribe = db.collection('draft_shifts').orderBy('date', 'asc').onSnapshot(snapshot => {
         draftSchedule = [];
         snapshot.forEach(doc => {
             const data = doc.data();
             if (data.markedForDeletion) return; // Hide deleted shifts from UI workspace
-
+            
             data.id = doc.id; // Keep the document ID
-
+            
             // Map the "participants" UID array back into the "assigned" object array expected by the UI
             const assignedPubs = [];
             (data.participants || []).forEach(uid => {
@@ -1613,9 +1613,9 @@ async function initDraftListener() {
                     if (pub) assignedPubs.push(pub);
                 }
             });
-
+            
             const locRequiresManager = locMap[data.location]?.requiresManager || false;
-
+            
             draftSchedule.push({
                 docId: doc.id,
                 dateString: data.date,
@@ -1627,7 +1627,7 @@ async function initDraftListener() {
                 requiresManager: locRequiresManager
             });
         });
-
+        
         // Show container if there is AT LEAST ONE document in the snapshot (even if markedForDeletion)
         // so the user can still click 'Guardar y Publicar' to execute the deletions.
         if(!snapshot.empty) {
@@ -1647,18 +1647,18 @@ async function adminResetPassword() {
       showToast("La contraseña debe tener al menos 6 caracteres.", "error");
       return;
   }
-
+  
   if (!currentLinkedUserDocId) {
       showToast("No hay una cuenta vinculada para restablecer.", "error");
       return;
   }
-
+  
   const isConfirmed = await showConfirm(`¿Estás seguro de forzar el cambio de contraseña para este usuario?`, "Restablecer Contraseña");
   if (!isConfirmed) return;
-
+  
   const btn = document.getElementById('btn-reset-pw');
   btn.innerText = "Cambiando..."; btn.disabled = true;
-
+  
   try {
       const resetUserPassword = firebase.functions().httpsCallable('resetUserPassword');
       await resetUserPassword({ uid: currentLinkedUserDocId, newPassword: newPassword });
@@ -1670,4 +1670,98 @@ async function adminResetPassword() {
   } finally {
       btn.innerText = "Restablecer"; btn.disabled = false;
   }
+}
+
+// --- DRAFT STATISTICS ---
+function openDraftStatsModal() {
+  if (!draftSchedule || draftSchedule.length === 0) {
+      showToast("No hay turnos en el borrador para analizar.", "error");
+      return;
+  }
+
+  let totalShifts = draftSchedule.length;
+  let emptySpots = 0;
+  let pubCounts = {};
+
+  // Initialize counts for all active publishers to catch the 0-shift people
+  allPublishers.forEach(pub => {
+      if (pub.status !== 'Entrenamiento') { // Exclude trainees from stats as they are manually handled
+          pubCounts[pub.id] = 0;
+      }
+  });
+
+  // Count assignments and empty spots
+  draftSchedule.forEach(shift => {
+      const assignedCount = shift.assigned.filter(p => p.id && p.id !== "Disponible").length;
+      emptySpots += (shift.capacity - assignedCount);
+
+      shift.assigned.forEach(p => {
+          if (p.id && p.id !== "Disponible" && pubCounts[p.id] !== undefined) {
+              pubCounts[p.id]++;
+          }
+      });
+  });
+
+  // Calculate Distribution
+  const distribution = { 0: [], 1: [], 2: [], 3: [], 4: [], '5+': [] };
+
+  Object.keys(pubCounts).forEach(pubId => {
+      const count = pubCounts[pubId];
+      const pub = allPublishers.find(p => p.id === pubId);
+      if (!pub) return;
+
+      if (count === 0) distribution[0].push(pub);
+      else if (count === 1) distribution[1].push(pub);
+      else if (count === 2) distribution[2].push(pub);
+      else if (count === 3) distribution[3].push(pub);
+      else if (count === 4) distribution[4].push(pub);
+      else distribution['5+'].push(pub);
+  });
+
+  // Populate Header
+  document.getElementById('stat-total-shifts').innerText = totalShifts;
+  document.getElementById('stat-empty-spots').innerText = emptySpots;
+
+  // Build Distribution Bars
+  const distContainer = document.getElementById('stat-distribution-bars');
+  distContainer.innerHTML = '';
+
+  const maxGroupSize = Math.max(...Object.values(distribution).map(arr => arr.length)) || 1; // Prevent division by zero
+
+  ['0', '1', '2', '3', '4', '5+'].forEach(key => {
+      const count = distribution[key].length;
+      const pct = (count / maxGroupSize) * 100;
+      const barColor = key === '0' || key === '1' ? '#dc3545' : '#5d7aa9';
+
+      distContainer.innerHTML += `
+        <div style="display:flex; align-items:center; margin-bottom:8px;">
+            <span style="width:70px; font-weight:600; color:#555;">${key} turnos:</span>
+            <div style="flex:1; background:#ddd; height:12px; border-radius:6px; overflow:hidden; margin:0 10px;">
+                <div style="width:${pct}%; background:${barColor}; height:100%; transition: width 0.5s;"></div>
+            </div>
+            <span style="width:30px; text-align:right; color:#333; font-weight:bold;">${count}</span>
+        </div>
+      `;
+  });
+
+  // Build "Needs Attention" List
+  const attentionList = document.getElementById('stat-attention-list');
+  attentionList.innerHTML = '';
+
+  const needyPubs = [...distribution[0], ...distribution[1]].sort((a,b) => (a.firstName || '').localeCompare(b.firstName || ''));
+  if (needyPubs.length === 0) {
+      attentionList.innerHTML = '<li style="list-style:none; color:#28a745; font-weight:bold;">✅ ¡Excelente! Todos los publicadores aprobados tienen al menos 2 turnos.</li>';
+  } else {
+      needyPubs.forEach(pub => {
+          const shiftCount = pubCounts[pub.id];
+          const badge = shiftCount === 0 ? `<span style="background:#dc3545; color:white; padding:2px 6px; border-radius:4px; font-size:0.8em; margin-left:5px;">0 Turnos</span>` : `<span style="background:#f59f00; color:white; padding:2px 6px; border-radius:4px; font-size:0.8em; margin-left:5px;">1 Turno</span>`;
+          attentionList.innerHTML += `<li style="margin-bottom:5px;"><strong>${pub.firstName} ${pub.lastName || ''}</strong> ${badge}</li>`;
+      });
+  }
+
+  document.getElementById('stats-modal').style.display = 'flex';
+}
+
+function closeDraftStatsModal() {
+    document.getElementById('stats-modal').style.display = 'none';
 }

@@ -931,29 +931,7 @@ async function generateDraft() {
         }
     });
 
-    // 1.5. Intermediate Pass: Handle Hard Pairs unconditionally first
-    shiftTasks.forEach(task => {
-        // Find all intact hard pairs
-        const eligibleHardPairs = task.pool.filter(p => p.hardPair && p.partner && !task.assigned.find(a => a.id === p.id) && canAssign(p.id, task.dateObj, task.dateString) && task.pool.find(partner => partner.id === p.partner && !task.assigned.find(a => a.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString)));
-        sortCandidatesByPriority(eligibleHardPairs, task.dateObj);
-        
-        for (const p of eligibleHardPairs) {
-            if (task.assigned.length + 2 <= task.capacity && !task.assigned.find(a => a.id === p.id)) {
-                const partner = task.pool.find(pt => pt.id === p.partner);
-                task.assigned.push(p);
-                task.assigned.push(partner);
-                
-                assignedCounts[p.id] = (assignedCounts[p.id] || 0) + 1;
-                assignedCounts[partner.id] = (assignedCounts[partner.id] || 0) + 1;
-                if(!assignedDates[p.id]) assignedDates[p.id] = new Set();
-                if(!assignedDates[partner.id]) assignedDates[partner.id] = new Set();
-                assignedDates[p.id].add(task.dateString);
-                assignedDates[partner.id].add(task.dateString);
-            }
-        }
-    });
-
-    // 2. Second Pass: Fill remaining spots with anyone, enforcing same-sex pairs
+    // 2. Second Pass: Fill remaining spots with anyone, seamlessly integrating Hard Pairs
     shiftTasks.forEach(task => {
         while (task.assigned.length < task.capacity) {
             // If length is odd, we must complete a pair with the SAME GENDER as the last assigned person
@@ -1008,28 +986,27 @@ async function generateDraft() {
             // If length is even, we are starting a NEW pair
             else {
                 let nextPerson = null;
-                let softPartnerMatch = null;
+                let partnerMatch = null;
                 
-                // Priority 1: Find a person who has an available PREFERRED PARTNER (Soft Pair)
-                const eligibleSoftPairStarters = task.pool.filter(p => {
-                    if (task.assigned.find(a => a.id === p.id) || !canAssign(p.id, task.dateObj, task.dateString) || p.hardPair) return false;
-                    if (!p.partner) return false;
-                    const partnerCandidate = task.pool.find(partner => partner.id === p.partner && !task.assigned.find(a => a.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString));
-                    return !!partnerCandidate;
-                });
-                
-                if (eligibleSoftPairStarters.length > 0) {
-                    sortCandidatesByPriority(eligibleSoftPairStarters, task.dateObj);
-                    nextPerson = eligibleSoftPairStarters[0];
-                    softPartnerMatch = task.pool.find(partner => partner.id === nextPerson.partner && !task.assigned.find(a => a.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString));
-                }
+                // Priority 1: Find ANY person who has an available partner (Hard Pair, Soft Pair, or Same Gender)
+                const eligiblePairStarters = task.pool.filter(p => {
+                    if (task.assigned.find(a => a.id === p.id) || !canAssign(p.id, task.dateObj, task.dateString)) return false;
 
-                // Priority 2: Find a person who has at least one SAME GENDER partner available
-                if (!nextPerson) {
-                    const eligibleSameGenderStarters = task.pool.filter(p => {
-                        if (task.assigned.find(a => a.id === p.id) || !canAssign(p.id, task.dateObj, task.dateString) || p.hardPair) return false;
+                    // Check for Hard Pair
+                    if (p.hardPair && p.partner) {
+                        const hpCandidate = task.pool.find(partner => partner.id === p.partner && !task.assigned.find(a => a.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString));
+                        if (hpCandidate) return true;
+                    }
 
-                        // Check if there is someone else available with the same gender
+                    // Solo people (not a hard pair)
+                    if (!p.hardPair) {
+                        // Check for Soft Pair
+                        if (p.partner) {
+                            const spCandidate = task.pool.find(partner => partner.id === p.partner && !task.assigned.find(a => a.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString) && !partner.hardPair);
+                            if (spCandidate) return true;
+                        }
+
+                        // Check for Same Gender
                         const sameGenderCandidate = task.pool.find(partner =>
                             partner.id !== p.id &&
                             partner.gender === p.gender &&
@@ -1037,21 +1014,43 @@ async function generateDraft() {
                             !partner.hardPair &&
                             canAssign(partner.id, task.dateObj, task.dateString)
                         );
-                        return !!sameGenderCandidate;
-                    });
+                        if (sameGenderCandidate) return true;
+                    }
 
-                    if (eligibleSameGenderStarters.length > 0) {
-                        sortCandidatesByPriority(eligibleSameGenderStarters, task.dateObj);
-                        nextPerson = eligibleSameGenderStarters[0];
+                    return false;
+                });
+
+                if (eligiblePairStarters.length > 0) {
+                    sortCandidatesByPriority(eligiblePairStarters, task.dateObj);
+                    nextPerson = eligiblePairStarters[0];
+
+                    // Now lock in the specific partner in order of priority: Hard Pair -> Soft Pair -> Same Gender
+                    if (nextPerson.hardPair) {
+                         partnerMatch = task.pool.find(partner => partner.id === nextPerson.partner);
+                    } else if (nextPerson.partner) {
+                         partnerMatch = task.pool.find(partner => partner.id === nextPerson.partner && !task.assigned.find(a => a.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString) && !partner.hardPair);
+                    }
+
+                    if (!partnerMatch) {
+                         // Fallback to Same Gender
+                         const eligibleSameGender = task.pool.filter(partner =>
+                             partner.id !== nextPerson.id &&
+                             partner.gender === nextPerson.gender &&
+                             !task.assigned.find(a => a.id === partner.id) &&
+                             !partner.hardPair &&
+                             canAssign(partner.id, task.dateObj, task.dateString)
+                         );
+                         sortCandidatesByPriority(eligibleSameGender, task.dateObj);
+                         partnerMatch = eligibleSameGender.length > 0 ? eligibleSameGender[0] : null;
                     }
                 }
 
-                // If no valid pair is possible, fallback to the standard first available person (will result in "Disponible" partner)
+                // If no valid pair is possible, fallback to the standard first available solo person (will result in "Disponible" partner)
                 if (!nextPerson) {
                     const eligibleNextPersons = task.pool.filter(p => 
                         !task.assigned.find(a => a.id === p.id) && 
                         canAssign(p.id, task.dateObj, task.dateString) &&
-                        !p.hardPair
+                        !p.hardPair // Don't assign a hard pair person solo
                     );
                     sortCandidatesByPriority(eligibleNextPersons, task.dateObj);
                     nextPerson = eligibleNextPersons.length > 0 ? eligibleNextPersons[0] : null;
@@ -1071,11 +1070,11 @@ async function generateDraft() {
                 assignedDates[nextPerson.id].add(task.dateString);
 
                 // If we found a partner in the first step, immediately assign them to complete the pair
-                if (softPartnerMatch) {
-                    task.assigned.push(softPartnerMatch);
-                    assignedCounts[softPartnerMatch.id] = (assignedCounts[softPartnerMatch.id] || 0) + 1;
-                    if(!assignedDates[softPartnerMatch.id]) assignedDates[softPartnerMatch.id] = new Set();
-                    assignedDates[softPartnerMatch.id].add(task.dateString);
+                if (partnerMatch) {
+                    task.assigned.push(partnerMatch);
+                    assignedCounts[partnerMatch.id] = (assignedCounts[partnerMatch.id] || 0) + 1;
+                    if(!assignedDates[partnerMatch.id]) assignedDates[partnerMatch.id] = new Set();
+                    assignedDates[partnerMatch.id].add(task.dateString);
                 }
             }
         }

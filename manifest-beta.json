@@ -1,6 +1,6 @@
 {
-  "name": "PPAM Beta Test",
-  "short_name": "PPAM Beta",
+  "name": "PPAM ENC",
+  "short_name": "PPAM ENC",
   "start_url": "https://ppam-enc.org/beta.html",
   "display": "standalone",
   "background_color": "#f4f6f8",

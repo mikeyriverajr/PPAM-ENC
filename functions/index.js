@@ -111,7 +111,7 @@ async function sendEmailNotification(email, title, body) {
                 <p style="font-size: 16px; color: #333; line-height: 1.5;">${body}</p>
                 <br>
                 <div style="text-align: center; margin-top: 20px;">
-                    <a href="https://mikeyriverajr.github.io/PPAM-ENC/beta.html" style="background-color: #5d7aa9; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Ir a la Aplicación</a>
+                    <a href="https://ppam-enc.org/beta.html" style="background-color: #5d7aa9; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Ir a la Aplicación</a>
                 </div>
                 <p style="font-size: 12px; color: #999; margin-top: 30px; text-align: center;">Este es un mensaje automático del generador de turnos PPAM. Por favor no responda a este correo.</p>
             </div>
@@ -143,9 +143,9 @@ async function notifyUsers(userIds, title, body) {
                     token: token,
                     webpush: {
                         notification: {
-                            icon: 'https://mikeyriverajr.github.io/PPAM-ENC/icon-512.png',
-                            badge: 'https://mikeyriverajr.github.io/PPAM-ENC/badge.png', // Explicit monochrome icon for Android PWA status bar
-                            click_action: 'https://mikeyriverajr.github.io/PPAM-ENC/beta.html'
+                            icon: 'https://ppam-enc.org/icon-512.png',
+                            badge: 'https://ppam-enc.org/badge.png', // Explicit monochrome icon for Android PWA status bar
+                            click_action: 'https://ppam-enc.org/beta.html'
                         }
                     }
                 };
@@ -299,9 +299,9 @@ exports.sendDailyReminders = onSchedule({
                     token: userData.fcmToken,
                     webpush: {
                         notification: {
-                            icon: 'https://mikeyriverajr.github.io/PPAM-ENC/icon-512.png',
-                            badge: 'https://mikeyriverajr.github.io/PPAM-ENC/badge.png',
-                            click_action: 'https://mikeyriverajr.github.io/PPAM-ENC/beta.html'
+                            icon: 'https://ppam-enc.org/icon-512.png',
+                            badge: 'https://ppam-enc.org/badge.png',
+                            click_action: 'https://ppam-enc.org/beta.html'
                         }
                     }
                 };
@@ -329,7 +329,7 @@ exports.sendDailyReminders = onSchedule({
                     <tr><td style="padding: 10px;"><strong>Fecha:</strong></td><td style="padding: 10px;">Mañana (${tomorrowStr})</td></tr>
                   </table>
                   <p style="margin-top: 20px;">
-                    <a href="https://mikeyriverajr.github.io/PPAM-ENC/beta.html" style="background-color: #5d7aa9; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Abrir Aplicación</a>
+                    <a href="https://ppam-enc.org/beta.html" style="background-color: #5d7aa9; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; display: inline-block;">Abrir Aplicación</a>
                   </p>
                 </div>
                 `;

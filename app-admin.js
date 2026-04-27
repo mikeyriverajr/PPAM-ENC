@@ -1731,10 +1731,23 @@ function openDraftStatsModal() {
   let emptySpots = 0;
   let pubCounts = {};
 
-  // Initialize counts for all active publishers to catch the 0-shift people
+  // Find all availability keys present in the current draft schedule
+  const draftAvailKeys = new Set();
+  const daysMap = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  draftSchedule.forEach(shift => {
+      const shiftDateObj = new Date(shift.dateString + 'T00:00:00');
+      const dayName = daysMap[shiftDateObj.getDay()];
+      const startTime = shift.time.split('-')[0].trim();
+      draftAvailKeys.add(`${shift.locationId}_${dayName}_${startTime}`);
+  });
+
+  // Initialize counts for active publishers who are actually available for the drafted shifts
   allPublishers.forEach(pub => {
       if (pub.status !== 'Entrenamiento') { // Exclude trainees from stats as they are manually handled
-          pubCounts[pub.id] = 0;
+          const isAvailableForDraft = (pub.availability || []).some(availKey => draftAvailKeys.has(availKey));
+          if (isAvailableForDraft) {
+              pubCounts[pub.id] = 0;
+          }
       }
   });
 

@@ -1,654 +1,876 @@
-// Global variables
-const SHEET_ID = '1SuiFgX2XiBeVec6bCeJFRhXPuTUEdYe7IIa105NI8jY';
-// API_KEY is no longer needed for public CSV access
-const ADMIN_PHONE = '595983281197';
+// app-beta.js - Complete File
+// firebaseConfig is loaded from firebase-config.js
 
-// Year logic will be handled inside parseSpanishDate
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+const messaging = firebase.messaging(); // Initialize Messaging
 
-// Will hold the final structured data
-let scheduleData = [];
-let savedNames = [];
-let currentView = 'all'; // 'all', 'mine', or 'available'
+let publisherCache = {};
+let currentUserPublisherId = null;
+let currentPubData = null;
+let originalProfileData = {};
+let myAbsences = [];
 
-// Register Service Worker for PWA
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./service-worker.js')
-    .then(() => console.log('Service Worker Registered'))
-    .catch((err) => console.error('Service Worker Failed', err));
+function openFullSchedule() { document.getElementById('full-schedule-modal').style.display = 'flex'; }
+function closeFullSchedule() { document.getElementById('full-schedule-modal').style.display = 'none'; }
+
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    let icon = 'check_circle'; let iconColor = '#28a745';
+    if (type === 'error') { icon = 'cancel'; iconColor = '#dc3545'; }
+    else if (type === 'info') { icon = 'info'; iconColor = '#17a2b8'; }
+    toast.innerHTML = `<span class="material-symbols-outlined" style="color: ${iconColor}; font-size: 24px;">${icon}</span> <span>${message}</span>`;
+    container.appendChild(toast);
+    setTimeout(() => { toast.style.animation = 'fadeOutToast 0.3s forwards'; setTimeout(() => toast.remove(), 300); }, 3000);
 }
 
-document.addEventListener("DOMContentLoaded", function () {
-  loadFavorites();
-  
-  if (savedNames.length > 0) {
-    currentView = 'mine';
+function showConfirm(message, okText = "Aceptar", okColor = "#dc3545") {
+    return new Promise((resolve) => {
+        const modal = document.getElementById('custom-confirm');
+        const msgEl = document.getElementById('confirm-msg');
+        const btnCancel = document.getElementById('btn-confirm-cancel');
+        const btnOk = document.getElementById('btn-confirm-ok');
+        msgEl.innerText = message; btnOk.innerText = okText; btnOk.style.background = okColor;
+        modal.style.display = 'flex';
+        const cleanup = () => { modal.style.display = 'none'; btnCancel.onclick = null; btnOk.onclick = null; };
+        btnCancel.onclick = () => { cleanup(); resolve(false); };
+        btnOk.onclick = () => { cleanup(); resolve(true); };
+    });
+}
+
+const getTodayString = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+function formatSpanishDate(dateStr) {
+    if (!dateStr) return "";
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return dateStr;
+    const y = parseInt(parts[0]); const m = parseInt(parts[1]) - 1; const d = parseInt(parts[2]);
+    const dateObj = new Date(y, m, d);
+    const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    return `${days[dateObj.getDay()]} ${d} de ${months[dateObj.getMonth()]}`;
+}
+
+auth.onAuthStateChanged(async user => {
+  if (user) {
+    document.getElementById('login-overlay').style.display = 'none';
+    try {
+      const userDoc = await db.collection('users').doc(user.uid).get();
+
+      if (userDoc.exists) {
+        const userData = userDoc.data();
+        currentUserPublisherId = userData.publisherId;
+
+        const pubDoc = await db.collection('publishers').doc(currentUserPublisherId).get();
+        if(pubDoc.exists) {
+            currentPubData = pubDoc.data();
+        } else {
+            console.warn("Cuenta desvinculada.");
+            auth.signOut();
+            showToast("Tu cuenta fue desvinculada por el administrador. Por favor, vuelve a iniciar sesión.", "error");
+            return;
+        }
+
+        if (userData.requirePasswordChange) {
+            document.getElementById('force-password-modal').style.display = 'flex';
+            document.getElementById('app-content').style.display = 'none';
+        } else {
+            document.getElementById('force-password-modal').style.display = 'none';
+            document.getElementById('app-content').style.display = 'block';
+
+            const pubSnap = await db.collection('publishers').get();
+            pubSnap.forEach(d => {
+                publisherCache[d.id] = {
+                    name: `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(),
+                    phone: d.data().phone || '',
+                    isShiftManager: d.data().isShiftManager || false
+                };
+            });
+
+            document.getElementById('header-user-name').innerText = `| ${publisherCache[currentUserPublisherId]?.name || ""}`;
+
+            loadShifts(); loadMyShifts(); loadAvailableShifts(); loadAvailabilityForm(); loadProfileForm();
+        }
+      } else {
+        console.warn("Cuenta eliminada.");
+        auth.signOut();
+        showToast("Tu cuenta fue modificada o desvinculada por el administrador.", "error");
+      }
+
+    } catch (error) {
+      console.error("Error:", error);
+      auth.signOut();
+      showToast("Error de conexión. Por favor, vuelve a iniciar sesión.", "error");
+    }
   } else {
-    currentView = 'all';
+    document.getElementById('login-overlay').style.display = 'block';
+    document.getElementById('app-content').style.display = 'none';
+    document.getElementById('force-password-modal').style.display = 'none';
+    currentUserPublisherId = null;
+    currentPubData = null;
   }
-  
-  switchTab(currentView);
-  
-  fetchData();
 });
 
-function loadFavorites() {
-  const stored = localStorage.getItem('ppam_favorites');
-  if (stored) {
+function handleGatekeeperLogin() {
+  const usernameInput = document.getElementById('gate-username').value.trim();
+  const pass = document.getElementById('gate-password').value;
+  const errorDiv = document.getElementById('gate-error');
+  errorDiv.innerText = "";
+  const email = usernameInput.toLowerCase().replace(/\s+/g, '') + '@ppam.app';
+  auth.signInWithEmailAndPassword(email, pass).catch(err => { errorDiv.innerText = "Error: Verifica tu usuario o contraseña."; });
+}
+
+function logout() { auth.signOut(); }
+
+function switchTab(tabId) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-btn-' + tabId).classList.add('active');
+  document.getElementById('tab-' + tabId).classList.add('active');
+}
+
+async function submitForcedPassword() {
+  const p1 = document.getElementById('force-new-pass1').value;
+  const p2 = document.getElementById('force-new-pass2').value;
+  const err = document.getElementById('force-pass-error');
+  err.innerText = "";
+  if (p1.length < 6) { err.innerText = "La contraseña debe tener al menos 6 caracteres."; return; }
+  if (p1 !== p2) { err.innerText = "Las contraseñas no coinciden."; return; }
+
+  try {
+      const user = auth.currentUser;
+      await user.updatePassword(p1);
+      await db.collection('users').doc(user.uid).update({ requirePasswordChange: false });
+
+      document.getElementById('force-password-modal').style.display = 'none';
+      document.getElementById('app-content').style.display = 'block';
+      const pubSnap = await db.collection('publishers').get();
+      pubSnap.forEach(d => {
+          publisherCache[d.id] = {
+              name: `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(),
+              phone: d.data().phone || '',
+              isShiftManager: d.data().isShiftManager || false
+          };
+      });
+      document.getElementById('header-user-name').innerText = `| ${publisherCache[currentUserPublisherId]?.name || ""}`;
+
+      showToast("¡Contraseña creada exitosamente!");
+      loadShifts(); loadMyShifts(); loadAvailableShifts(); loadAvailabilityForm(); loadProfileForm();
+  } catch (error) {
+      if(error.code === 'auth/requires-recent-login') { err.innerText = "Por favor cierra sesión y vuelve a ingresar para cambiar tu contraseña."; }
+      else { err.innerText = "Error al actualizar: " + error.message; }
+  }
+}
+
+function checkPasswordChange() {
+    const p = document.getElementById('prof-new-pass').value;
+    document.getElementById('btn-update-pass').disabled = p.length < 6;
+}
+
+async function changeProfilePassword() {
+  const p = document.getElementById('prof-new-pass').value;
+  if (p.length < 6) return;
+  try {
+      await auth.currentUser.updatePassword(p);
+      showToast("¡Contraseña actualizada con éxito!");
+      document.getElementById('prof-new-pass').value = '';
+      checkPasswordChange();
+  } catch (error) {
+      if(error.code === 'auth/requires-recent-login') { showToast("Cierra sesión y vuelve a ingresar antes de cambiar tu contraseña.", "error"); }
+      else { showToast("Error: " + error.message, "error"); }
+  }
+}
+
+// ==========================================
+// PUSH NOTIFICATIONS & CACHE CLEANUP
+// ==========================================
+
+// PWA & Messaging Service Worker Registration
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js')
+            .then(registration => {
+                console.log('Service Worker registrado con éxito:', registration.scope);
+            })
+            .catch(err => {
+                console.log('Falló el registro del Service Worker:', err);
+            });
+    });
+}
+async function enablePushNotifications() {
     try {
-      savedNames = JSON.parse(stored);
-    } catch (e) {
-      console.error("Error loading favorites", e);
-      savedNames = [];
-    }
-  }
-}
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
 
-function saveFavorites() {
-  localStorage.setItem('ppam_favorites', JSON.stringify(savedNames));
-}
+            const registration = await navigator.serviceWorker.register('./service-worker.js');
 
-function toggleFavorite(name) {
-  if (savedNames.includes(name)) {
-    savedNames = savedNames.filter(n => n !== name);
-  } else {
-    savedNames.push(name);
-  }
-  saveFavorites();
-  renderSchedule();
-  applyDateFilter(); // Ensure dates are filtered again
-}
+            const token = await messaging.getToken({
+                vapidKey: 'BCsvQHZK5ybZnRx28iqE5hLKOJeAmIuvNUA62-zJmLxRuJOHySmGeWIRIcN9qMx2-OjGmjlAm09montphPtiBgw',
+                serviceWorkerRegistration: registration
+            });
 
-function switchTab(tab) {
-  currentView = tab;
-  
-  // Update Tab UI
-  document.getElementById('tab-all').className = tab === 'all' ? 'tab active' : 'tab';
-  document.getElementById('tab-mine').className = tab === 'mine' ? 'tab active' : 'tab';
-  document.getElementById('tab-available').className = tab === 'available' ? 'tab active' : 'tab';
-  
-  // Toggle Search & Instructions visibility
-  const searchContainer = document.getElementById('search-container');
-  const instructions = document.getElementById('all-view-instructions');
-  
-  if (tab === 'mine' || tab === 'available') {
-    searchContainer.style.display = 'none';
-    instructions.style.display = 'none';
-  } else {
-    searchContainer.style.display = 'flex';
-    instructions.style.display = 'block';
-  }
-
-  renderSchedule();
-  applyDateFilter(); // Ensure dates are filtered again
-}
-
-// CSV Parser Helper
-function parseCSV(text) {
-  const result = [];
-  let row = [];
-  let inQuote = false;
-  let token = "";
-  
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-    const nextChar = text[i + 1];
-    
-    if (inQuote) {
-      if (char === '"') {
-        if (nextChar === '"') {
-          token += '"';
-          i++; // skip escaped quote
-        } else {
-          inQuote = false;
-        }
-      } else {
-        token += char;
-      }
-    } else {
-      if (char === '"') {
-        inQuote = true;
-      } else if (char === ',') {
-        row.push(token);
-        token = "";
-      } else if (char === '\n' || char === '\r') {
-        row.push(token);
-        token = "";
-        if (row.length > 0) result.push(row);
-        row = [];
-        if (char === '\r' && nextChar === '\n') i++; // skip \n
-      } else {
-        token += char;
-      }
-    }
-  }
-  if (token || row.length > 0) {
-    row.push(token);
-    result.push(row);
-  }
-  return result;
-}
-
-function parseData(rows) {
-  // rows is an array of arrays (from CSV)
-  
-  // Helper to safely get value from row/col
-  const getVal = (r, c) => {
-    if (!r || !r[c]) return "";
-    return r[c].trim();
-  };
-  
-  // Note: CSV does not support hyperlinks, so getLink is removed.
-
-  // Find header row index
-  let headerIndex = -1;
-  for (let i = 0; i < rows.length; i++) {
-    const val0 = getVal(rows[i], 0);
-    const val1 = getVal(rows[i], 1);
-    if (val0.toLowerCase().includes("fecha") && val1.toLowerCase().includes("ubicación")) {
-      headerIndex = i;
-      break;
-    }
-  }
-
-  if (headerIndex === -1) {
-    console.warn("Could not find header row. Assuming row 0 is header.");
-    headerIndex = 0;
-  }
-  
-  // Dynamic Column Mapping
-  let managerColIndex = -1; 
-  let linkColIndex = -1;
-  const slotColumns = []; // [{ index: 2, label: "8 a 10" }, ...]
-
-  const headerRow = rows[headerIndex];
-  for (let c = 0; c < headerRow.length; c++) {
-      const headerVal = headerRow[c].toLowerCase().trim();
-      
-      // Reserved Columns
-      if (headerVal.includes("fecha") || headerVal.includes("ubicación") || headerVal.includes("ubicacion")) {
-          continue; // standard columns 0 and 1
-      }
-      
-      if (headerVal.includes("encargado")) {
-          managerColIndex = c;
-          continue;
-      }
-      
-      if (headerVal.includes("enlace") || headerVal.includes("link")) {
-          linkColIndex = c;
-          continue;
-      }
-      
-      // If it's not a reserved column, assume it's a Time Slot
-      if (headerVal.length > 0) {
-          slotColumns.push({ index: c, label: headerRow[c].trim() });
-      }
-  }
-  
-  // Fallback if no specific manager column found (backward compatibility)
-  if (managerColIndex === -1 && rows[0].length > 5) managerColIndex = 5;
-
-  const daysMap = new Map(); 
-  let lastDateStr = "";
-
-  for (let i = headerIndex + 1; i < rows.length; i++) {
-    const row = rows[i];
-    
-    // Fill-down logic for Date
-    let dateStr = getVal(row, 0);
-    if (dateStr) {
-      lastDateStr = dateStr;
-    } else if (lastDateStr) {
-      dateStr = lastDateStr;
-    } else {
-      continue;
-    }
-
-    const location = getVal(row, 1);
-    if (!location) continue;
-
-    const managerName = (managerColIndex !== -1) ? getVal(row, managerColIndex) : "";
-    const managerLink = (linkColIndex !== -1) ? getVal(row, linkColIndex) : null;
-
-    if (!daysMap.has(dateStr)) {
-      daysMap.set(dateStr, {
-        date: parseSpanishDate(dateStr),
-        dayLabel: dateStr,
-        managers: new Map(), 
-        slotsMap: new Map() 
-      });
-    }
-
-    const dayObj = daysMap.get(dateStr);
-
-    if (managerName) {
-      let role = "Encargado";
-      if (location.toLowerCase().includes("costanera")) {
-        role = "Encargado Costanera";
-      } else if (location.toLowerCase().includes("liberty")) {
-        role = "Encargado del día";
-      }
-      
-      if (!dayObj.managers.has(managerName)) {
-        dayObj.managers.set(managerName, { role: role, name: managerName, link: managerLink });
-      }
-    }
-
-    const addSlot = (timeLabel, namesStr) => {
-      if (!namesStr || !location) return;
-      if (namesStr.toLowerCase().includes("no hay turno")) return;
-
-      const key = location + "|" + timeLabel;
-      if (!dayObj.slotsMap.has(key)) {
-        dayObj.slotsMap.set(key, {
-          loc: location,
-          time: timeLabel,
-          names: []
-        });
-      }
-      
-      const namesList = namesStr.split(/[\n,]+/).map(n => n.trim()).filter(n => n.length > 0);
-      namesList.forEach(name => {
-        if (name.toLowerCase().includes("no hay turno")) return;
-        dayObj.slotsMap.get(key).names.push(name);
-      });
-    };
-
-    // Dynamically process all identified slot columns
-    slotColumns.forEach(col => {
-        const names = getVal(row, col.index);
-        addSlot(col.label, names);
-    });
-  }
-
-  // Convert Map to Array
-  const result = [];
-  daysMap.forEach((dayObj, dateStr) => {
-    const managersArray = Array.from(dayObj.managers.values());
-    const slotsArray = Array.from(dayObj.slotsMap.values()).filter(s => s.names.length > 0);
-    
-    // Sort slots
-    slotsArray.sort((a, b) => {
-      const pad = (s) => {
-        // Try to find a time pattern like "8:00", "08", "15" in the label
-        const match = s.match(/(\d{1,2})[:\s]?(?:\d{2})?\s*(?:a|–|-|—)/); 
-        if (!match) {
-            // Fallback for simple numbers at start
-            const simple = s.match(/^\d{1,2}/);
-            if(simple) return simple[0].padStart(5, '0');
-            return s; 
-        }
-        return match[1].padStart(5, '0'); 
-      };
-      return pad(a.time).localeCompare(pad(b.time));
-    });
-
-    result.push({
-      date: dayObj.date,
-      dayLabel: dayObj.dayLabel,
-      managers: managersArray,
-      slots: slotsArray
-    });
-  });
-
-  return result;
-}
-
-function parseSpanishDate(dateStr) {
-  const months = {
-    "enero": "01", "febrero": "02", "marzo": "03", "abril": "04", 
-    "mayo": "05", "junio": "06", "julio": "07", "agosto": "08", 
-    "septiembre": "09", "octubre": "10", "noviembre": "11", "diciembre": "12"
-  };
-  
-  const lower = dateStr.toLowerCase();
-  let day = "01";
-  let month = "01";
-  let year = 2026; 
-
-  const dayMatch = lower.match(/\d{1,2}/);
-  if (dayMatch) {
-    day = dayMatch[0].padStart(2, '0');
-  }
-  
-  for (const [name, code] of Object.entries(months)) {
-    if (lower.includes(name)) {
-      month = code;
-      if (name === "diciembre") {
-        year = 2025;
-      } else {
-        year = 2026;
-      }
-      break;
-    }
-  }
-  
-  return `${year}-${month}-${day}`;
-}
-
-
-function renderSchedule() {
-  const container = document.getElementById('schedule-container');
-  container.innerHTML = "";
-  
-  const counterEl = document.getElementById('shift-counter');
-  let myShiftCount = 0;
-  let hasVisibleShifts = false;
-  
-  // Calculate today string for filtering count
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  const todayStr = `${year}-${month}-${d}`;
-
-  scheduleData.forEach(day => {
-    let visibleSlots = day.slots;
-    let hasAvailableInDay = false; // Flag to check if day has openings
-
-    // Filter Logic
-    if (currentView === 'mine') {
-      if (savedNames.length === 0) {
-         visibleSlots = [];
-      } else {
-         visibleSlots = day.slots.filter(slot => {
-           // 1. Is this person a participant in the slot?
-           const isParticipant = slot.names.some(n => savedNames.includes(n));
-           if (isParticipant) return true;
-
-           // 2. Is this person a Manager for the day?
-           const starredManagers = Array.from(day.managers.values()).filter(m => savedNames.includes(m.name));
-           if (starredManagers.length > 0) {
-             const location = slot.loc.toLowerCase();
-             return starredManagers.some(mgr => {
-               const role = mgr.role.toLowerCase();
-               const isCostaneraMgr = role.includes('costanera');
-               const isCostaneraSlot = location.includes('costanera');
-               if (isCostaneraMgr && isCostaneraSlot) return true;
-               if (!isCostaneraMgr && !isCostaneraSlot) return true;
-               return false;
-             });
-           }
-           return false;
-         });
-      }
-    } else if (currentView === 'available') {
-      visibleSlots = day.slots.filter(slot => {
-        return slot.names.some(n => n.toLowerCase().includes("disponible"));
-      });
-    }
-
-    // Count shifts for the user (only for future/today)
-    if (currentView === 'mine' && day.date >= todayStr) {
-        // Check if I am a Manager for this day
-        // We use the same filtering logic: did we "match" this day because of a manager role?
-        const amIManager = Array.from(day.managers.values()).some(m => savedNames.includes(m.name));
-        
-        if (amIManager) {
-            // If I am a manager, count the DAY as 1 shift (regardless of how many slots)
-            if (visibleSlots.length > 0) { // Only count if there are actual slots to manage
-                myShiftCount++;
+            if (token) {
+                await db.collection('publishers').doc(currentUserPublisherId).update({ fcmToken: token });
+                showToast("¡Notificaciones activadas con éxito!");
+                document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#28a745;">Activadas</span>';
+                document.getElementById('btn-enable-push').style.display = 'none';
+                document.getElementById('btn-disable-push').style.display = 'inline-flex';
+            } else {
+                showToast("No se pudo generar el token de notificación.", "error");
             }
         } else {
-            // If I am just a participant, count every slot
-            visibleSlots.forEach(slot => {
-                myShiftCount++;
+            showToast("Permiso denegado para notificaciones.", "error");
+        }
+    } catch (error) {
+        console.error("FCM Error:", error);
+        showToast("Error al activar notificaciones. Asegúrate de estar en HTTPS o en un celular.", "error");
+    }
+} // <-- ESTA LLAVE FALTABA AQUÍ
+
+async function disablePushNotifications() {
+    try {
+        // 1. Try to delete the token from Firebase's internal system
+        try {
+            await messaging.deleteToken();
+        } catch (fcmError) {
+            // Firebase throws a 404 on GitHub Pages subdirectories. We catch it here so the app doesn't crash.
+            console.warn("FCM path error bypassed. Procediendo con limpieza local.", fcmError);
+        }
+
+        // 2. Force-delete the token from your Firestore database so the Admin stops sending alerts
+        await db.collection('publishers').doc(currentUserPublisherId).update({
+            fcmToken: firebase.firestore.FieldValue.delete()
+        });
+
+        // We no longer unregister the Service Worker because it's shared with the main app cache.
+        // By deleting the token above, Firebase knows not to send messages to this device anymore.
+
+        showToast("Notificaciones desactivadas exitosamente.");
+        document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#666;">Desactivadas</span>';
+        document.getElementById('btn-enable-push').style.display = 'inline-flex';
+        document.getElementById('btn-disable-push').style.display = 'none';
+    } catch (error) {
+        console.error("Error fatal al desactivar:", error);
+        showToast("Hubo un problema al desactivar las notificaciones.", "error");
+    }
+}
+
+// ==========================================
+// FOREGROUND NOTIFICATION LISTENER (UPGRADED)
+// ==========================================
+if (typeof messaging !== 'undefined') {
+    messaging.onMessage((payload) => {
+        console.log("Notificación recibida en primer plano:", payload);
+
+        // Use the 'info' type to trigger the blue styling for notifications
+        showToast(`🔔 ${payload.notification.title} - ${payload.notification.body}`, 'info');
+
+        // Smart Refresh: If they have the app open, silently refresh the shifts
+        // so the UI matches the new data without requiring a manual refresh!
+        if (currentUserPublisherId) {
+            loadShifts();
+            loadMyShifts();
+            loadAvailableShifts();
+        }
+    });
+}
+
+let allShiftsData = [];
+let dayManagersCache = {};
+
+async function loadDayManagers() {
+    try {
+        const doc = await db.collection('settings').doc('dayManagers').get();
+        if (doc.exists) dayManagersCache = doc.data();
+    } catch(e) { console.error("Error loading day managers", e); }
+}
+
+function getShiftContactHtml(shift) {
+    let contactHtml = '';
+
+    // Check if local manager is required and present
+    if (shift.requiresManager) {
+        const localManagerId = (shift.participants || []).find(id => publisherCache[id]?.isShiftManager);
+        if (localManagerId) {
+            const mgr = publisherCache[localManagerId];
+            if (mgr.phone) {
+                const msg = encodeURIComponent(`Hola ${mgr.name}, te escribo sobre el turno en ${shift.location} de las ${shift.time}.`);
+                let cleanPhone = mgr.phone.replace(/\D/g, ''); // Extract digits
+                // Graceful fallback for legacy numbers missing the country code (assuming Paraguay +595)
+                if (cleanPhone.startsWith('09')) cleanPhone = '595' + cleanPhone.substring(1);
+                else if (cleanPhone.startsWith('9')) cleanPhone = '595' + cleanPhone;
+
+                contactHtml = `<a href="https://wa.me/${cleanPhone}?text=${msg}" target="_blank" style="display:inline-flex; align-items:center; gap:6px; background:transparent; border:1px solid #5d7aa9; color:#5d7aa9; padding:4px 10px; border-radius:12px; font-size:0.85em; font-weight:600; text-decoration:none; margin-top:5px; transition:all 0.2s;"><svg style="width:14px; height:14px; fill:#5d7aa9;" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg> Encargado: ${mgr.name}</a>`;
+            } else {
+                contactHtml = `<span style="display:inline-flex; align-items:center; gap:5px; background:#f0f0f0; color:#555; padding:4px 10px; border-radius:12px; font-size:0.85em; margin-top:5px; font-weight:600;"><span class="material-symbols-outlined" style="font-size:14px;">local_police</span> Encargado: ${mgr.name}</span>`;
+            }
+            return contactHtml; // If local manager found, return it and stop.
+        }
+    }
+
+    // If no local manager required or found, fallback to Day Manager
+    const [y, m, d] = shift.date.split('-');
+    const dateObj = new Date(parseInt(y), parseInt(m)-1, parseInt(d));
+    const dayName = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][dateObj.getDay()];
+
+    const dayManagerId = dayManagersCache[dayName];
+    if (dayManagerId && publisherCache[dayManagerId]) {
+        const mgr = publisherCache[dayManagerId];
+        if (mgr.phone) {
+            const msg = encodeURIComponent(`Hola ${mgr.name}, te escribo sobre el turno en ${shift.location} de las ${shift.time} (${shift.date}).`);
+            let cleanPhone = mgr.phone.replace(/\D/g, '');
+            if (cleanPhone.startsWith('09')) cleanPhone = '595' + cleanPhone.substring(1);
+            else if (cleanPhone.startsWith('9')) cleanPhone = '595' + cleanPhone;
+
+            contactHtml = `<a href="https://wa.me/${cleanPhone}?text=${msg}" target="_blank" style="display:inline-flex; align-items:center; gap:6px; background:transparent; border:1px solid #28a745; color:#28a745; padding:4px 10px; border-radius:12px; font-size:0.85em; font-weight:600; text-decoration:none; margin-top:5px; transition:all 0.2s;"><svg style="width:14px; height:14px; fill:#28a745;" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg> Encargado: ${mgr.name}</a>`;
+        } else {
+            contactHtml = `<span style="display:inline-flex; align-items:center; gap:5px; background:#f0f0f0; color:#555; padding:4px 10px; border-radius:12px; font-size:0.85em; margin-top:5px; font-weight:600;"><span class="material-symbols-outlined" style="font-size:14px;">support_agent</span> Encargado: ${mgr.name}</span>`;
+        }
+    }
+
+    return contactHtml;
+}
+
+async function loadShifts() {
+  await loadDayManagers();
+  const container = document.getElementById('schedule-container');
+  container.innerHTML = '<p style="text-align:center; color:#666;">Cargando programa...</p>';
+  try {
+    const shiftsSnapshot = await db.collection('shifts').orderBy('date').get();
+    container.innerHTML = ''; allShiftsData = [];
+    shiftsSnapshot.forEach(doc => { let shift = doc.data(); shift.id = doc.id; allShiftsData.push(shift); });
+    renderAllShifts(allShiftsData);
+  } catch (error) { container.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar el programa.</p>'; }
+}
+
+function renderAllShifts(shifts) {
+  const container = document.getElementById('schedule-container');
+  container.innerHTML = '';
+  if(shifts.length === 0) { container.innerHTML = '<p style="text-align:center; color:#666;">No hay turnos programados.</p>'; return; }
+  shifts.forEach(shift => {
+    const participantNames = (shift.participants || []).map(id => publisherCache[id]?.name || 'Desconocido');
+    const contactHtml = getShiftContactHtml(shift);
+    const shiftCard = document.createElement('div');
+    shiftCard.className = 'shift-card';
+    shiftCard.innerHTML = `
+      <div class="shift-card-header">
+        <h4 class="shift-card-title"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px; color: #5d7aa9;">event</span>${formatSpanishDate(shift.date)}</h4>
+        <span class="shift-card-time"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px; color: #666;">schedule</span>${shift.time}</span>
+      </div>
+      <p class="shift-card-detail" style="display:flex; justify-content:space-between; align-items:center;">
+          <span><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545; vertical-align:-3px;">location_on</span> <strong>${shift.location}</strong></span>
+          <button onclick="openLocationInfoModal('${shift.locationId}', '${shift.location}')" style="background:none; border:none; color:#5d7aa9; font-size:0.9em; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:3px;"><span class="material-symbols-outlined" style="font-size:1.1em;">info</span> Info</button>
+      </p>
+      <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> ${participantNames.join(', ')}</p>
+      ${contactHtml}
+    `;
+    container.appendChild(shiftCard);
+  });
+}
+
+function filterAllShifts() {
+  const query = document.getElementById('search-all').value.toLowerCase();
+  const filtered = allShiftsData.filter(s => {
+      const names = (s.participants || []).map(id => publisherCache[id]?.name || '').join(' ').toLowerCase();
+      const spanishDate = formatSpanishDate(s.date).toLowerCase();
+      return s.location.toLowerCase().includes(query) || s.date.includes(query) || spanishDate.includes(query) || names.includes(query);
+  });
+  renderAllShifts(filtered);
+}
+
+let myCurrentShifts = [];
+async function loadMyShifts() {
+  if (!currentUserPublisherId) return;
+  const container = document.getElementById('mine-container');
+  container.innerHTML = '<p style="text-align:center; color:#666;">Buscando tus turnos...</p>';
+  try {
+    const todayStr = getTodayString();
+    const shiftsSnapshot = await db.collection('shifts').where('participants', 'array-contains', currentUserPublisherId).get();
+    myCurrentShifts = [];
+    shiftsSnapshot.forEach(doc => {
+        let s = doc.data(); s.id = doc.id;
+        if (s.date >= todayStr) myCurrentShifts.push(s);
+    });
+
+    if (myCurrentShifts.length === 0) {
+      container.innerHTML = `<div style="text-align:center; padding: 30px 10px; background: white; border-radius: 10px; border: 1px dashed #ccc;"><p style="color:#666; margin:0;">No tienes próximos turnos asignados.</p></div>`;
+      return;
+    }
+
+    container.innerHTML = '';
+    myCurrentShifts.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    myCurrentShifts.forEach(shift => {
+      const others = (shift.participants || []).filter(id => id !== currentUserPublisherId).map(id => publisherCache[id]?.name || 'Desconocido');
+      const partnerText = others.length > 0 ? others.join(', ') : 'Solo/a';
+      const contactHtml = getShiftContactHtml(shift);
+      const shiftCard = document.createElement('div');
+      shiftCard.className = 'shift-card mine';
+      shiftCard.innerHTML = `
+        <div class="shift-card-header">
+          <h4 class="shift-card-title" style="color:#2c5282;"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">event</span>${formatSpanishDate(shift.date)}</h4>
+          <span class="shift-card-time"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">schedule</span>${shift.time}</span>
+        </div>
+        <p class="shift-card-detail" style="display:flex; justify-content:space-between; align-items:center;">
+          <span><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545; vertical-align:-3px;">location_on</span> <strong>${shift.location}</strong></span>
+          <button onclick="openLocationInfoModal('${shift.locationId}', '${shift.location}')" style="background:none; border:none; color:#2c5282; font-size:0.9em; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:3px;"><span class="material-symbols-outlined" style="font-size:1.1em;">info</span> Info</button>
+        </p>
+        <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> Con: ${partnerText}</p>
+        ${contactHtml}
+        <div class="card-actions" style="margin-top: 15px; border-top: 1px solid #f0f0f0; padding-top: 10px;">
+           <button onclick="attemptCancel('${shift.id}', '${shift.date}', '${shift.time}', '${shift.location}')" class="btn-action btn-danger" style="width: 100%;">Cancelar Turno</button>
+        </div>
+      `;
+      container.appendChild(shiftCard);
+    });
+  } catch (error) { container.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar tus turnos.</p>'; }
+}
+
+async function attemptCancel(shiftId, dateStr, timeStr, locationName) {
+  const startTime = timeStr.split('-')[0];
+  const shiftDateTime = new Date(`${dateStr}T${startTime}:00`);
+  const now = new Date();
+
+  if (((shiftDateTime - now) / (1000 * 60 * 60)) < 24) { showToast("No puedes cancelar con menos de 24 horas. Comunícate con los encargados.", "error"); return; }
+
+  const isConfirmed = await showConfirm(`¿Estás seguro de que deseas cancelar tu turno el ${formatSpanishDate(dateStr)}?`, "Cancelar Turno", "#dc3545");
+  if(!isConfirmed) return;
+
+  try {
+    const shiftRef = db.collection('shifts').doc(shiftId);
+    const docSnap = await shiftRef.get();
+    let currentParticipants = docSnap.data().participants || [];
+    currentParticipants = currentParticipants.filter(id => id !== currentUserPublisherId);
+    await shiftRef.update({ participants: currentParticipants });
+    showToast("Turno cancelado exitosamente.");
+    loadMyShifts(); loadAvailableShifts(); loadShifts();
+  } catch (err) { showToast("Error al cancelar: " + err.message, "error"); }
+}
+
+async function loadAvailableShifts() {
+  if (!currentUserPublisherId || !currentPubData) return;
+  const container = document.getElementById('open-shifts-container');
+  const banner = document.getElementById('trainee-warning');
+
+  const isTrainee = currentPubData.status === 'Entrenamiento';
+  banner.style.display = isTrainee ? 'flex' : 'none';
+
+  container.innerHTML = '<p style="text-align:center; color:#666;">Buscando espacios libres...</p>';
+  try {
+    const todayStr = getTodayString();
+    const shiftsSnapshot = await db.collection('shifts').orderBy('date').get();
+    let openShifts = [];
+    shiftsSnapshot.forEach(doc => {
+      let shift = doc.data(); shift.id = doc.id;
+      const capacity = shift.capacity || 2;
+      const participants = shift.participants || [];
+      const realParticipants = participants.filter(id => id && id !== "Disponible");
+
+      if (realParticipants.length < capacity && !realParticipants.includes(currentUserPublisherId) && shift.date >= todayStr) {
+          openShifts.push(shift);
+      }
+    });
+
+    if (openShifts.length === 0) { container.innerHTML = '<div style="text-align:center; padding: 30px 10px; background: white; border-radius: 10px; border: 1px dashed #ccc;"><p style="color:#666; margin:0;">No hay turnos libres en este momento.</p></div>'; return; }
+
+    container.innerHTML = '';
+    openShifts.forEach(shift => {
+      const realParticipants = (shift.participants || []).filter(id => id && id !== "Disponible");
+      const names = realParticipants.map(id => publisherCache[id]?.name || 'Alguien').join(', ') || 'Vacío';
+      const capacity = shift.capacity || 2;
+      const availableSpots = capacity - realParticipants.length;
+      const contactHtml = getShiftContactHtml(shift);
+
+      const card = document.createElement('div');
+      card.className = 'shift-card open';
+
+      const actionButton = isTrainee
+        ? `<button disabled class="btn-action" style="background:#e9ecef; color:#888; cursor:not-allowed; border: 1px solid #ddd;">Requiere Aprobación</button>`
+        : `<button onclick="claimShift('${shift.id}', '${shift.date}', '${shift.time}', ${capacity})" class="btn-action btn-success"><span class="material-symbols-outlined" style="font-size:18px;">add</span> Tomar Turno</button>`;
+
+      card.innerHTML = `
+        <div class="shift-card-header">
+          <h4 class="shift-card-title" style="color:#28a745;"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">event</span>${formatSpanishDate(shift.date)}</h4>
+          <span class="shift-card-time"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">schedule</span>${shift.time}</span>
+        </div>
+        <p class="shift-card-detail" style="display:flex; justify-content:space-between; align-items:center;">
+          <span><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545; vertical-align:-3px;">location_on</span> <strong>${shift.location}</strong></span>
+          <button onclick="openLocationInfoModal('${shift.locationId}', '${shift.location}')" style="background:none; border:none; color:#28a745; font-size:0.9em; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:3px;"><span class="material-symbols-outlined" style="font-size:1.1em;">info</span> Info</button>
+        </p>
+        <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> Actuales: ${names}</p>
+        <p style="margin: 5px 0 0 0; font-size:0.85em; color:#666; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #28a745;">person_add</span> Lugares libres: <strong>${availableSpots}</strong></p>
+        ${contactHtml}
+        <div class="card-actions" style="margin-top: 15px; border-top: 1px solid #f0f0f0; padding-top: 10px;">
+           ${actionButton}
+        </div>
+      `;
+      container.appendChild(card);
+    });
+  } catch (error) { container.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar espacios libres.</p>'; }
+}
+
+async function claimShift(shiftId, dateStr, timeStr, capacity) {
+  const [newStart, newEnd] = timeStr.split('-');
+
+  // 1. Check for local time overlaps first
+  for (let s of myCurrentShifts) {
+    if (s.date === dateStr) {
+      const [myStart, myEnd] = s.time.split('-');
+      if (newStart < myEnd && myStart < newEnd) {
+          showToast("Este horario se superpone con un turno que ya tienes.", "error");
+          return;
+      }
+    }
+  }
+
+  const isConfirmed = await showConfirm(`¿Deseas anotarte para este turno el ${formatSpanishDate(dateStr)}?`, "Tomar Turno", "#28a745");
+  if(!isConfirmed) return;
+
+  try {
+    const shiftRef = db.collection('shifts').doc(shiftId);
+
+    // 2. Run the secure transaction
+    await db.runTransaction(async (transaction) => {
+        const docSnap = await transaction.get(shiftRef);
+        
+        if (!docSnap.exists) {
+            throw new Error("El turno ya no existe.");
+        }
+
+        let currentParticipants = docSnap.data().participants || [];
+
+        // Safety check inside the transaction
+        if (currentParticipants.length >= capacity) {
+            throw new Error("CAPACIDAD_LLENA");
+        }
+        if (currentParticipants.includes(currentUserPublisherId)) {
+            throw new Error("Ya estás anotado en este turno.");
+        }
+
+        // Add user and commit update
+        currentParticipants.push(currentUserPublisherId);
+        transaction.update(shiftRef, { participants: currentParticipants });
+    });
+
+    // 3. Success handling
+    showToast("¡Turno agregado con éxito!");
+    loadMyShifts();
+    loadAvailableShifts();
+    loadShifts();
+
+  } catch (err) {
+    // 4. Handle custom transaction errors smoothly
+    if (err.message === "CAPACIDAD_LLENA") {
+        showToast("Alguien más acaba de tomar este lugar.", "error");
+        loadAvailableShifts(); // Refresh to show it's full
+    } else {
+        showToast("Error al tomar turno: " + err.message, "error");
+    }
+  }
+}
+// ==========================================
+// FOREGROUND NOTIFICATION LISTENER
+// ==========================================
+// This catches notifications if the user happens to be looking at the app when it arrives
+if (typeof messaging !== 'undefined') {
+    messaging.onMessage((payload) => {
+        console.log("Notificación recibida en primer plano:", payload);
+        
+        // Show the notification as a green Toast inside the app!
+        showToast(`🔔 ${payload.notification.title} - ${payload.notification.body}`);
+    });
+}
+
+// ==========================================
+// TAB 4: MI HORARIO
+// ==========================================
+async function loadAvailabilityForm() {
+  if (!currentUserPublisherId) return;
+  const container = document.getElementById('availability-form-container');
+  try {
+    const pubDoc = await db.collection('publishers').doc(currentUserPublisherId).get();
+    const myAvail = pubDoc.data().availability || [];
+    const locSnapshot = await db.collection('locations').where('isActive', '==', true).get();
+    const daysOrder = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+    const grouped = { 'Lunes': [], 'Martes': [], 'Miércoles': [], 'Jueves': [], 'Viernes': [], 'Sábado': [], 'Domingo': [] };
+    
+    locSnapshot.forEach(doc => {
+      const loc = doc.data();
+      const locId = doc.id; // <-- WE GRAB THE IMMUTABLE ID HERE
+
+      (loc.templates || []).forEach(t => {
+        if (grouped[t.day] !== undefined) {
+            // Build the key using locId, but keep loc.name for the UI label
+            const availKey = `${locId}_${t.day}_${t.startTime}`;
+            
+            grouped[t.day].push({
+                name: loc.name,
+                time: `${t.startTime} - ${t.endTime}`,
+                val: availKey,
+                checked: myAvail.includes(availKey)
             });
         }
-    }
-
-    if ((currentView === 'mine' || currentView === 'available') && visibleSlots.length === 0) {
-        return; // Don't render empty days in Mine/Available view
-    }
-    
-    const dayDiv = document.createElement('div');
-    dayDiv.className = 'day';
-    dayDiv.setAttribute('data-date', day.date);
-    
-    let html = `<h2>${day.dayLabel}</h2>`;
-    
-    // Only show managers if NOT in "Available" view (usually they don't care who the manager is when looking for open slots, or maybe they do? Let's keep it clean for now, or show it. User didn't specify. Standard 'All' view shows it. Let's hide it for 'Available' to focus on the task.)
-    // Update: User might want to know who is managing. Let's keep it but maybe it's less critical. Let's keep it for context.
-    
-    if (day.managers && day.managers.length > 0) {
-      html += `<div class="encargado">`;
-      day.managers.forEach(mgr => {
-        const content = mgr.link 
-          ? `<a href="${mgr.link}" target="_blank">${mgr.name}</a>` 
-          : mgr.name;
-          
-        const isFav = savedNames.includes(mgr.name);
-        const starClass = isFav ? "star-btn active" : "star-btn";
-        const starIcon = isFav ? "★" : "☆";
-        const safeName = mgr.name.replace(/'/g, "\\'");
-        
-        html += `<div><strong>${mgr.role}:</strong> ${content} 
-                 <button class="${starClass}" onclick="toggleFavorite('${safeName}')" title="${isFav ? 'Quitar de mis turnos' : 'Agregar a mis turnos'}">${starIcon}</button>
-                 </div>`;
       });
-      html += `</div>`;
-    }
-
-    html += `<div class="schedule">`;
-    
-    visibleSlots.forEach(slot => {
-      let icon = "🕘";
-      if (slot.time.includes("8:00")) icon = "🕗";
-      if (slot.time.includes("10:00")) icon = "🕙";
-      if (slot.time.includes("18:30")) icon = "🕡";
-
-      let listHtml = "";
-      slot.names.forEach(n => {
-        const isDisponible = n.toLowerCase().includes("disponible");
-        
-        if (isDisponible) {
-           const message = `Hola, quisiera cubrir el turno disponible del ${day.dayLabel} a las ${slot.time} en ${slot.loc}.`;
-           const whatsappUrl = `https://wa.me/${ADMIN_PHONE}?text=${encodeURIComponent(message)}`;
-           
-           listHtml += `<li>
-             <a href="${whatsappUrl}" target="_blank" class="cubrir-btn">Cubrir el turno</a>
-           </li>`;
-        } else {
-            const isFav = savedNames.includes(n);
-            const starClass = isFav ? "star-btn active" : "star-btn";
-            const starIcon = isFav ? "★" : "☆";
-            const safeName = n.replace(/'/g, "\\'");
-            
-            listHtml += `<li>
-              ${n} 
-              <button class="${starClass}" onclick="toggleFavorite('${safeName}')" title="${isFav ? 'Quitar de mis turnos' : 'Agregar a mis turnos'}">${starIcon}</button>
-            </li>`;
-        }
-      });
-
-      // Calendar Buttons
-      const dateStr = day.date.replace(/-/g, '');
-      const times = slot.time.match(/(\d{1,2}:\d{2})\s*[–—-]\s*(\d{1,2}:\d{2})/);
-      let calendarActions = "";
-      
-      if (times) {
-        const start = times[1].replace(':', '').padStart(4,'0') + "00";
-        const end = times[2].replace(':', '').padStart(4,'0') + "00";
-        const title = `${slot.loc} – PPAM`;
-        const details = `Asignados: ${slot.names.join(', ')}`;
-        const locationStr = slot.loc;
-        
-        const googleUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dateStr}T${start}/${dateStr}T${end}&details=${encodeURIComponent(details)}&location=${encodeURIComponent(locationStr)}&ctz=America/Asuncion`;
-        
-        const icsContent = generateICS(title, day.date, times[1], times[2], locationStr, details);
-        const icsBlob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-        const icsUrl = URL.createObjectURL(icsBlob);
-
-        calendarActions = `
-          <div class="calendar-actions">
-            <a href="${googleUrl}" target="_blank" class="calendar-link">
-              <svg class="calendar-icon" viewBox="0 0 24 24"><path d="M7 2a1 1 0 0 1 1 1v1h8V3a1 1 0 1 1 2 0v1h1a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h1V3a1 1 0 0 1 1-1zm14 8H3v9a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-9z"/></svg>
-              <span>Guardar en mi calendario</span>
-            </a>
-            <a href="${icsUrl}" download="turno-ppam.ics" class="calendar-link ics">
-              <svg class="calendar-icon" viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zm-7 5h5v5h-5z"/></svg>
-              <span>Guardar en mi calendario (iOS)</span>
-            </a>
-          </div>
-        `;
-      }
-
-      html += `
-        <div class="slot">
-          <h3>${slot.loc}</h3>
-          <div class="time">${icon} ${slot.time}</div>
-          <ul>${listHtml}</ul>
-          ${calendarActions}
-        </div>
-      `;
     });
 
-    html += `</div>`; 
-    dayDiv.innerHTML = html;
-    container.appendChild(dayDiv);
-    hasVisibleShifts = true;
-  });
-
-  if (currentView === 'mine' && !hasVisibleShifts && savedNames.length > 0) {
-      container.innerHTML = "<p style='text-align:center; padding:20px;'>No se encontraron turnos para tus nombres guardados.</p>";
+    container.innerHTML = '';
+    let hasShifts = false;
+    daysOrder.forEach(day => {
+      if (grouped[day].length > 0) {
+        hasShifts = true; grouped[day].sort((a, b) => a.time.localeCompare(b.time));
+        const div = document.createElement('div'); div.className = 'day-group';
+        let html = `<h4 class="day-title">${day}</h4>`;
+        grouped[day].forEach(s => html += `<div class="shift-option"><input type="checkbox" id="chk-${s.val}" class="avail-checkbox" value="${s.val}" ${s.checked ? 'checked' : ''}><label for="chk-${s.val}"><strong>${s.name}</strong> (${s.time})</label></div>`);
+        div.innerHTML = html; container.appendChild(div);
+      }
+    });
+    if (!hasShifts) container.innerHTML = '<p style="text-align:center; color:#666;">No hay ubicaciones configuradas.</p>';
+  } catch (error) {
+      console.error("Error al cargar disponibilidad:", error);
   }
-  
-  if (currentView === 'available' && !hasVisibleShifts) {
-      container.innerHTML = "<p style='text-align:center; padding:20px;'>No hay turnos disponibles por el momento.</p>";
-  }
-
-  // Call updateCounter at the end of rendering
-  updateCounter(myShiftCount);
 }
 
-function generateICS(title, date, startTime, endTime, location, description) {
-  const formatTime = (t) => {
-    const raw = t.replace(':', ''); 
-    const parts = t.split(':');
-    const h = parts[0].padStart(2, '0');
-    const m = parts[1].padStart(2, '0');
-    return `${h}${m}00`;
+async function saveAvailability() {
+  if (!currentUserPublisherId) return;
+  const selected = Array.from(document.querySelectorAll('.avail-checkbox:checked')).map(cb => cb.value);
+  try {
+    await db.collection('publishers').doc(currentUserPublisherId).update({ availability: selected });
+    showToast("¡Horario guardado con éxito!");
+  } catch (error) { showToast("Error al guardar tu horario.", "error"); }
+}
+
+// ==========================================
+// TAB 5: PERFIL & AUSENCIAS
+// ==========================================
+function handlePartnerChange() {
+    const val = document.getElementById('prof-partner').value;
+    document.getElementById('prof-hardpair-container').style.display = val ? 'flex' : 'none';
+    if(!val) document.getElementById('prof-hardpair').checked = false;
+    checkProfileChanges();
+}
+
+function renderMyAbsences() {
+    const list = document.getElementById('my-absences-list');
+    list.innerHTML = '';
+    if(myAbsences.length === 0) {
+        list.innerHTML = `<p style="font-size:0.9em; color:#999; margin:0;">No tienes ausencias programadas.</p>`;
+        return;
+    }
+    myAbsences.forEach((abs, index) => {
+        list.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#f9f9f9; border:1px solid #ddd; padding:12px; border-radius:6px; font-size:0.95em;">
+            <span><strong style="color:#5d7aa9;">Ausente:</strong> ${formatSpanishDate(abs.start)} al ${formatSpanishDate(abs.end)}</span>
+            <button type="button" onclick="removeMyAbsence(${index})" class="btn-action btn-danger" style="padding:6px 10px;"><span class="material-symbols-outlined" style="font-size:18px;">delete</span></button>
+        </div>`;
+    });
+}
+
+function addMyAbsence() {
+    const s = document.getElementById('my-abs-start').value; const e = document.getElementById('my-abs-end').value;
+    if(!s || !e) { showToast("Selecciona fecha de inicio y fin.", "error"); return; }
+    if(s > e) { showToast("La fecha de fin no puede ser anterior al inicio.", "error"); return; }
+    myAbsences.push({start: s, end: e});
+    document.getElementById('my-abs-start').value = ''; document.getElementById('my-abs-end').value = '';
+    renderMyAbsences();
+    checkProfileChanges();
+}
+
+function removeMyAbsence(index) {
+    myAbsences.splice(index, 1);
+    renderMyAbsences();
+    checkProfileChanges();
+}
+
+async function loadProfileForm() {
+  if (!currentUserPublisherId || !currentPubData) return;
+  try {
+    const pub = currentPubData;
+
+    // Check Notification Permission on load
+    // Check Notification Permission on load
+    if (Notification.permission === 'granted' && pub.fcmToken) {
+        document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#28a745;">Activadas</span>';
+        document.getElementById('btn-enable-push').style.display = 'none';
+        document.getElementById('btn-disable-push').style.display = 'inline-flex'; // <-- AÑADIDO ESTO
+    } else {
+        // Ensures correct UI if they disabled it on another device
+        document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#555;">Sin activar</span>';
+        document.getElementById('btn-enable-push').style.display = 'inline-flex';
+        document.getElementById('btn-disable-push').style.display = 'none';
+    }
+
+    document.getElementById('prof-phone').value = pub.phone || '';
+    document.getElementById('prof-email').value = pub.notificationEmail || '';
+    document.getElementById('prof-email-notif-container').style.display = pub.notificationEmail ? 'flex' : 'none';
+    document.getElementById('prof-email-notif').checked = pub.emailNotificationsEnabled || false;
+    document.getElementById('prof-emerg-name').value = pub.emergencyName || '';
+    document.getElementById('prof-emerg-phone').value = pub.emergencyPhone || '';
+    document.getElementById('prof-max').value = pub.maxShifts || '5';
+    document.getElementById('prof-hardpair').checked = pub.hardPair || false;
+
+    const partnerSelect = document.getElementById('prof-partner');
+    partnerSelect.innerHTML = '<option value="">Ninguno</option>';
+    const sortedPubs = Object.keys(publisherCache).map(id => ({ id: id, name: publisherCache[id]?.name || '' })).sort((a, b) => a.name.localeCompare(b.name));
+    sortedPubs.forEach(p => {
+      if (p.id !== currentUserPublisherId) {
+        const isSelected = p.id === pub.partner ? 'selected' : '';
+        partnerSelect.innerHTML += `<option value="${p.id}" ${isSelected}>${p.name}</option>`;
+      }
+    });
+
+    document.getElementById('prof-hardpair-container').style.display = pub.partner ? 'flex' : 'none';
+
+    myAbsences = pub.absences || [];
+    renderMyAbsences();
+
+    originalProfileData = {
+      phone: pub.phone || '', email: pub.notificationEmail || '', emailNotif: pub.emailNotificationsEnabled || false, eName: pub.emergencyName || '',
+      ePhone: pub.emergencyPhone || '', max: (pub.maxShifts || '5').toString(), partner: pub.partner || '',
+      hard: pub.hardPair || false, abs: JSON.stringify(myAbsences)
+    };
+
+    document.getElementById('btn-save-profile').disabled = true;
+
+  } catch (error) { console.error("Error loading profile:", error); }
+}
+
+function checkProfileChanges() {
+    const emailVal = document.getElementById('prof-email').value.trim();
+    document.getElementById('prof-email-notif-container').style.display = emailVal ? 'flex' : 'none';
+    if (!emailVal) document.getElementById('prof-email-notif').checked = false;
+
+    const currentData = {
+      phone: document.getElementById('prof-phone').value.trim(),
+      email: emailVal,
+      emailNotif: document.getElementById('prof-email-notif').checked,
+      eName: document.getElementById('prof-emerg-name').value.trim(),
+      ePhone: document.getElementById('prof-emerg-phone').value.trim(),
+      max: document.getElementById('prof-max').value,
+      partner: document.getElementById('prof-partner').value,
+      hard: document.getElementById('prof-hardpair').checked,
+      abs: JSON.stringify(myAbsences)
+    };
+
+    const hasChanged = JSON.stringify(currentData) !== JSON.stringify(originalProfileData);
+    document.getElementById('btn-save-profile').disabled = !hasChanged;
+}
+
+async function saveProfile() {
+  if (!currentUserPublisherId) return;
+
+  const emailVal = document.getElementById('prof-email').value.trim();
+  if (emailVal) {
+      if (!emailVal.includes('@') || !emailVal.includes('.')) { showToast("Por favor, ingresa un correo electrónico válido.", "error"); return; }
+      if (emailVal.toLowerCase().endsWith('@jwpub.org')) { showToast("No se permiten correos @jwpub.org. Usa un correo personal.", "error"); return; }
+  }
+
+  const phoneVal = document.getElementById('prof-phone').value.trim();
+  const ePhoneVal = document.getElementById('prof-emerg-phone').value.trim();
+  const phoneRegex = /^\+\d+$/; // Must start with + followed by only digits
+
+  if (phoneVal && !phoneRegex.test(phoneVal.replace(/\s/g, ''))) {
+      showToast("El teléfono debe incluir el código de país (ej. +595).", "error"); return;
+  }
+  if (ePhoneVal && !phoneRegex.test(ePhoneVal.replace(/\s/g, ''))) {
+      showToast("El teléfono de emergencia debe incluir el código de país (ej. +595).", "error"); return;
+  }
+
+  const partnerId = document.getElementById('prof-partner').value;
+  let partnerName = "";
+  if (partnerId) { partnerName = publisherCache[partnerId]?.name; }
+
+  const profileData = {
+    phone: document.getElementById('prof-phone').value.trim(),
+    notificationEmail: emailVal,
+    emailNotificationsEnabled: document.getElementById('prof-email-notif').checked,
+    emergencyName: document.getElementById('prof-emerg-name').value.trim(),
+    emergencyPhone: document.getElementById('prof-emerg-phone').value.trim(),
+    maxShifts: parseInt(document.getElementById('prof-max').value) || 5,
+    partner: partnerId,
+    partnerName: partnerName,
+    hardPair: document.getElementById('prof-hardpair').checked,
+    absences: myAbsences
   };
 
-  const start = date.replace(/-/g, '') + "T" + formatTime(startTime);
-  const end = date.replace(/-/g, '') + "T" + formatTime(endTime);
-  
-  return `BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//PPAM//Schedule//ES
-BEGIN:VEVENT
-UID:${Date.now()}@ppam
-DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').split('.')[0]}Z
-DTSTART;TZID=America/Asuncion:${start}
-DTEND;TZID=America/Asuncion:${end}
-SUMMARY:${title}
-DESCRIPTION:${description}
-LOCATION:${location}
-END:VEVENT
-END:VCALENDAR`;
+  // Firestore throws errors if you attempt to save `undefined`.
+  // Strip out any undefined properties from the payload.
+  Object.keys(profileData).forEach(key => profileData[key] === undefined && delete profileData[key]);
+
+  try {
+    await db.collection('publishers').doc(currentUserPublisherId).update(profileData);
+
+    originalProfileData = {
+        phone: profileData.phone, email: profileData.notificationEmail, emailNotif: profileData.emailNotificationsEnabled, eName: profileData.emergencyName,
+        ePhone: profileData.emergencyPhone, max: profileData.maxShifts.toString(), partner: profileData.partner,
+        hard: profileData.hardPair, abs: JSON.stringify(myAbsences)
+    };
+
+    currentPubData = { ...currentPubData, ...profileData };
+    checkProfileChanges();
+    showToast("¡Perfil y ausencias actualizados con éxito!");
+  } catch (error) { showToast("Error al guardar perfil.", "error"); }
 }
 
-function applyDateFilter() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  const todayStr = `${year}-${month}-${d}`;
-  
-  document.querySelectorAll(".day").forEach(day => {
-    const dateAttr = day.getAttribute('data-date');
-    if (!dateAttr) return;
-    
-    if (dateAttr === todayStr) {
-      day.classList.add("today");
-    } else {
-      day.classList.remove("today");
-    }
+// --- LOCATION INFO MODAL ---
+async function openLocationInfoModal(locationId, locationName) {
+    if(!locationId) { showToast("No se encontró información de la ubicación."); return; }
 
-    if (dateAttr < todayStr) {
-      day.style.display = "none";
-    } else {
-      day.style.display = "";
-    }
-  });
-}
+    document.getElementById('location-info-modal').style.display = 'flex';
+    document.getElementById('info-modal-title').innerText = locationName || 'Información de Ubicación';
+    document.getElementById('info-modal-map-btn-container').innerHTML = '<p style="color: #666;">Cargando...</p>';
+    document.getElementById('info-modal-content').innerHTML = '';
 
-function searchName() {
-  if (currentView !== 'all') return;
-  
-  const q = document.getElementById("searchInput").value.toLowerCase().trim();
-  
-  if (q === "") {
-    applyDateFilter();
-    return;
-  }
-
-  document.querySelectorAll(".day").forEach(day => {
-    const text = day.textContent.toLowerCase();
-    if (text.includes(q)) {
-      day.style.display = "";
-    } else {
-      day.style.display = "none";
-    }
-  });
-}
-
-function updateCounter(count) {
-    const el = document.getElementById('shift-counter');
-    if (currentView === 'mine') {
-        el.style.display = 'block';
-        if (savedNames.length === 0) {
-            el.innerHTML = "No tienes nombres guardados. Ve a 'Todos los Turnos', busca tu nombre y marca la estrella ★.";
-        } else if (count === 0) {
-             el.innerHTML = "No tienes turnos programados en el futuro.";
-        } else {
-             el.innerHTML = `Tienes ${count} turno(s) programado(s).`;
+    try {
+        const doc = await db.collection('locations').doc(locationId).get();
+        if(!doc.exists) {
+            document.getElementById('info-modal-content').innerHTML = '<p>La información de esta ubicación no está disponible.</p>';
+            document.getElementById('info-modal-map-btn-container').innerHTML = '';
+            return;
         }
-    } else {
-        el.style.display = 'none';
+
+        const loc = doc.data();
+
+        // Render Maps Button
+        if(loc.mapsUrl) {
+            document.getElementById('info-modal-map-btn-container').innerHTML = `
+                <a href="${loc.mapsUrl}" target="_blank" style="display: flex; align-items: center; justify-content: center; gap: 8px; background-color: #34a853; color: white; padding: 12px 20px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 1.05em; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    <span class="material-symbols-outlined">map</span> Abrir en Google Maps
+                </a>
+            `;
+        } else {
+             document.getElementById('info-modal-map-btn-container').innerHTML = '';
+        }
+
+        // Render Info HTML
+        if(loc.infoHtml && loc.infoHtml.trim() !== '') {
+            document.getElementById('info-modal-content').innerHTML = loc.infoHtml;
+
+            // Adjust any images in the quill HTML to be responsive
+            const imgs = document.getElementById('info-modal-content').querySelectorAll('img');
+            imgs.forEach(img => {
+                img.style.maxWidth = '100%';
+                img.style.height = 'auto';
+                img.style.borderRadius = '8px';
+            });
+        } else {
+            document.getElementById('info-modal-content').innerHTML = '<p style="color: #666; font-style: italic;">No hay instrucciones adicionales para esta ubicación.</p>';
+        }
+
+    } catch(e) {
+        console.error("Error loading location info:", e);
+        document.getElementById('info-modal-content').innerHTML = '<p style="color: red;">Error al cargar la información.</p>';
+        document.getElementById('info-modal-map-btn-container').innerHTML = '';
     }
 }
 
-function clearSearch() {
-  document.getElementById("searchInput").value = "";
-  searchName();
+function closeLocationInfoModal() {
+    document.getElementById('location-info-modal').style.display = 'none';
 }
 
-function fetchData() {
-  // NEW: Fetch using CSV export URL
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Programa`;
-  
-  const container = document.getElementById('schedule-container');
-  container.innerHTML = "Cargando datos...";
-
-  fetch(url)
-    .then(response => {
-      if (!response.ok) {
-        throw new Error('Network response was not ok: ' + response.statusText);
-      }
-      return response.text(); // fetch text for CSV
-    })
-    .then(csvText => {
-      if (!csvText || csvText.length === 0) {
-         container.innerHTML = "No se encontraron datos en la planilla.";
-         return;
-      }
-      
-      const rows = parseCSV(csvText);
-      
-      scheduleData = parseData(rows);
-      renderSchedule();
-      
-      applyDateFilter();
-    })
-    .catch(error => {
-      console.error('Error fetching data:', error);
-      container.innerHTML = `
-        <div style="color: red; padding: 20px; text-align: center; border: 2px solid red; border-radius: 10px; background: #fff0f0;">
-          <h3>Error al cargar los datos</h3>
-          <p>Por favor revisa tu conexión a internet.</p>
-          <p style="font-family: monospace; background: #eee; padding: 10px; border-radius: 5px;">${error.message}</p>
-        </div>
-      `;
-    });
-}
+window.openLocationInfoModal = openLocationInfoModal;
+window.closeLocationInfoModal = closeLocationInfoModal;

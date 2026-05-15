@@ -6,8 +6,8 @@ def run():
         browser = p.chromium.launch()
         page = browser.new_page()
         
-        print("Navigating to file:///app/beta.html")
-        page.goto("file:///app/beta.html")
+        print("Navigating to file:///app/index.html")
+        page.goto("file:///app/index.html")
         time.sleep(2)
         
         # Force Bypass Login Screen for UI Verification

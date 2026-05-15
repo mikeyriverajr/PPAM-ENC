@@ -11,16 +11,16 @@ const messaging = firebase.messaging();
 const CACHE_NAME = 'ppam-schedule-v13';
 const ASSETS = [
   './',
-  './index.html',
+  './legacy.html',
   './style.css',
-  './app.v14.js',
+  './app-legacy.js',
   './icon.png',
-  './manifest.json',
-  './beta.html',
+  './manifest-legacy.json',
+  './index.html',
   './admin.html',
-  './app-beta.js',
+  './app.js',
   './app-admin.js',
-  './manifest-beta.json'
+  './manifest.json'
 ];
 
 // Install: Cache core assets

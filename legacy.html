@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Ensure Referrer is sent for Google API Restrictions -->
+  <meta name="referrer" content="no-referrer-when-downgrade">
+  <meta name="theme-color" content="#5d7aa9">
+  <title>Programa PPAM – Encarnación</title>
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="icon.png">
+
+  <!-- Manifest for PWA -->
+  <link rel="manifest" href="manifest-legacy.json">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Predicación Pública en Áreas Metropolitanas</h1>
+      <button id="admin-lock-btn" onclick="toggleAdminPanel()" title="Admin">🔒</button>
+    </header>
+
+    <div id="admin-panel" style="display: none;">
+      <h3>Panel de Administración</h3>
+      <button onclick="generateWeeklyReport()">Generar Resumen Semanal (WhatsApp)</button>
+      <div id="admin-output" style="margin-top: 10px;"></div>
+    </div>
+
+    <div class="view-tabs">
+      <button id="tab-all" class="tab active" onclick="switchTab('all')">Todos los Turnos</button>
+      <button id="tab-mine" class="tab" onclick="switchTab('mine')">Mis Turnos</button>
+      <button id="tab-available" class="tab" onclick="switchTab('available')">Turnos Disponibles</button>
+    </div>
+
+    <div id="shift-counter" class="shift-counter" style="display: none;"></div>
+
+    <div id="all-view-instructions" class="info-box">
+      <p><strong>Tip:</strong> Toca la estrella <span style="color:#ccc; font-size:1.2em">☆</span> junto a tu nombre para guardar tus turnos en la pestaña <strong>"Mis Turnos"</strong>.</p>
+    </div>
+
+    <div class="search-box" id="search-container">
+      <input type="text" id="searchInput" placeholder="Buscar nombre..." onkeyup="searchName()">
+      <button onclick="clearSearch()">Limpiar</button>
+    </div>
+
+    <div id="schedule-container">Loading schedule...</div>
+  </div>
+
+  <script src="app-legacy.js"></script>
+</body>
+</html>

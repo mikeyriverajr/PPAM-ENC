@@ -10,8 +10,8 @@ def run():
         page.on("console", lambda msg: print(f"CONSOLE: {msg.text}"))
         page.on("pageerror", lambda err: print(f"PAGE ERROR: {err}"))
         
-        print("Navigating to file:///app/beta.html")
-        page.goto("file:///app/beta.html")
+        print("Navigating to file:///app/index.html")
+        page.goto("file:///app/index.html")
         
         # Wait a bit for JS to init
         time.sleep(3)

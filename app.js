@@ -205,6 +205,11 @@ if ('serviceWorker' in navigator) {
 }
 async function enablePushNotifications() {
     try {
+        if (typeof Notification === 'undefined') {
+            showToast("Tu dispositivo o navegador no soporta notificaciones web.", "error");
+            return;
+        }
+
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
 
@@ -692,13 +697,12 @@ async function loadProfileForm() {
     const pub = currentPubData;
 
     // Check Notification Permission on load
-    // Check Notification Permission on load
-    if (Notification.permission === 'granted' && pub.fcmToken) {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && pub.fcmToken) {
         document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#28a745;">Activadas</span>';
         document.getElementById('btn-enable-push').style.display = 'none';
-        document.getElementById('btn-disable-push').style.display = 'inline-flex'; // <-- AÑADIDO ESTO
+        document.getElementById('btn-disable-push').style.display = 'inline-flex';
     } else {
-        // Ensures correct UI if they disabled it on another device
+        // Ensures correct UI if they disabled it on another device, or if Notifications are not supported
         document.getElementById('push-status-text').innerHTML = 'Estado: <span style="color:#555;">Sin activar</span>';
         document.getElementById('btn-enable-push').style.display = 'inline-flex';
         document.getElementById('btn-disable-push').style.display = 'none';

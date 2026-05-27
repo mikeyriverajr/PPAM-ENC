@@ -241,7 +241,7 @@
       </div>
       <div id="availability-form-container"><p style="text-align: center; color: #666;">Cargando...</p></div>
       <div style="text-align: right; margin-top: 25px;">
-        <button onclick="saveAvailability()" class="btn-primary">Guardar Horario</button>
+        <button type="button" onclick="saveAvailability()" class="btn-primary">Guardar Horario</button>
       </div>
     </div>
 
@@ -253,8 +253,8 @@
         <div style="background:#f9f9f9; padding:15px; border-radius:8px; border:1px solid #eee; display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
             <span id="push-status-text" style="font-weight:600; color:#555;">Estado: Desactivadas</span>
             <div style="display: flex; gap: 10px; align-items: center;">
-                <button id="btn-enable-push" onclick="enablePushNotifications()" class="btn-action btn-success">Activar Notificaciones</button>
-                <button id="btn-disable-push" onclick="disablePushNotifications()" class="btn-action btn-danger" style="display: none;">Desactivar</button>
+                <button type="button" id="btn-enable-push" onclick="enablePushNotifications()" class="btn-action btn-success">Activar Notificaciones</button>
+                <button type="button" id="btn-disable-push" onclick="disablePushNotifications()" class="btn-action btn-danger" style="display: none;">Desactivar</button>
             </div>
         </div>
 
@@ -305,14 +305,14 @@
         <div id="my-absences-list" style="margin-bottom:20px; display:flex; flex-direction:column; gap:8px;"></div>
 
         <div style="text-align: right; margin-top: 30px;">
-          <button id="btn-save-profile" onclick="saveProfile()" disabled class="btn-primary">Guardar Cambios</button>
+          <button type="button" id="btn-save-profile" onclick="saveProfile()" disabled class="btn-primary">Guardar Cambios</button>
         </div>
 
         <hr class="profile-divider">
         <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#333;">lock</span> Seguridad</h3>
         <div class="form-group"><label>Nueva Contraseña (Mín. 6 caracteres)</label><input type="password" id="prof-new-pass" oninput="checkPasswordChange()" placeholder="Escribe para cambiar..."></div>
         <div style="text-align: right; margin-top: 10px;">
-          <button id="btn-update-pass" onclick="changeProfilePassword()" disabled class="btn-primary">Actualizar Contraseña</button>
+          <button type="button" id="btn-update-pass" onclick="changeProfilePassword()" disabled class="btn-primary">Actualizar Contraseña</button>
         </div>
 
       </div>

@@ -161,6 +161,11 @@
                   <span class="material-symbols-outlined search-icon">search</span>
                   <input type="text" id="search-all" class="search-box" placeholder="Buscar lugar, fecha o publicador..." onkeyup="filterAllShifts()">
               </div>
+              <div style="text-align: right; margin-bottom: 10px;">
+                  <button id="btn-toggle-past" type="button" onclick="togglePastShifts()" style="background: none; border: none; color: #5d7aa9; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font-size: 0.9em; padding: 5px;">
+                      <span class="material-symbols-outlined" style="font-size: 18px;">history</span> Mostrar turnos pasados
+                  </button>
+              </div>
               <div id="schedule-container"></div>
           </div>
       </div>

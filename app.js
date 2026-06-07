@@ -342,6 +342,19 @@ function getShiftContactHtml(shift) {
     return contactHtml;
 }
 
+let showPastShifts = false;
+
+function togglePastShifts() {
+    showPastShifts = !showPastShifts;
+    const btn = document.getElementById('btn-toggle-past');
+    if (btn) {
+        btn.innerHTML = showPastShifts
+            ? '<span class="material-symbols-outlined" style="font-size:18px; vertical-align:-3px;">visibility_off</span> Ocultar turnos pasados'
+            : '<span class="material-symbols-outlined" style="font-size:18px; vertical-align:-3px;">history</span> Mostrar turnos pasados';
+    }
+    filterAllShifts();
+}
+
 async function loadShifts() {
   await loadDayManagers();
   const container = document.getElementById('schedule-container');
@@ -350,7 +363,7 @@ async function loadShifts() {
     const shiftsSnapshot = await db.collection('shifts').orderBy('date').get();
     container.innerHTML = ''; allShiftsData = [];
     shiftsSnapshot.forEach(doc => { let shift = doc.data(); shift.id = doc.id; allShiftsData.push(shift); });
-    renderAllShifts(allShiftsData);
+    filterAllShifts();
   } catch (error) { container.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar el programa.</p>'; }
 }
 
@@ -381,7 +394,11 @@ function renderAllShifts(shifts) {
 
 function filterAllShifts() {
   const query = document.getElementById('search-all').value.toLowerCase();
+  const todayStr = getTodayString();
+
   const filtered = allShiftsData.filter(s => {
+      if (!showPastShifts && s.date < todayStr) return false;
+
       const names = (s.participants || []).map(id => publisherCache[id]?.name || '').join(' ').toLowerCase();
       const spanishDate = formatSpanishDate(s.date).toLowerCase();
       return s.location.toLowerCase().includes(query) || s.date.includes(query) || spanishDate.includes(query) || names.includes(query);

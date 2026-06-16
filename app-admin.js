@@ -102,6 +102,9 @@ function switchAdminTab(tabId) {
     loadLocations();
     checkMonthStatus();
   }
+  if (tabId === 'availability') {
+      loadAvailabilityLocations();
+  }
 }
 
 // ==========================================
@@ -173,6 +176,17 @@ function viewPublisher(id) {
     document.getElementById('view-pub-email').innerText = pub.notificationEmail || '-';
     document.getElementById('view-pub-ename').innerText = pub.emergencyName || '-';
     document.getElementById('view-pub-ephone').innerText = pub.emergencyPhone || '-';
+
+    const formatTimestamp = (isoString) => {
+        if (!isoString) return 'Nunca';
+        const date = new Date(isoString);
+        if (isNaN(date.getTime())) return 'Nunca';
+        return `${formatSpanishDate(isoString.split('T')[0])} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+    };
+
+    document.getElementById('view-pub-lastlogin').innerText = formatTimestamp(pub.lastLogin);
+    document.getElementById('view-pub-lastprofile').innerText = formatTimestamp(pub.lastProfileChange);
+    document.getElementById('view-pub-lastcancel').innerText = formatTimestamp(pub.lastCancelledShift);
     
     document.getElementById('pub-view-modal').style.display = 'flex';
 }
@@ -1825,4 +1839,106 @@ function openDraftStatsModal() {
 
 function closeDraftStatsModal() {
     document.getElementById('stats-modal').style.display = 'none';
+}
+
+// ==========================================
+// TAB 4: DISPONIBILIDAD
+// ==========================================
+let availLocationsCache = [];
+
+async function loadAvailabilityLocations() {
+    const locSelect = document.getElementById('avail-loc-select');
+    locSelect.innerHTML = '<option value="">Cargando ubicaciones...</option>';
+
+    try {
+        const snap = await db.collection('locations').where('isActive', '==', true).get();
+        availLocationsCache = [];
+        snap.forEach(doc => {
+            const data = doc.data();
+            data.id = doc.id;
+            availLocationsCache.push(data);
+        });
+
+        locSelect.innerHTML = '<option value="">Selecciona una ubicación</option>';
+        availLocationsCache.forEach(loc => {
+            locSelect.innerHTML += `<option value="${loc.id}">${loc.name}</option>`;
+        });
+
+        document.getElementById('avail-shift-select').innerHTML = '<option value="">Selecciona una ubicación primero</option>';
+        document.getElementById('avail-results').style.display = 'none';
+    } catch (e) {
+        locSelect.innerHTML = '<option value="">Error al cargar ubicaciones</option>';
+        console.error(e);
+    }
+}
+
+function loadAvailabilityShifts() {
+    const locId = document.getElementById('avail-loc-select').value;
+    const shiftSelect = document.getElementById('avail-shift-select');
+
+    if (!locId) {
+        shiftSelect.innerHTML = '<option value="">Selecciona una ubicación primero</option>';
+        document.getElementById('avail-results').style.display = 'none';
+        return;
+    }
+
+    const loc = availLocationsCache.find(l => l.id === locId);
+    if (!loc || !loc.templates || loc.templates.length === 0) {
+        shiftSelect.innerHTML = '<option value="">No hay turnos para esta ubicación</option>';
+        document.getElementById('avail-results').style.display = 'none';
+        return;
+    }
+
+    shiftSelect.innerHTML = '<option value="">Selecciona un turno</option>';
+
+    // Sort templates by day and then time for better UX
+    const daysOrder = { 'Lunes': 1, 'Martes': 2, 'Miércoles': 3, 'Jueves': 4, 'Viernes': 5, 'Sábado': 6, 'Domingo': 7 };
+    const sortedTemplates = [...loc.templates].sort((a, b) => {
+        if (daysOrder[a.day] !== daysOrder[b.day]) {
+            return daysOrder[a.day] - daysOrder[b.day];
+        }
+        return a.startTime.localeCompare(b.startTime);
+    });
+
+    sortedTemplates.forEach(t => {
+        const availKey = `${locId}_${t.day}_${t.startTime}`;
+        shiftSelect.innerHTML += `<option value="${availKey}">${t.day} | ${t.startTime} - ${t.endTime}</option>`;
+    });
+
+    document.getElementById('avail-results').style.display = 'none';
+}
+
+function checkAvailability() {
+    const availKey = document.getElementById('avail-shift-select').value;
+    if (!availKey) {
+        document.getElementById('avail-results').style.display = 'none';
+        return;
+    }
+
+    const availablePubs = allPublishers.filter(pub =>
+        pub.status !== 'Entrenamiento' &&
+        (pub.availability || []).includes(availKey)
+    );
+
+    availablePubs.sort((a, b) => (a.firstName || '').localeCompare(b.firstName || ''));
+
+    document.getElementById('avail-count').innerText = availablePubs.length;
+
+    const listDiv = document.getElementById('avail-list');
+    listDiv.innerHTML = '';
+
+    if (availablePubs.length === 0) {
+        listDiv.innerHTML = '<p style="color: #666; font-style: italic;">No hay publicadores disponibles para este turno.</p>';
+    } else {
+        availablePubs.forEach(pub => {
+            listDiv.innerHTML += `
+                <div style="background: #f9f9f9; padding: 12px; border: 1px solid #eee; border-radius: 6px; display: flex; align-items: center; gap: 10px;">
+                    <span class="material-symbols-outlined" style="color:#5d7aa9;">${pub.gender === 'M' ? 'woman' : 'man'}</span>
+                    <strong style="color: #333;">${pub.firstName} ${pub.lastName || ''}</strong>
+                </div>
+            `;
+        });
+    }
+
+    document.getElementById('avail-results').style.display = 'block';
 }

@@ -139,6 +139,7 @@
         <div class="tab active" onclick="switchAdminTab('users')" id="tab-btn-users"><span class="material-symbols-outlined">group</span> Directorio</div>
         <div class="tab" onclick="switchAdminTab('locations')" id="tab-btn-locations"><span class="material-symbols-outlined">location_on</span> Ubicaciones</div>
         <div class="tab" onclick="switchAdminTab('schedule')" id="tab-btn-schedule"><span class="material-symbols-outlined">calendar_month</span> Generador</div>
+        <div class="tab" onclick="switchAdminTab('availability')" id="tab-btn-availability"><span class="material-symbols-outlined">event_available</span> Disponibilidad</div>
     </div>
     
     <div id="tab-users" class="tab-content active">
@@ -175,6 +176,14 @@
               <div style="display:flex; gap: 20px;">
                   <div class="data-item" style="flex:1;"><span class="data-label">Emergencia (Nombre)</span><span class="data-value" id="view-pub-ename">-</span></div>
                   <div class="data-item" style="flex:1;"><span class="data-label">Emergencia (Tel)</span><span class="data-value" id="view-pub-ephone">-</span></div>
+              </div>
+
+              <hr style="border:0; border-top:1px solid #eee; width:100%; margin: 5px 0;">
+
+              <div style="display:flex; gap: 20px; flex-wrap: wrap;">
+                  <div class="data-item" style="flex:1;"><span class="data-label">Último Inicio de Sesión</span><span class="data-value" id="view-pub-lastlogin" style="font-size: 0.9em;">-</span></div>
+                  <div class="data-item" style="flex:1;"><span class="data-label">Último Cambio de Perfil</span><span class="data-value" id="view-pub-lastprofile" style="font-size: 0.9em;">-</span></div>
+                  <div class="data-item" style="flex:1;"><span class="data-label">Último Turno Cancelado</span><span class="data-value" id="view-pub-lastcancel" style="font-size: 0.9em;">-</span></div>
               </div>
           </div>
           
@@ -440,6 +449,37 @@
                    <button id="btn-stats-draft" onclick="openDraftStatsModal()" class="btn-action btn-info" style="padding:12px 20px; font-size: 1em;"><span class="material-symbols-outlined">query_stats</span> Ver Estadísticas</button>
                    <button id="btn-publish-bottom" onclick="publishSchedule()" class="btn-action btn-success" style="padding:12px 30px; font-size: 1em;"><span class="material-symbols-outlined">cloud_upload</span> Guardar en Calendario Oficial</button>
                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-availability" class="tab-content">
+        <div class="panel">
+            <h3 style="margin-top: 0; color: #5d7aa9; display: flex; align-items: center; gap: 8px;"><span class="material-symbols-outlined">event_available</span> Consultar Disponibilidad</h3>
+            <p style="color: #666; font-size: 0.95em;">Selecciona una ubicación y un turno para ver cuántos y cuáles publicadores están disponibles.</p>
+
+            <div style="display:flex; gap:15px; margin-top: 20px; flex-wrap: wrap;">
+                <div class="form-group" style="flex:1; min-width: 200px;">
+                    <label>Ubicación</label>
+                    <select id="avail-loc-select" onchange="loadAvailabilityShifts()">
+                        <option value="">Cargando...</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex:1; min-width: 200px;">
+                    <label>Turno</label>
+                    <select id="avail-shift-select" onchange="checkAvailability()">
+                        <option value="">Selecciona una ubicación primero</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="avail-results" style="margin-top: 25px; display: none;">
+                <h4 style="color: #333; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                    Publicadores Disponibles: <span id="avail-count" style="color: #5d7aa9; font-size: 1.2em;">0</span>
+                </h4>
+                <div id="avail-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto;">
+                    <!-- Inserted via JS -->
+                </div>
             </div>
         </div>
     </div>

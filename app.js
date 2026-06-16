@@ -70,6 +70,11 @@ auth.onAuthStateChanged(async user => {
         const pubDoc = await db.collection('publishers').doc(currentUserPublisherId).get();
         if(pubDoc.exists) {
             currentPubData = pubDoc.data();
+            const now = new Date();
+            const lastLogin = currentPubData.lastLogin ? new Date(currentPubData.lastLogin) : new Date(0);
+            if (now - lastLogin > 1000 * 60 * 5) { // Update lastLogin at most every 5 minutes
+                db.collection('publishers').doc(currentUserPublisherId).update({ lastLogin: now.toISOString() }).catch(e => console.error(e));
+            }
         } else {
             console.warn("Cuenta desvinculada.");
             auth.signOut();
@@ -470,6 +475,7 @@ async function attemptCancel(shiftId, dateStr, timeStr, locationName) {
     let currentParticipants = docSnap.data().participants || [];
     currentParticipants = currentParticipants.filter(id => id !== currentUserPublisherId);
     await shiftRef.update({ participants: currentParticipants });
+    await db.collection('publishers').doc(currentUserPublisherId).update({ lastCancelledShift: new Date().toISOString() });
     showToast("Turno cancelado exitosamente.");
     loadMyShifts(); loadAvailableShifts(); loadShifts();
   } catch (err) { showToast("Error al cancelar: " + err.message, "error"); }
@@ -662,7 +668,10 @@ async function saveAvailability() {
   if (!currentUserPublisherId) return;
   const selected = Array.from(document.querySelectorAll('.avail-checkbox:checked')).map(cb => cb.value);
   try {
-    await db.collection('publishers').doc(currentUserPublisherId).update({ availability: selected });
+    await db.collection('publishers').doc(currentUserPublisherId).update({
+        availability: selected,
+        lastProfileChange: new Date().toISOString()
+    });
     showToast("¡Horario guardado con éxito!");
   } catch (error) { showToast("Error al guardar tu horario.", "error"); }
 }
@@ -815,7 +824,8 @@ async function saveProfile() {
     partner: partnerId,
     partnerName: partnerName,
     hardPair: document.getElementById('prof-hardpair').checked,
-    absences: myAbsences
+    absences: myAbsences,
+    lastProfileChange: new Date().toISOString()
   };
 
   // Firestore throws errors if you attempt to save `undefined`.

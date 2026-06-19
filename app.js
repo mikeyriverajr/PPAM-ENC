@@ -844,7 +844,10 @@ async function saveProfile() {
     currentPubData = { ...currentPubData, ...profileData };
     checkProfileChanges();
     showToast("¡Perfil y ausencias actualizados con éxito!");
-  } catch (error) { showToast("Error al guardar perfil.", "error"); }
+  } catch (error) {
+    console.error("Error al guardar perfil:", error);
+    showToast("Error al guardar perfil: " + error.message, "error");
+  }
 }
 
 // --- LOCATION INFO MODAL ---

@@ -1,357 +1,712 @@
 <!DOCTYPE html>
-<html lang="es">
+<html>
 <head>
-  <link rel="manifest" href="manifest.json">
-  <link rel="icon" type="image/png" href="icon.png">
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PPAM | Encarnación</title>
-  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+  <base target="_top">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
-      body { background-color: #f4f6f8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 15px 0; color: #333; }
-      .app-container { max-width: 1000px; width: 95%; margin: 0 auto; }
-
-      #login-overlay { background: white; padding: 40px 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); max-width: 400px; margin: 10vh auto; text-align: center; }
-      #login-overlay input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; transition: border-color 0.3s; }
-      #login-overlay input:focus { outline: none; border-color: #5d7aa9; }
-      #login-overlay button { width: 100%; padding: 12px; margin-top: 10px; background-color: #5d7aa9; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 16px; transition: background-color 0.3s; }
-      #login-overlay button:hover { background-color: #4a638b; }
-
-      #force-password-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
-      .force-pass-box { background: white; padding: 40px 30px; border-radius: 12px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-      .force-pass-box input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
-      .force-pass-box button { width: 100%; padding: 12px; margin-top: 15px; background-color: #333; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 16px; }
-
-      .modal { display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); align-items: center; justify-content: center; backdrop-filter: blur(3px); }
-      .modal-content { background-color: #fff; padding: 25px; width: 90%; max-width: 600px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto; position: relative;}
-      .close-modal { color: #999; position: absolute; top: 15px; right: 15px; font-size: 24px; font-weight: bold; cursor: pointer; transition: color 0.2s; z-index: 10; }
-      .close-modal:hover { color: #333; }
-
-      .header { background-color: #5d7aa9; padding: 20px; border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-      .header h2 { margin: 0; font-size: 1.3em; display:flex; align-items:center; gap:10px; color: white; }
-      #header-user-name { font-size: 0.8em; font-weight: normal; color: rgba(255,255,255,0.8); border-left: 1px solid rgba(255,255,255,0.3); padding-left: 10px; }
-
-      .header-actions { display: flex; gap: 10px; align-items: center; }
-      .btn-header-action { display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.15); color: white; border: 1px solid rgba(255,255,255,0.4); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.9em; font-weight: 600; transition: all 0.2s; }
-      .btn-header-action:hover { background: white; color: #5d7aa9; }
-      .btn-logout { background: transparent; color: white; border: 1px solid rgba(255,255,255,0.4); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.9em; transition: all 0.2s; }
-      .btn-logout:hover { background: rgba(255,255,255,0.1); border-color: white; }
-
-      .tabs { display: flex; background: #fff; border-radius: 0 0 12px 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.03); }
-      .tab { padding: 15px 10px; cursor: pointer; color: #777; font-weight: 600; flex: 1; text-align: center; border-bottom: 3px solid transparent; font-size: 0.9em; transition: all 0.2s; }
-      .tab:hover { color: #333; background: #fafafa; }
-      .tab.active { color: #5d7aa9; border-bottom: 3px solid #5d7aa9; background: #fff; }
-
-@media (max-width: 600px) {
-          /* Expand container to edges and remove body gaps */
-          body { padding: 0; }
-          .app-container { width: 100%; }
-
-          /* Make header and tabs flush with the screen corners */
-          .header { border-radius: 0; padding: 15px; }
-          .tabs { border-radius: 0; }
-
-          /* Reclaim space inside the cards and panels */
-          .shift-card { padding: 15px; border-radius: 0; border-right: none; border-left-width: 4px; }
-          .profile-panel { padding: 20px 15px; border-radius: 0; border-left: none; border-right: none; }
-          .day-group { padding: 15px; border-radius: 0; border-left: none; border-right: none; }
-
-          /* Your existing mobile text tweaks */
-          .tab { padding: 12px 2px; font-size: 0.85em; letter-spacing: -0.3px; }
-          .header h2 { font-size: 1.1em; }
-          #header-user-name { font-size: 0.75em; }
-          .hide-mobile { display: none; }
-          .btn-header-action { padding: 6px 8px; }
-      }
-      .tab-content { display: none; margin-top: 25px; }
-      .tab-content.active { display: block; }
-
-      .section-intro { margin-bottom: 25px; padding: 0 5px; }
-      .section-intro h3 { margin: 0 0 5px 0; color: #222; font-size: 1.4em; }
-      .section-intro p { color: #666; font-size: 0.95em; margin: 0; }
-
-      .search-wrapper { position: relative; margin-bottom: 20px; }
-      .search-icon { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: #999; }
-      .search-box { width: 100%; padding: 14px 14px 14px 45px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 15px; box-shadow: 0 1px 4px rgba(0,0,0,0.02); transition: border-color 0.3s; }
-      .search-box:focus { outline: none; border-color: #5d7aa9; }
-
-      .form-group { margin-bottom: 20px; }
-      .form-group label { display: block; font-weight: 600; margin-bottom: 8px; color: #444; font-size: 0.9em; }
-      .form-group input, .form-group select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 15px; background: #fff; }
-      .form-group input:focus, .form-group select:focus { outline: none; border-color: #5d7aa9; }
-
-      .shift-card { background: white; padding: 20px; margin-bottom: 15px; border-radius: 10px; border: 1px solid #eaeaea; box-shadow: 0 2px 8px rgba(0,0,0,0.02); display: flex; flex-direction: column; gap: 8px; }
-      .shift-card.mine { border: 1px solid #e0e8f0; border-left: 5px solid #5d7aa9; }
-      .shift-card.open { border-left: 5px solid #28a745; }
-
-      .shift-card-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1px solid #f0f0f0; padding-bottom: 12px; margin-bottom: 4px; }
-      .shift-card-title { margin: 0; color: #333; font-size: 1.1em; text-transform: capitalize; font-weight: 600; display:flex; align-items:center; }
-      .shift-card-time { color: #666; font-size: 0.9em; background: #f4f6f8; padding: 4px 8px; border-radius: 4px; display:flex; align-items:center; }
-      .shift-card-detail { margin: 0; color: #555; font-size: 0.95em; display: flex; align-items: center; gap: 8px; }
-      .card-actions { margin-top: 10px; display: flex; justify-content: flex-end; }
-
-      .day-group { background: white; padding: 20px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #eaeaea; }
-      .day-title { margin-top: 0; color: #333; border-bottom: 1px solid #f0f0f0; padding-bottom: 12px; margin-bottom: 15px; font-size: 1.1em; }
-      .shift-option { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; font-size: 0.95em; color: #444; padding: 4px 0; }
-      .shift-option input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; accent-color: #5d7aa9; }
-      .shift-option label { cursor: pointer; flex: 1; user-select: none; }
-
-      .btn-action { padding: 10px 18px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.9em; transition: opacity 0.2s; display: inline-flex; align-items: center; gap: 5px; justify-content: center; }
-      .btn-action:hover { opacity: 0.9; }
-      .btn-danger { background-color: #fff; color: #dc3545; border: 1px solid #dc3545; }
-      .btn-danger:hover { background-color: #fff5f5; }
-      .btn-success { background-color: #28a745; color: white; }
-
-      .btn-primary { background: #5d7aa9; color: white; border: none; padding: 12px 25px; border-radius: 6px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
-      .btn-primary:hover { background: #4a638b; }
-      .btn-primary:disabled { background: #e0e0e0; color: #999; cursor: not-allowed; }
-
-      .profile-panel { background: white; padding: 30px; border-radius: 12px; border: 1px solid #eaeaea; }
-      .profile-divider { border: 0; border-top: 1px solid #f0f0f0; margin: 30px 0; }
-      .profile-section-title { margin-top: 0; color: #333; font-size: 1.1em; margin-bottom: 15px; display: flex; align-items: center; gap: 8px; }
-
-      #full-schedule-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; justify-content: center; align-items: flex-end; backdrop-filter: blur(3px); }
-      .full-modal-content { background: #f4f6f8; width: 100%; max-width: 800px; height: 90vh; border-radius: 16px 16px 0 0; display: flex; flex-direction: column; overflow: hidden; animation: slideUpModal 0.3s cubic-bezier(0.175, 0.885, 0.32, 1); }
-      .full-modal-header { background: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; }
-      .full-modal-header h3 { margin: 0; color: #333; display: flex; align-items: center; gap: 8px; font-size: 1.2em; }
-      .btn-close-modal { background: #f0f0f0; border: none; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #555; transition: background 0.2s; }
-      .btn-close-modal:hover { background: #e0e0e0; color: #333; }
-      .full-modal-body { padding: 20px; overflow-y: auto; flex: 1; }
-      @keyframes slideUpModal { from { transform: translateY(100%); } to { transform: translateY(0); } }
-
-      #toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 10002; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
-      .toast { background: white; color: #333; padding: 15px 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); font-weight: 500; display: flex; align-items: center; gap: 12px; animation: slideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; border-left: 4px solid #5d7aa9; min-width: 250px; pointer-events: auto; }
-      .toast.success { border-left-color: #28a745; }
-      .toast.error { border-left-color: #dc3545; }
-      @keyframes slideIn { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-      @keyframes fadeOutToast { to { opacity: 0; transform: translateY(10px); } }
-      #custom-confirm { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 10003; align-items: center; justify-content: center; backdrop-filter: blur(3px); }
-      .confirm-box { background: white; padding: 30px; border-radius: 12px; max-width: 350px; width: 90%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.25); animation: popIn 0.3s ease-out forwards; }
-      .confirm-box p { margin: 0 0 25px 0; color: #333; font-size: 1.1em; line-height: 1.4; font-weight: 500; }
-      .confirm-btns { display: flex; gap: 10px; justify-content: center; }
-      .confirm-btns button { flex: 1; padding: 12px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 1em; transition: background 0.2s; }
-      .btn-confirm-cancel { background: #f0f0f0; color: #555; }
-      .btn-confirm-cancel:hover { background: #e4e4e4; }
-      .btn-confirm-ok { background: #dc3545; color: white; }
-      .btn-confirm-ok:hover { opacity: 0.9; }
-      @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    body { background-color: #f8f9fa; padding: 20px; }
+    .view-section { display: none; }
+    .card { margin-bottom: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .assigned-badge { background-color: #d1e7dd; color: #0f5132; padding: 8px; border-radius: 5px; font-weight: bold; }
+    .past-trip { border-left: 5px solid #6c757d; background-color: #e9ecef; }
+    .notas-box { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 8px; font-size: 0.9rem; margin-top: 10px; }
   </style>
 </head>
 <body>
 
-  <div id="toast-container"></div>
-  <div id="custom-confirm">
-    <div class="confirm-box">
-      <p id="confirm-msg">¿Estás seguro?</p>
-      <div class="confirm-btns">
-        <button class="btn-confirm-cancel" id="btn-confirm-cancel">Cancelar</button>
-        <button class="btn-confirm-ok" id="btn-confirm-ok">Aceptar</button>
+<div class="container" style="max-width: 600px;">
+  <h2 class="text-center mb-4 text-primary">Transporte Campo Verde</h2>
+
+  <div id="login-view" class="view-section" style="display: block;">
+    <div class="card p-4 text-center">
+
+      <div id="auto-login-msg" class="text-info mb-3" style="display:none; font-weight: bold;">
+        Iniciando sesión automáticamente...
       </div>
+
+      <div id="user-login-box">
+        <label>Ingrese el PIN de acceso:</label>
+        <input type="password" id="pin-input" class="form-control mb-3 text-center" placeholder="PIN de Congregación">
+        <button id="btn-login-user" class="btn btn-primary w-100 mb-3">Entrar</button>
+        <a href="#" id="link-show-admin" class="text-muted small text-decoration-none">Acceso de Administrador</a>
+      </div>
+
+      <div id="admin-login-box" style="display:none;">
+        <label class="text-warning fw-bold">Modo Administrador</label>
+        <input type="password" id="admin-pin-input" class="form-control mb-3 text-center border-warning" placeholder="PIN de Admin">
+        <button id="btn-login-admin" class="btn btn-warning w-100 mb-3 fw-bold">Entrar como Admin</button>
+        <a href="#" id="link-show-user" class="text-muted small text-decoration-none">Volver a inicio normal</a>
+      </div>
+
+      <div id="login-error" class="text-danger mt-3" style="display:none;"></div>
     </div>
   </div>
 
-  <div id="full-schedule-modal">
-      <div class="full-modal-content">
-          <div class="full-modal-header">
-              <h3><span class="material-symbols-outlined" style="color:#5d7aa9;">calendar_month</span> Programa General</h3>
-              <button class="btn-close-modal" onclick="closeFullSchedule()"><span class="material-symbols-outlined" style="font-size: 20px;">close</span></button>
+  <div id="board-view" class="view-section">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h4 class="mb-0">Tablero de Viajes</h4>
+      <button id="btn-logout" class="btn btn-sm btn-outline-danger">Cerrar Sesión</button>
+    </div>
+
+    <button id="btn-show-request" class="btn btn-success w-100 btn-lg mb-3 shadow-sm">➕ Pedir un Viaje Aquí</button>
+
+    <div class="form-check form-switch mb-3 bg-white p-2 rounded border d-flex align-items-center justify-content-between" style="padding-left: 2.5em;">
+      <label class="form-check-label text-muted small fw-bold" for="switch-past-trips">📅 Ver viajes de fechas pasadas</label>
+      <input class="form-check-input" type="checkbox" id="switch-past-trips">
+    </div>
+
+    <div id="admin-panel" class="card p-3 mb-4 bg-light border-warning" style="display:none;">
+      <h6 class="text-warning-emphasis mb-2">📋 Herramientas de Administrador</h6>
+      <button id="btn-copy-wa" class="btn btn-sm btn-outline-warning w-100 mb-3">Copiar Resumen para WhatsApp</button>
+
+      <hr class="border-warning my-1">
+
+      <label class="form-label small fw-bold text-warning-emphasis mt-2">Correos para Notificaciones Automáticas:</label>
+      <textarea id="admin-emails-input" class="form-control mb-2" rows="2" placeholder="ejemplo@gmail.com, otro@yahoo.com"></textarea>
+      <button id="btn-save-emails" class="btn btn-sm btn-warning w-100 fw-bold">Guardar Correos</button>
+    </div>
+
+    <div id="loading-board">Cargando viajes...</div>
+    <div id="board-container"></div>
+  </div>
+
+  <div id="request-view" class="view-section">
+    <div class="card p-4">
+      <h4 class="mb-3">Pedir un Viaje</h4>
+
+      <label>Tu Nombre y Apellido:</label>
+      <input type="text" id="req-nombre" class="form-control mb-2">
+
+      <div class="row mb-2">
+        <div class="col-7">
+          <label>Fecha del viaje:</label>
+          <input type="date" id="req-fecha" class="form-control">
+          <div id="date-warning" class="text-danger mt-1" style="display:none; font-size: 0.8rem; line-height: 1.1;">
+            ⚠️ Este día no es jueves ni sábado. Si no hay reunión, por favor elige otra fecha.
           </div>
-          <div class="full-modal-body">
-              <div class="search-wrapper">
-                  <span class="material-symbols-outlined search-icon">search</span>
-                  <input type="text" id="search-all" class="search-box" placeholder="Buscar lugar, fecha o publicador..." onkeyup="filterAllShifts()">
-              </div>
-              <div style="text-align: right; margin-bottom: 10px;">
-                  <button id="btn-toggle-past" type="button" onclick="togglePastShifts()" style="background: none; border: none; color: #5d7aa9; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font-size: 0.9em; padding: 5px;">
-                      <span class="material-symbols-outlined" style="font-size: 18px;">history</span> Mostrar turnos pasados
-                  </button>
-              </div>
-              <div id="schedule-container"></div>
-          </div>
-      </div>
-  </div>
-
-  <div id="login-overlay">
-    <h2 style="color: #333; margin-bottom: 5px;">Bienvenido</h2>
-    <p style="color: #666; font-size: 0.95em; margin-bottom: 25px;">Ingresa para ver tu programa de PPAM.</p>
-    <input type="text" id="gate-username" placeholder="Usuario (ej. juanperez)">
-    <input type="password" id="gate-password" placeholder="Contraseña">
-    <button onclick="handleGatekeeperLogin()">Ingresar</button>
-    <p id="gate-error" style="color: #dc3545; font-size: 0.9em; margin-top: 15px;"></p>
-    <p style="margin-top:20px; font-size:0.85em; color:#777;">
-        ¿Olvidaste tu contraseña?<br>
-        <span style="font-weight:600; color:#5d7aa9;">Contacta al administrador para restablecerla.</span>
-    </p>
-    <div style="margin-top: 25px; border-top: 1px solid #eee; padding-top: 20px;">
-        <a href="empezar.html" style="display:inline-flex; align-items:center; justify-content:center; gap:8px; width:100%; padding:12px; background-color:#f0f4f8; color:#5d7aa9; text-decoration:none; border-radius:6px; font-weight:600; font-size:15px; border:1px solid #dce4ee; transition:all 0.2s;">
-            <span class="material-symbols-outlined" style="font-size: 20px;">rocket_launch</span> ¿Eres nuevo? Cómo Empezar
-        </a>
-    </div>
-  </div>
-
-  <div id="force-password-modal">
-    <div class="force-pass-box">
-      <h3 style="color:#333; margin-top:0; display:flex; align-items:center; justify-content:center; gap:8px;">
-        <span class="material-symbols-outlined" style="color:#dc3545;">lock</span> Cambio Obligatorio
-      </h3>
-      <p style="font-size:0.95em; color:#555; margin-bottom: 25px;">Por seguridad, debes crear una contraseña privada antes de acceder al sistema.</p>
-      <input type="password" id="force-new-pass1" placeholder="Nueva Contraseña (Mín. 6 caracteres)">
-      <input type="password" id="force-new-pass2" placeholder="Confirmar Contraseña">
-      <button onclick="submitForcedPassword()">Guardar y Entrar</button>
-      <p id="force-pass-error" style="color:#dc3545; font-size:0.9em; margin-bottom:0; margin-top: 10px;"></p>
-    </div>
-  </div>
-
-  <div id="app-content" class="app-container" style="display: none;">
-    <div class="header">
-      <h2>PPAM <span id="header-user-name"></span></h2>
-      <div class="header-actions">
-          <button class="btn-header-action" onclick="openFullSchedule()">
-              <span class="material-symbols-outlined" style="font-size: 1.1em;">calendar_month</span>
-              <span class="hide-mobile">Programa</span>
-          </button>
-          <button class="btn-logout" onclick="logout()">Salir</button>
-      </div>
-    </div>
-
-    <div class="tabs">
-      <div class="tab active" onclick="switchTab('mine')" id="tab-btn-mine">Mis Turnos</div>
-      <div class="tab" onclick="switchTab('open')" id="tab-btn-open">Libres</div>
-      <div class="tab" onclick="switchTab('avail')" id="tab-btn-avail">Mi Horario</div>
-      <div class="tab" onclick="switchTab('profile')" id="tab-btn-profile">Perfil</div>
-    </div>
-
-    <div id="tab-mine" class="tab-content active">
-      <div class="section-intro">
-        <h3>Mis Turnos</h3>
-        <p>Tus próximas asignaciones confirmadas.</p>
-      </div>
-      <div id="mine-container"></div>
-    </div>
-
-    <div id="tab-open" class="tab-content">
-      <div class="section-intro">
-        <h3>Turnos Libres</h3>
-        <p>Espacios vacíos o cancelados que puedes tomar.</p>
-      </div>
-      <div id="trainee-warning" style="display:none; background: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 15px; border-radius: 8px; margin-bottom: 20px; align-items: flex-start; gap: 10px;">
-          <span class="material-symbols-outlined" style="font-size: 24px;">info</span>
-          <div>
-              <strong style="display:block; margin-bottom: 5px;">Requisito de Entrenamiento</strong>
-              <span style="font-size: 0.9em;">Actualmente estás en la lista de Entrenamiento. Una vez que completes tu turno inicial con un capacitador y seas aprobado, se te habilitará la opción para tomar turnos libres aquí.</span>
-          </div>
-      </div>
-      <div id="open-shifts-container"></div>
-    </div>
-
-    <div id="tab-avail" class="tab-content">
-      <div class="section-intro">
-        <h3>Mi Horario Semanal</h3>
-        <p>Selecciona tu rutina habitual para que el generador te asigne.</p>
-      </div>
-      <div id="availability-form-container"><p style="text-align: center; color: #666;">Cargando...</p></div>
-      <div style="text-align: right; margin-top: 25px;">
-        <button type="button" onclick="saveAvailability()" class="btn-primary">Guardar Horario</button>
-      </div>
-    </div>
-
-    <div id="tab-profile" class="tab-content">
-      <div class="profile-panel">
-
-        <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#28a745;">notifications_active</span> Notificaciones Push</h3>
-        <p style="font-size:0.9em; color:#666; margin-top:0;">Recibe alertas instantáneas en tu celular cuando se liberen turnos o haya cambios en tu programa.</p>
-        <div style="background:#f9f9f9; padding:15px; border-radius:8px; border:1px solid #eee; display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
-            <span id="push-status-text" style="font-weight:600; color:#555;">Estado: Desactivadas</span>
-            <div style="display: flex; gap: 10px; align-items: center;">
-                <button type="button" id="btn-enable-push" onclick="enablePushNotifications()" class="btn-action btn-success">Activar Notificaciones</button>
-                <button type="button" id="btn-disable-push" onclick="disablePushNotifications()" class="btn-action btn-danger" style="display: none;">Desactivar</button>
-            </div>
         </div>
-
-        <hr class="profile-divider">
-        <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#5d7aa9;">contact_page</span> Mis Datos de Contacto</h3>
-        <div class="form-group"><label>Teléfono Celular (Incluye el código de país)</label><input type="tel" id="prof-phone" oninput="checkProfileChanges()" placeholder="ej. +595981123456"></div>
-        <div class="form-group"><label>Correo Electrónico (Opcional)</label><input type="email" id="prof-email" oninput="checkProfileChanges()" placeholder="ej. juan@gmail.com"></div>
-        <div id="prof-email-notif-container" style="display:none; margin-top:10px; align-items:flex-start; gap:10px; background:#f9f9f9; padding:15px; border-radius:8px; border:1px solid #eee;">
-            <input type="checkbox" id="prof-email-notif" onchange="checkProfileChanges()" style="margin-top: 2px; width: 16px; height: 16px; cursor:pointer;">
-            <label for="prof-email-notif" style="margin:0; font-weight:normal; cursor:pointer; font-size: 0.9em; color: #444;"><strong>Recibir correos:</strong> Enviar notificaciones de turnos a mi correo electrónico.</label>
-        </div>
-
-        <hr class="profile-divider">
-        <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#dc3545;">emergency</span> En Caso de Emergencia</h3>
-        <div class="form-group"><label>Nombre del Contacto</label><input type="text" id="prof-emerg-name" oninput="checkProfileChanges()" placeholder="Familiar o amigo"></div>
-        <div class="form-group"><label>Teléfono de Emergencia (Incluye el código de país)</label><input type="tel" id="prof-emerg-phone" oninput="checkProfileChanges()" placeholder="ej. +595981123456"></div>
-
-        <hr class="profile-divider">
-        <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#5d7aa9;">tune</span> Preferencias del Generador</h3>
-        <div class="form-group">
-          <label>Límite Máximo de Turnos por Mes</label>
-          <select id="prof-max" onchange="checkProfileChanges()">
-            <option value="5">5 turnos (Máximo permitido)</option>
-            <option value="4">4 turnos</option>
-            <option value="3">3 turnos</option>
-            <option value="2">2 turnos</option>
-            <option value="1">1 turno</option>
+        <div class="col-5">
+          <label>Pasajeros:</label>
+          <select id="req-pasajeros" class="form-select">
+            <option value="1">1 pers.</option>
+            <option value="2">2 pers.</option>
+            <option value="3">3 pers.</option>
+            <option value="4">4 pers.</option>
+            <option value="5+">5 o más</option>
           </select>
         </div>
-        <div class="form-group">
-            <label>Compañero Preferido</label>
-            <select id="prof-partner" onchange="handlePartnerChange()"><option value="">Ninguno</option></select>
-        </div>
-        <div id="prof-hardpair-container" style="display:none; margin-top:10px; align-items:flex-start; gap:10px; background:#f9f9f9; padding:15px; border-radius:8px; border:1px solid #eee;">
-            <input type="checkbox" id="prof-hardpair" onchange="checkProfileChanges()" style="margin-top: 2px; width: 16px; height: 16px; cursor:pointer;">
-            <label for="prof-hardpair" style="margin:0; font-weight:normal; cursor:pointer; font-size: 0.9em; color: #444;"><strong>Asignar estrictamente:</strong> Solo programarme si mi compañero también está disponible.<br><span style="color:#666; font-size:0.85em; display:block; margin-top:4px;">Nota: Esto puede reducir la cantidad de turnos que recibas.</span></label>
-        </div>
-
-        <hr class="profile-divider">
-        <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#f59f00;">flight_takeoff</span> Mis Ausencias (Vacaciones)</h3>
-        <p style="font-size:0.9em; color:#666; margin-top:0;">Agrega las fechas en las que no estarás disponible. El generador automático no te asignará turnos en estos días.</p>
-
-        <div style="display:flex; gap:10px; margin-bottom:15px; align-items:flex-end; flex-wrap: wrap;">
-            <div style="flex:1; min-width: 120px;"><label style="font-size:0.85em; font-weight:600; color:#555;">Desde</label><input type="date" id="my-abs-start" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;"></div>
-            <div style="flex:1; min-width: 120px;"><label style="font-size:0.85em; font-weight:600; color:#555;">Hasta</label><input type="date" id="my-abs-end" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; box-sizing:border-box;"></div>
-            <button type="button" onclick="addMyAbsence()" class="btn-action btn-info" style="padding:10px 15px; height:42px;"><span class="material-symbols-outlined">add</span> Añadir</button>
-        </div>
-        <div id="my-absences-list" style="margin-bottom:20px; display:flex; flex-direction:column; gap:8px;"></div>
-
-        <div style="text-align: right; margin-top: 30px;">
-          <button type="button" id="btn-save-profile" onclick="saveProfile()" disabled class="btn-primary">Guardar Cambios</button>
-        </div>
-
-        <hr class="profile-divider">
-        <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#333;">lock</span> Seguridad</h3>
-        <div class="form-group"><label>Nueva Contraseña (Mín. 6 caracteres)</label><input type="password" id="prof-new-pass" oninput="checkPasswordChange()" placeholder="Escribe para cambiar..."></div>
-        <div style="text-align: right; margin-top: 10px;">
-          <button type="button" id="btn-update-pass" onclick="changeProfilePassword()" disabled class="btn-primary">Actualizar Contraseña</button>
-        </div>
-
       </div>
+
+      <label>Tipo de Viaje:</label>
+      <select id="req-tipo" class="form-select mb-2">
+        <option value="Ida y Vuelta">Ida y Vuelta</option>
+        <option value="Solo Ida">Solo Ida (Hacia la reunión)</option>
+        <option value="Solo Vuelta">Solo Vuelta (Hacia casa)</option>
+      </select>
+
+      <label>Ubicación (Opcional):</label>
+      <div class="input-group mb-2">
+        <input type="text" id="req-ubicacion" class="form-control" placeholder="Barrio o Link de Google Maps">
+        <button class="btn btn-outline-secondary" type="button" id="btn-gps" title="Usar mi ubicación GPS">📍 GPS</button>
+      </div>
+
+      <label>Notas / Detalles (Opcional):</label>
+      <textarea id="req-notas" class="form-control mb-2" rows="2" placeholder="Ej: Llevo cochecito, necesito ayuda para subir, etc."></textarea>
+
+      <label>Tu Teléfono (WhatsApp):</label>
+      <input type="tel" id="req-tel" class="form-control mb-4" placeholder="Ej: 0981 123456">
+
+      <button id="btn-submit-req" class="btn btn-success w-100 mb-2">Enviar Solicitud</button>
+      <button id="btn-back-1" class="btn btn-secondary w-100">Cancelar</button>
     </div>
   </div>
 
-  <!-- Location Info Modal -->
-  <div id="location-info-modal" class="modal">
-    <div class="modal-content" style="max-width: 600px; padding: 25px; border-radius: 15px;">
-      <span class="close-modal" onclick="closeLocationInfoModal()" style="font-size: 28px; background: rgba(0,0,0,0.05); border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;"><span class="material-symbols-outlined">close</span></span>
-      <h3 id="info-modal-title" style="margin-top: 0; color: #333; font-size: 1.5em; margin-bottom: 20px; padding-right: 30px;">Información de Ubicación</h3>
+  <div id="driver-form" class="card p-4 mt-3 shadow-lg" style="display:none; border: 2px solid #0dcaf0;">
+    <h5 class="mb-3">Confirmar Viaje</h5>
+    <p class="text-muted small">Ingresa tus datos para avisarle al hermano/a.</p>
+    <input type="hidden" id="claim-id">
+    <input type="hidden" id="claim-max-pasajeros">
+    <input type="text" id="drv-nombre" class="form-control mb-2" placeholder="Tu Nombre">
+    <input type="tel" id="drv-tel" class="form-control mb-3" placeholder="Tu N° de Teléfono">
 
-      <div id="info-modal-map-btn-container" style="margin-bottom: 25px;">
-          <!-- Maps button injected here if it exists -->
-      </div>
-
-      <div id="info-modal-content" style="color: #444; line-height: 1.6; font-size: 1.05em; margin-bottom: 30px; border-top: 1px solid #eee; padding-top: 20px;">
-          <!-- Rich text instructions injected here -->
-      </div>
-
-      <button onclick="closeLocationInfoModal()" class="btn-primary" style="width: 100%; border-radius: 8px; font-weight: bold; background-color: #5d7aa9; padding: 14px; font-size: 1.1em;">Cerrar</button>
+    <div id="drv-tramo-container" style="display:none;">
+      <label class="small fw-bold text-primary">¿Qué tramo puedes hacer?</label>
+      <select id="drv-tramo" class="form-select mb-3 border-primary">
+          <option value="Completo">Ambos (Ida y Vuelta)</option>
+          <option value="Solo Ida">Solo Ida</option>
+          <option value="Solo Vuelta">Solo Vuelta</option>
+      </select>
     </div>
+
+    <label class="small fw-bold">¿A cuántas personas puedes llevar?</label>
+    <select id="drv-pasajeros-tomados" class="form-select mb-3">
+        <!-- Llenado dinámicamente -->
+    </select>
+
+    <label class="small fw-bold">Notas al pasajero (Opcional):</label>
+    <textarea id="drv-notas" class="form-control mb-3" rows="1" placeholder="Ej: Te busco en la esquina"></textarea>
+
+    <button id="btn-confirm-claim" class="btn btn-info text-white w-100 mb-2">Aceptar y Avisar por WhatsApp</button>
+    <button id="btn-cancel-claim" class="btn btn-outline-secondary w-100">Cerrar</button>
   </div>
 
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
-<script src="firebase-config.js"></script>
-<script src="app.js?v=8"></script>
+</div>
+
+<div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">✏️ Editar Solicitud</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-id">
+        <label class="form-label small fw-bold">Nombre del Pasajero:</label>
+        <input type="text" id="edit-nombre" class="form-control mb-2">
+
+        <div class="row mb-2">
+          <div class="col-6">
+            <label class="form-label small fw-bold">Fecha:</label>
+            <input type="date" id="edit-fecha" class="form-control">
+          </div>
+          <div class="col-6">
+            <label class="form-label small fw-bold">Pasajeros:</label>
+            <select id="edit-pasajeros" class="form-select">
+              <option value="1">1 pers.</option>
+              <option value="2">2 pers.</option>
+              <option value="3">3 pers.</option>
+              <option value="4">4 pers.</option>
+              <option value="5+">5 o más</option>
+            </select>
+          </div>
+        </div>
+
+        <label class="form-label small fw-bold">Tipo de Viaje:</label>
+        <select id="edit-tipo" class="form-select mb-2">
+          <option value="Ida y Vuelta">Ida y Vuelta</option>
+          <option value="Solo Ida">Solo Ida</option>
+          <option value="Solo Vuelta">Solo Vuelta</option>
+        </select>
+
+        <label class="form-label small fw-bold">Ubicación / Enlace:</label>
+        <input type="text" id="edit-ubicacion" class="form-control mb-2">
+
+        <label class="form-label small fw-bold">Notas:</label>
+        <textarea id="edit-notas" class="form-control mb-2" rows="2"></textarea>
+
+        <label class="form-label small fw-bold">Teléfono Pasajero:</label>
+        <input type="tel" id="edit-tel" class="form-control mb-2">
+
+        <label class="form-label small fw-bold">Estado del Viaje:</label>
+        <select id="edit-estado" class="form-select mb-2">
+          <option value="Pendiente">Pendiente (Disponible en tablero)</option>
+          <option value="Asignado">Asignado</option>
+          <option value="Cancelado">Cancelado (Lo oculta)</option>
+          <option value="Oculto">Oculto internamente</option>
+        </select>
+
+        <label class="form-label small fw-bold">Nombre del Conductor:</label>
+        <input type="text" id="edit-conductor" class="form-control" placeholder="Vacío si está pendiente">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+        <button type="button" id="btn-save-edit" class="btn btn-primary">Guardar Cambios</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="alertaModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-body text-center p-4">
+        <h5 id="alertaMensaje" class="mb-4"></h5>
+        <button type="button" class="btn btn-primary px-4" data-bs-dismiss="modal">Entendido</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+  var currentUserRole = '';
+  var rawRequestsData = [];
+
+  document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('btn-login-user').addEventListener('click', function() { validarPin('user'); });
+    document.getElementById('btn-login-admin').addEventListener('click', function() { validarPin('admin'); });
+    document.getElementById('btn-logout').addEventListener('click', cerrarSesion);
+
+    document.getElementById('link-show-admin').addEventListener('click', function(e) {
+      e.preventDefault();
+      document.getElementById('user-login-box').style.display = 'none';
+      document.getElementById('admin-login-box').style.display = 'block';
+      document.getElementById('login-error').style.display = 'none';
+    });
+
+    document.getElementById('link-show-user').addEventListener('click', function(e) {
+      e.preventDefault();
+      document.getElementById('admin-login-box').style.display = 'none';
+      document.getElementById('user-login-box').style.display = 'block';
+      document.getElementById('login-error').style.display = 'none';
+    });
+
+    document.getElementById('btn-show-request').addEventListener('click', function() {
+      document.getElementById('req-nombre').value = localStorage.getItem('pasajeroNombre') || '';
+      document.getElementById('req-tel').value = localStorage.getItem('pasajeroTel') || '';
+      document.getElementById('req-notas').value = '';
+      document.getElementById('date-warning').style.display = 'none';
+      showView('request-view');
+    });
+
+    document.getElementById('req-fecha').addEventListener('change', function() {
+      var val = this.value;
+      if(!val) return;
+      var parts = val.split('-');
+      var d = new Date(parts[0], parts[1]-1, parts[2]);
+      var day = d.getDay();
+      if (day !== 4 && day !== 6) {
+        document.getElementById('date-warning').style.display = 'block';
+      } else {
+        document.getElementById('date-warning').style.display = 'none';
+      }
+    });
+
+    document.getElementById('switch-past-trips').addEventListener('change', actualizarVisibilidadPasados);
+
+    document.getElementById('btn-submit-req').addEventListener('click', enviarSolicitud);
+    document.getElementById('btn-back-1').addEventListener('click', loadBoard);
+    document.getElementById('btn-confirm-claim').addEventListener('click', confirmarViaje);
+    document.getElementById('btn-cancel-claim').addEventListener('click', cancelarViaje);
+    document.getElementById('btn-gps').addEventListener('click', obtenerGPS);
+
+    document.getElementById('btn-copy-wa').addEventListener('click', copiarResumenWhatsApp);
+    document.getElementById('btn-save-emails').addEventListener('click', guardarCorreosAdmin);
+    document.getElementById('btn-save-edit').addEventListener('click', guardarEdicionAdmin);
+
+    var savedPin = localStorage.getItem('appAuthPin');
+    var savedType = localStorage.getItem('appAuthType');
+
+    if (savedPin && savedType) {
+      document.getElementById('user-login-box').style.display = 'none';
+      document.getElementById('admin-login-box').style.display = 'none';
+      document.getElementById('auto-login-msg').style.display = 'block';
+
+      google.script.run
+        .withSuccessHandler(function(role) {
+          if (role === savedType) {
+            iniciarSesionExitosa(role, savedPin);
+          } else {
+            cerrarSesion();
+          }
+        })
+        .withFailureHandler(function(error) {
+          cerrarSesion();
+          mostrarAlerta("Error de conexión automática.");
+        })
+        .verifyPin(savedPin);
+    }
+  });
+
+  function mostrarAlerta(mensaje) {
+    document.getElementById('alertaMensaje').innerText = mensaje;
+    var myModal = new bootstrap.Modal(document.getElementById('alertaModal'));
+    myModal.show();
+  }
+
+  function showView(viewId) {
+    var sections = document.querySelectorAll('.view-section');
+    for (var i = 0; i < sections.length; i++) {
+      sections[i].style.display = 'none';
+    }
+    document.getElementById(viewId).style.display = 'block';
+    document.getElementById('driver-form').style.display = 'none';
+  }
+
+  function validarPin(tipoIngreso) {
+    var pin = (tipoIngreso === 'admin') ? document.getElementById('admin-pin-input').value : document.getElementById('pin-input').value;
+    var errorDiv = document.getElementById('login-error');
+    if (errorDiv) errorDiv.style.display = 'none';
+
+    google.script.run
+      .withSuccessHandler(function(role) {
+        if (role === tipoIngreso) {
+          iniciarSesionExitosa(role, pin);
+        } else if (role === 'admin' && tipoIngreso === 'user') {
+          errorDiv.innerText = 'Ese es un PIN de administrador. Usa el enlace "Acceso de Administrador" debajo.';
+          errorDiv.style.display = 'block';
+        } else if (role === 'user' && tipoIngreso === 'admin') {
+          errorDiv.innerText = 'Ese es un PIN de usuario normal.';
+          errorDiv.style.display = 'block';
+        } else {
+          errorDiv.innerText = 'PIN incorrecto.';
+          errorDiv.style.display = 'block';
+        }
+      })
+      .withFailureHandler(function(error) {
+        mostrarAlerta("Error de conexión: " + error.message);
+      })
+      .verifyPin(pin);
+  }
+
+  function iniciarSesionExitosa(role, pin) {
+    currentUserRole = role;
+    localStorage.setItem('appAuthPin', pin);
+    localStorage.setItem('appAuthType', role);
+
+    if(role === 'admin') {
+      document.getElementById('admin-panel').style.display = 'block';
+      google.script.run.withSuccessHandler(function(emails) {
+        document.getElementById('admin-emails-input').value = emails;
+      }).getAdminEmails(pin);
+    } else {
+      document.getElementById('admin-panel').style.display = 'none';
+    }
+    loadBoard();
+  }
+
+  function cerrarSesion() {
+    localStorage.removeItem('appAuthPin');
+    localStorage.removeItem('appAuthType');
+    currentUserRole = '';
+
+    document.getElementById('pin-input').value = '';
+    document.getElementById('admin-pin-input').value = '';
+    document.getElementById('auto-login-msg').style.display = 'none';
+    document.getElementById('admin-login-box').style.display = 'none';
+    document.getElementById('user-login-box').style.display = 'block';
+
+    showView('login-view');
+  }
+
+  function guardarCorreosAdmin() {
+    var pin = localStorage.getItem('appAuthPin');
+    var emails = document.getElementById('admin-emails-input').value;
+    google.script.run.withSuccessHandler(function() {
+      mostrarAlerta('Lista de correos actualizada correctamente.');
+    }).updateAdminEmails(pin, emails);
+  }
+
+  function obtenerGPS() {
+    if (navigator.geolocation) {
+      document.getElementById('req-ubicacion').value = "Buscando satélites...";
+      navigator.geolocation.getCurrentPosition(
+        function(position) {
+          var lat = position.coords.latitude;
+          var lon = position.coords.longitude;
+          document.getElementById('req-ubicacion').value = 'https://www.google.com/maps?q=' + lat + ',' + lon;
+        },
+        function(error) {
+          document.getElementById('req-ubicacion').value = "";
+          mostrarAlerta('No se pudo acceder al GPS. Asegúrate de darle permisos al navegador.');
+        }
+      );
+    } else {
+      mostrarAlerta('Tu navegador no soporta ubicación GPS.');
+    }
+  }
+
+  function enviarSolicitud() {
+    var data = {
+      nombre: document.getElementById('req-nombre').value,
+      fecha: document.getElementById('req-fecha').value,
+      pasajeros: document.getElementById('req-pasajeros').value,
+      tipo: document.getElementById('req-tipo').value,
+      ubicacion: document.getElementById('req-ubicacion').value,
+      telefono: document.getElementById('req-tel').value,
+      notas: document.getElementById('req-notas').value
+    };
+
+    if (!data.nombre || !data.fecha || !data.telefono) {
+      mostrarAlerta('Por favor completa tu nombre, fecha y teléfono.');
+      return;
+    }
+
+    var btnSubmit = document.getElementById('btn-submit-req');
+    btnSubmit.disabled = true;
+    var originalTexto = btnSubmit.innerText;
+    btnSubmit.innerText = '⏳ Enviando pedido, aguarde...';
+
+    localStorage.setItem('pasajeroNombre', data.nombre);
+    localStorage.setItem('pasajeroTel', data.telefono);
+
+    google.script.run
+      .withSuccessHandler(function() {
+        btnSubmit.disabled = false;
+        btnSubmit.innerText = originalTexto;
+
+        mostrarAlerta('¡Tu solicitud fue enviada con éxito!');
+        document.getElementById('req-fecha').value = '';
+        document.getElementById('req-ubicacion').value = '';
+        document.getElementById('req-notas').value = '';
+        loadBoard();
+      })
+      .withFailureHandler(function(err) {
+        btnSubmit.disabled = false;
+        btnSubmit.innerText = originalTexto;
+        mostrarAlerta('Hubo un error de conexión: ' + err.message);
+      })
+      .submitRequest(data);
+  }
+
+  function loadBoard() {
+    showView('board-view');
+    document.getElementById('loading-board').style.display = 'block';
+    document.getElementById('board-container').innerHTML = '';
+
+    google.script.run.withSuccessHandler(function(requests) {
+      document.getElementById('loading-board').style.display = 'none';
+      rawRequestsData = requests;
+      var container = document.getElementById('board-container');
+
+      if (requests.length === 0) {
+        container.innerHTML = '<p class="text-muted text-center mt-4">No hay viajes registrados aún.</p>';
+        return;
+      }
+
+      var dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+      var hoyObj = new Date();
+      var hoyStr = hoyObj.getFullYear() + '-' +
+                   String(hoyObj.getMonth() + 1).padStart(2, '0') + '-' +
+                   String(hoyObj.getDate()).padStart(2, '0');
+
+      for (var i = 0; i < requests.length; i++) {
+        var req = requests[i];
+        var card = document.createElement('div');
+
+        var esPasado = req.fechaRaw < hoyStr;
+        card.className = 'card p-3 card-viaje' + (esPasado ? ' past-trip' : '');
+
+        var parts = req.fechaRaw.split('-');
+        var dObj = new Date(parts[0], parts[1]-1, parts[2]);
+        var fechaFormateada = dias[dObj.getDay()] + ', ' + parts[2] + '/' + parts[1] + '/' + parts[0];
+
+        var locTexto = req.ubicacion ? req.ubicacion : 'No especificada';
+        var locDisplay = locTexto;
+
+        if (locTexto.indexOf('http://') === 0 || locTexto.indexOf('https://') === 0) {
+          locDisplay = '<br><a href="' + locTexto + '" target="_blank" class="btn btn-sm btn-outline-info py-1 px-3 mt-1">🗺️ Abrir en Google Maps</a>';
+        }
+
+        var html = '<h5>' + req.nombre + '</h5>' +
+                   '<p class="mb-1 text-muted"><small>📅 ' + fechaFormateada + ' | 🚘 ' + req.tipo + ' | 👥 ' + req.pasajeros + ' pers.</small></p>' +
+                   '<p class="mb-2"><strong>Ubicación:</strong> ' + locDisplay + '</p>';
+
+        if (req.notas) {
+          html += '<div class="notas-box"><strong>Notas:</strong> ' + req.notas + '</div>';
+        }
+
+        if (req.estado === 'Asignado') {
+          html += '<div class="assigned-badge mt-2">✅ Llevado por: ' + req.conductor + '</div>';
+        } else {
+          html += '<button class="btn btn-sm btn-outline-primary mt-3 claim-btn" data-id="' + req.id + '" data-pasajeros="' + req.pasajeros + '" data-tipo="' + req.tipo + '">✋ Yo lo llevo (Aceptar Viaje)</button>';
+        }
+
+        if (currentUserRole === 'admin') {
+          html += '<div class="mt-2 text-end border-top pt-2 mt-3">';
+          html += '<button class="btn btn-sm btn-link text-warning p-0 me-3 edit-admin-btn" data-id="' + req.id + '">✏️ Editar Datos</button>';
+          html += '<button class="btn btn-sm btn-link text-danger p-0 delete-admin-btn" data-id="' + req.id + '">🗑️ Cancelar Viaje</button>';
+          html += '</div>';
+        }
+
+        card.innerHTML = html;
+        container.appendChild(card);
+      }
+
+      actualizarVisibilidadPasados();
+
+      var btns = document.querySelectorAll('.claim-btn');
+      for (var j = 0; j < btns.length; j++) {
+        btns[j].addEventListener('click', function() {
+          abrirFormularioViaje(this.getAttribute('data-id'), this.getAttribute('data-pasajeros'), this.getAttribute('data-tipo'));
+        });
+      }
+
+      var editBtns = document.querySelectorAll('.edit-admin-btn');
+      for (var k = 0; k < editBtns.length; k++) {
+        editBtns[k].addEventListener('click', function() { abrirModalEdicionAdmin(this.getAttribute('data-id')); });
+      }
+
+      var delBtns = document.querySelectorAll('.delete-admin-btn');
+      for (var m = 0; m < delBtns.length; m++) {
+        delBtns[m].addEventListener('click', function() { cancelarViajeAdmin(this.getAttribute('data-id')); });
+      }
+    }).getAllRequests();
+  }
+
+  function actualizarVisibilidadPasados() {
+    var mostrarPasados = document.getElementById('switch-past-trips').checked;
+    var tarjetasPasadas = document.querySelectorAll('.past-trip');
+    tarjetasPasadas.forEach(function(card) {
+      card.style.display = mostrarPasados ? 'block' : 'none';
+    });
+  }
+
+  function abrirFormularioViaje(id, pasajerosStr, tipoStr) {
+    document.getElementById('claim-id').value = id;
+    document.getElementById('drv-nombre').value = localStorage.getItem('conductorNombre') || '';
+    document.getElementById('drv-tel').value = localStorage.getItem('conductorTel') || '';
+    document.getElementById('drv-notas').value = '';
+
+    // Reset and show/hide tramo select
+    var tramoContainer = document.getElementById('drv-tramo-container');
+    var tramoSelect = document.getElementById('drv-tramo');
+    tramoSelect.value = "Completo";
+    if (tipoStr === "Ida y Vuelta") {
+      tramoContainer.style.display = 'block';
+    } else {
+      tramoContainer.style.display = 'none';
+    }
+
+    var maxPasajeros = parseInt(pasajerosStr) || 1;
+    var isPlus = pasajerosStr && pasajerosStr.includes('+');
+    var selectHtml = '';
+
+    for (var i = maxPasajeros; i >= 1; i--) {
+      var label = i + " persona(s)";
+      if (i === maxPasajeros && isPlus) {
+        label = i + " o más personas (Todo el grupo)";
+      } else if (i === maxPasajeros) {
+        label = i + " persona(s) (Todo el grupo)";
+      }
+      selectHtml += '<option value="' + i + '">' + label + '</option>';
+    }
+    document.getElementById('drv-pasajeros-tomados').innerHTML = selectHtml;
+
+    document.getElementById('driver-form').style.display = 'block';
+    window.scrollTo(0, document.body.scrollHeight);
+  }
+
+  function cancelarViaje() {
+    document.getElementById('driver-form').style.display = 'none';
+  }
+
+  function confirmarViaje() {
+    var data = {
+      id: document.getElementById('claim-id').value,
+      conductorNombre: document.getElementById('drv-nombre').value,
+      conductorTel: document.getElementById('drv-tel').value,
+      tramoTomado: document.getElementById('drv-tramo-container').style.display !== 'none' ? document.getElementById('drv-tramo').value : "Completo",
+      pasajerosTomados: document.getElementById('drv-pasajeros-tomados').value,
+      notasConductor: document.getElementById('drv-notas').value,
+      asignadoPor: currentUserRole
+    };
+
+    if (!data.conductorNombre) {
+      mostrarAlerta('Por favor, ingresa tu nombre antes de confirmar.');
+      return;
+    }
+
+    localStorage.setItem('conductorNombre', data.conductorNombre);
+    localStorage.setItem('conductorTel', data.conductorTel);
+    document.getElementById('driver-form').style.display = 'none';
+
+    google.script.run.withSuccessHandler(function(response) {
+      if (response.success) {
+        var waLink = 'https://wa.me/' + response.waNumber + '?text=' + encodeURIComponent(response.mensaje);
+        window.open(waLink, '_blank');
+        loadBoard();
+      } else {
+        mostrarAlerta("Error: " + response.mensaje);
+      }
+    }).claimRide(data);
+  }
+
+  function cancelarViajeAdmin(id) {
+    if (confirm("¿Seguro que deseas cancelar y ocultar este viaje?")) {
+      var pin = localStorage.getItem('appAuthPin');
+      google.script.run.withSuccessHandler(function() {
+        mostrarAlerta("Viaje cancelado exitosamente.");
+        loadBoard();
+      }).cancelRequest(pin, id);
+    }
+  }
+
+  function abrirModalEdicionAdmin(id) {
+    var req = rawRequestsData.find(function(item) { return item.id.toString() === id.toString(); });
+    if (!req) return;
+
+    document.getElementById('edit-id').value = req.id;
+    document.getElementById('edit-nombre').value = req.nombre;
+    document.getElementById('edit-fecha').value = req.fechaRaw;
+    document.getElementById('edit-pasajeros').value = req.pasajeros;
+    document.getElementById('edit-tipo').value = req.tipo;
+    document.getElementById('edit-ubicacion').value = req.ubicacion;
+    document.getElementById('edit-tel').value = req.telefono;
+    document.getElementById('edit-estado').value = req.estado;
+    document.getElementById('edit-conductor').value = req.conductor;
+    document.getElementById('edit-notas').value = req.notas;
+
+    var editModal = new bootstrap.Modal(document.getElementById('editModal'));
+    editModal.show();
+  }
+
+  function guardarEdicionAdmin() {
+    var pin = localStorage.getItem('appAuthPin');
+    var data = {
+      id: document.getElementById('edit-id').value,
+      nombre: document.getElementById('edit-nombre').value,
+      fecha: document.getElementById('edit-fecha').value,
+      pasajeros: document.getElementById('edit-pasajeros').value,
+      tipo: document.getElementById('edit-tipo').value,
+      ubicacion: document.getElementById('edit-ubicacion').value,
+      telefono: document.getElementById('edit-tel').value,
+      estado: document.getElementById('edit-estado').value,
+      conductor: document.getElementById('edit-conductor').value,
+      notas: document.getElementById('edit-notas').value
+    };
+
+    if (!data.nombre || !data.fecha || !data.telefono) {
+      alert("Nombre, fecha y teléfono son obligatorios.");
+      return;
+    }
+
+    var modalEl = document.getElementById('editModal');
+    var modalInstance = bootstrap.Modal.getInstance(modalEl);
+    if (modalInstance) modalInstance.hide();
+
+    google.script.run.withSuccessHandler(function() {
+      loadBoard();
+      mostrarAlerta("La solicitud fue actualizada correctamente.");
+    }).updateRequest(pin, data);
+  }
+
+  function copiarResumenWhatsApp() {
+    var hoyObj = new Date();
+    var hoyStr = hoyObj.getFullYear() + '-' +
+                 String(hoyObj.getMonth() + 1).padStart(2, '0') + '-' +
+                 String(hoyObj.getDate()).padStart(2, '0');
+
+    var pendientes = rawRequestsData.filter(function(r) {
+      return r.estado === 'Pendiente' && r.fechaRaw >= hoyStr;
+    });
+
+    if (pendientes.length === 0) {
+      mostrarAlerta("No hay viajes pendientes futuros en la pizarra para resumir.");
+      return;
+    }
+
+    var dias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    var texto = "🚙 *Nuevos viajes pendientes:*\n";
+
+    for (var i = 0; i < pendientes.length; i++) {
+      var r = pendientes[i];
+      var parts = r.fechaRaw.split('-');
+      var dObj = new Date(parts[0], parts[1]-1, parts[2]);
+      var fechaFormateada = dias[dObj.getDay()] + ' ' + parts[2] + '/' + parts[1];
+
+      texto += "• " + r.nombre + " (" + r.tipo + " - " + fechaFormateada + " - " + r.pasajeros + " pers)\n";
+    }
+    texto += "\n👉 Entren al enlace para aceptarlos.";
+
+    navigator.clipboard.writeText(texto).then(function() {
+      mostrarAlerta("¡Resumen copiado al portapapeles! Listo para pegar en el grupo de WhatsApp.");
+    }).catch(function() {
+      alert("Tu navegador bloqueó el copiado automático. Aquí tienes el texto:\n\n" + texto);
+    });
+  }
+</script>
 </body>
 </html>

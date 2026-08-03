@@ -572,17 +572,24 @@ async function claimShift(shiftId, dateStr, timeStr, capacity) {
         }
 
         let currentParticipants = docSnap.data().participants || [];
+        const realParticipants = currentParticipants.filter(id => id && id !== "Disponible");
 
         // Safety check inside the transaction
-        if (currentParticipants.length >= capacity) {
+        if (realParticipants.length >= capacity) {
             throw new Error("CAPACIDAD_LLENA");
         }
         if (currentParticipants.includes(currentUserPublisherId)) {
             throw new Error("Ya estás anotado en este turno.");
         }
 
-        // Add user and commit update
-        currentParticipants.push(currentUserPublisherId);
+        // Add user and commit update. Replace first "Disponible" if exists.
+        const disponibleIndex = currentParticipants.indexOf("Disponible");
+        if (disponibleIndex !== -1) {
+            currentParticipants[disponibleIndex] = currentUserPublisherId;
+        } else {
+            currentParticipants.push(currentUserPublisherId);
+        }
+
         transaction.update(shiftRef, { participants: currentParticipants });
     });
 

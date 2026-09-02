@@ -654,20 +654,30 @@ async function loadPublishedMonthsList() {
     select.disabled = true;
 
     try {
-        // Query to find distinct months that have shifts. Since we can't do distinct in Firestore easily, 
-        // we'll fetch all shifts or group them if there's a tracker. Alternatively, we just query limits.
-        // For efficiency, we will assume a reasonable window or fetch active shifts.
-        const shiftsSnap = await db.collection('shifts').orderBy('date', 'desc').get();
-        const monthsSet = new Set();
-        
-        shiftsSnap.forEach(doc => {
-            const dateStr = doc.data().date; // YYYY-MM-DD
-            if (dateStr) {
-                monthsSet.add(dateStr.substring(0, 7)); // YYYY-MM
-            }
-        });
+        let monthsArray = [];
+        const metadataRef = db.collection('system').doc('metadata');
+        const metadataDoc = await metadataRef.get();
 
-        const monthsArray = Array.from(monthsSet).sort().reverse();
+        if (metadataDoc.exists && metadataDoc.data().publishedMonths) {
+            monthsArray = metadataDoc.data().publishedMonths.sort().reverse();
+        } else {
+            // Self-healing fallback: If metadata doesn't exist, calculate it once using the expensive query
+            console.warn("Metadata document missing or empty. Running initial fallback query to populate it.");
+            const shiftsSnap = await db.collection('shifts').orderBy('date', 'desc').get();
+            const monthsSet = new Set();
+
+            shiftsSnap.forEach(doc => {
+                const dateStr = doc.data().date; // YYYY-MM-DD
+                if (dateStr) {
+                    monthsSet.add(dateStr.substring(0, 7)); // YYYY-MM
+                }
+            });
+
+            monthsArray = Array.from(monthsSet).sort().reverse();
+
+            // Save it for next time to prevent future massive reads
+            await metadataRef.set({ publishedMonths: Array.from(monthsSet) }, { merge: true });
+        }
         
         select.innerHTML = '';
         if (monthsArray.length === 0) {
@@ -1199,6 +1209,18 @@ async function deletePublishedMonth() {
       }
 
       await Promise.all(chunks);
+
+      // Remove the month from the metadata array
+      try {
+          const metadataRef = db.collection('system').doc('metadata');
+          await metadataRef.set({
+              publishedMonths: firebase.firestore.FieldValue.arrayRemove(monthVal)
+          }, { merge: true });
+          checkMonthStatus(); // Refresh the dropdown
+      } catch (err) {
+          console.error("Error removiendo mes del system/metadata:", err);
+      }
+
       showToast("Mes eliminado del calendario en vivo con éxito.");
   } catch(e) { showToast("Error al eliminar: " + e.message, "error"); }
 }
@@ -1406,6 +1428,9 @@ async function publishSchedule() {
     let currentBatch = db.batch();
     let currentCount = 0;
 
+    // Track unique months being published to update metadata
+    const monthsPublished = new Set();
+
     draftSnap.forEach(doc => {
         const liveDocRef = db.collection('shifts').doc(doc.id); // Preserve original ID to avoid duplicating published shifts
         const data = doc.data();
@@ -1416,6 +1441,10 @@ async function publishSchedule() {
         } else {
             // Otherwise, set/update it in the LIVE calendar
             currentBatch.set(liveDocRef, data);
+
+            if (data.date) {
+                monthsPublished.add(data.date.substring(0, 7)); // YYYY-MM
+            }
         }
         
         // Either way, delete it from the DRAFT workspace
@@ -1436,6 +1465,18 @@ async function publishSchedule() {
         chunks.push(currentBatch.commit());
     }
     
+    // 3. Update the metadata document with the new months using arrayUnion
+    if (monthsPublished.size > 0) {
+        try {
+            const metadataRef = db.collection('system').doc('metadata');
+            await metadataRef.set({
+                publishedMonths: firebase.firestore.FieldValue.arrayUnion(...Array.from(monthsPublished))
+            }, { merge: true });
+        } catch (err) {
+            console.error("Error actualizando system/metadata tras publicar:", err);
+        }
+    }
+
     // 4. Wait for all batch commits to complete
     await Promise.all(chunks);
     

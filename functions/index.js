@@ -14,10 +14,18 @@ function formatSpanishDate(dateStr) {
 
 // Helper function to grab the names of the publishers
 async function getPubNames(userIds) {
+    if (!userIds || userIds.length === 0) return '';
     const db = admin.firestore();
+
+    // Deduplicate user IDs to optimize fetching
+    const uniqueUids = Array.from(new Set(userIds));
+
+    // Bulk fetch all required publishers
+    const refs = uniqueUids.map(uid => db.collection('publishers').doc(uid));
+    const docs = await db.getAll(...refs);
+
     const names = [];
-    for (const uid of userIds) {
-        const doc = await db.collection('publishers').doc(uid).get();
+    for (const doc of docs) {
         if (doc.exists) {
             const data = doc.data();
             const fullName = `${data.firstName || ''} ${data.lastName || ''}`.trim() || 'Un publicador';
@@ -129,12 +137,20 @@ async function sendEmailNotification(email, title, body) {
 async function notifyUsers(userIds, title, body) {
     if (!userIds || userIds.length === 0) return null;
     const db = admin.firestore();
+
+    // Deduplicate user IDs to optimize fetching
+    const uniqueUids = Array.from(new Set(userIds));
+
+    // Bulk fetch all required publishers
+    const refs = uniqueUids.map(uid => db.collection('publishers').doc(uid));
+    const docs = await db.getAll(...refs);
+
     const promises = [];
 
-    for (const uid of userIds) {
-        const pubDoc = await db.collection('publishers').doc(uid).get();
+    for (const pubDoc of docs) {
         if (pubDoc.exists) {
             const pubData = pubDoc.data();
+            const uid = pubDoc.id;
             const token = pubData.fcmToken;
             if (token) {
                 console.log(`[CEREBRO] Enviando Push a: ${pubData.firstName}`);

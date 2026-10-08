@@ -321,6 +321,10 @@ function getShiftContactHtml(shift) {
                 contactHtml = `<span style="display:inline-flex; align-items:center; gap:5px; background:#f0f0f0; color:#555; padding:4px 10px; border-radius:12px; font-size:0.85em; margin-top:5px; font-weight:600;"><span class="material-symbols-outlined" style="font-size:14px;">local_police</span> Encargado: ${mgr.name}</span>`;
             }
             return contactHtml; // If local manager found, return it and stop.
+        } else {
+            // If local manager is required but not found in participants, we hide the day manager's info
+            // per user's request, so we return empty HTML.
+            return '';
         }
     }
 

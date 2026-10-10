@@ -1942,3 +1942,10 @@ function checkAvailability() {
 
     document.getElementById('avail-results').style.display = 'block';
 }
+
+// For Node.js testing
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        formatSpanishDate
+    };
+}

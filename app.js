@@ -387,18 +387,20 @@ function renderAllShifts(shifts) {
     const contactHtml = getShiftContactHtml(shift);
     const shiftCard = document.createElement('div');
     shiftCard.className = 'shift-card';
+    const safeLocation = DOMPurify.sanitize(shift.location);
     shiftCard.innerHTML = `
       <div class="shift-card-header">
         <h4 class="shift-card-title"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px; color: #5d7aa9;">event</span>${formatSpanishDate(shift.date)}</h4>
         <span class="shift-card-time"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px; color: #666;">schedule</span>${shift.time}</span>
       </div>
       <p class="shift-card-detail" style="display:flex; justify-content:space-between; align-items:center;">
-          <span><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545; vertical-align:-3px;">location_on</span> <strong>${shift.location}</strong></span>
-          <button onclick="openLocationInfoModal('${shift.locationId}', '${shift.location}')" style="background:none; border:none; color:#5d7aa9; font-size:0.9em; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:3px;"><span class="material-symbols-outlined" style="font-size:1.1em;">info</span> Info</button>
+          <span><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545; vertical-align:-3px;">location_on</span> <strong>${safeLocation}</strong></span>
+          <button data-loc-id="${shift.locationId}" data-loc-name="${safeLocation.replace(/"/g, '&quot;')}" class="btn-location-info" style="background:none; border:none; color:#5d7aa9; font-size:0.9em; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:3px;"><span class="material-symbols-outlined" style="font-size:1.1em;">info</span> Info</button>
       </p>
-      <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> ${participantNames.join(', ')}</p>
+      <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> ${DOMPurify.sanitize(participantNames.join(', '))}</p>
       ${contactHtml}
     `;
+    shiftCard.querySelector('.btn-location-info').addEventListener('click', function() { openLocationInfoModal(this.getAttribute('data-loc-id'), this.getAttribute('data-loc-name')); });
     container.appendChild(shiftCard);
   });
 }
@@ -445,21 +447,24 @@ async function loadMyShifts() {
       const contactHtml = getShiftContactHtml(shift);
       const shiftCard = document.createElement('div');
       shiftCard.className = 'shift-card mine';
+      const safeLocation = DOMPurify.sanitize(shift.location);
       shiftCard.innerHTML = `
         <div class="shift-card-header">
           <h4 class="shift-card-title" style="color:#2c5282;"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">event</span>${formatSpanishDate(shift.date)}</h4>
           <span class="shift-card-time"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">schedule</span>${shift.time}</span>
         </div>
         <p class="shift-card-detail" style="display:flex; justify-content:space-between; align-items:center;">
-          <span><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545; vertical-align:-3px;">location_on</span> <strong>${shift.location}</strong></span>
-          <button onclick="openLocationInfoModal('${shift.locationId}', '${shift.location}')" style="background:none; border:none; color:#2c5282; font-size:0.9em; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:3px;"><span class="material-symbols-outlined" style="font-size:1.1em;">info</span> Info</button>
+          <span><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545; vertical-align:-3px;">location_on</span> <strong>${safeLocation}</strong></span>
+          <button data-loc-id="${shift.locationId}" data-loc-name="${safeLocation.replace(/"/g, '&quot;')}" class="btn-location-info" style="background:none; border:none; color:#2c5282; font-size:0.9em; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:3px;"><span class="material-symbols-outlined" style="font-size:1.1em;">info</span> Info</button>
         </p>
-        <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> Con: ${partnerText}</p>
+        <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> Con: ${DOMPurify.sanitize(partnerText)}</p>
         ${contactHtml}
         <div class="card-actions" style="margin-top: 15px; border-top: 1px solid #f0f0f0; padding-top: 10px;">
-           <button onclick="attemptCancel('${shift.id}', '${shift.date}', '${shift.time}', '${shift.location}')" class="btn-action btn-danger" style="width: 100%;">Cancelar Turno</button>
+           <button data-shift-id="${shift.id}" data-shift-date="${shift.date}" data-shift-time="${shift.time}" data-loc-name="${safeLocation.replace(/"/g, '&quot;')}" class="btn-cancel-shift btn-action btn-danger" style="width: 100%;">Cancelar Turno</button>
         </div>
       `;
+      shiftCard.querySelector('.btn-location-info').addEventListener('click', function() { openLocationInfoModal(this.getAttribute('data-loc-id'), this.getAttribute('data-loc-name')); });
+      shiftCard.querySelector('.btn-cancel-shift').addEventListener('click', function() { attemptCancel(this.getAttribute('data-shift-id'), this.getAttribute('data-shift-date'), this.getAttribute('data-shift-time'), this.getAttribute('data-loc-name')); });
       container.appendChild(shiftCard);
     });
   } catch (error) { container.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar tus turnos.</p>'; }
@@ -526,7 +531,9 @@ async function loadAvailableShifts() {
 
       const actionButton = isTrainee
         ? `<button disabled class="btn-action" style="background:#e9ecef; color:#888; cursor:not-allowed; border: 1px solid #ddd;">Requiere Aprobación</button>`
-        : `<button onclick="claimShift('${shift.id}', '${shift.date}', '${shift.time}', ${capacity})" class="btn-action btn-success"><span class="material-symbols-outlined" style="font-size:18px;">add</span> Tomar Turno</button>`;
+        : `<button data-shift-id="${shift.id}" data-shift-date="${shift.date}" data-shift-time="${shift.time}" data-capacity="${capacity}" class="btn-claim-shift btn-action btn-success"><span class="material-symbols-outlined" style="font-size:18px;">add</span> Tomar Turno</button>`;
+
+      const safeLocation = DOMPurify.sanitize(shift.location);
 
       card.innerHTML = `
         <div class="shift-card-header">
@@ -534,16 +541,20 @@ async function loadAvailableShifts() {
           <span class="shift-card-time"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">schedule</span>${shift.time}</span>
         </div>
         <p class="shift-card-detail" style="display:flex; justify-content:space-between; align-items:center;">
-          <span><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545; vertical-align:-3px;">location_on</span> <strong>${shift.location}</strong></span>
-          <button onclick="openLocationInfoModal('${shift.locationId}', '${shift.location}')" style="background:none; border:none; color:#28a745; font-size:0.9em; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:3px;"><span class="material-symbols-outlined" style="font-size:1.1em;">info</span> Info</button>
+          <span><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545; vertical-align:-3px;">location_on</span> <strong>${safeLocation}</strong></span>
+          <button data-loc-id="${shift.locationId}" data-loc-name="${safeLocation.replace(/"/g, '&quot;')}" class="btn-location-info" style="background:none; border:none; color:#28a745; font-size:0.9em; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:3px;"><span class="material-symbols-outlined" style="font-size:1.1em;">info</span> Info</button>
         </p>
-        <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> Actuales: ${names}</p>
+        <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> Actuales: ${DOMPurify.sanitize(names)}</p>
         <p style="margin: 5px 0 0 0; font-size:0.85em; color:#666; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #28a745;">person_add</span> Lugares libres: <strong>${availableSpots}</strong></p>
         ${contactHtml}
         <div class="card-actions" style="margin-top: 15px; border-top: 1px solid #f0f0f0; padding-top: 10px;">
            ${actionButton}
         </div>
       `;
+      card.querySelector('.btn-location-info').addEventListener('click', function() { openLocationInfoModal(this.getAttribute('data-loc-id'), this.getAttribute('data-loc-name')); });
+      if (!isTrainee) {
+          card.querySelector('.btn-claim-shift').addEventListener('click', function() { claimShift(this.getAttribute('data-shift-id'), this.getAttribute('data-shift-date'), this.getAttribute('data-shift-time'), parseInt(this.getAttribute('data-capacity'))); });
+      }
       container.appendChild(card);
     });
   } catch (error) { container.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar espacios libres.</p>'; }
@@ -667,7 +678,7 @@ async function loadAvailabilityForm() {
         hasShifts = true; grouped[day].sort((a, b) => a.time.localeCompare(b.time));
         const div = document.createElement('div'); div.className = 'day-group';
         let html = `<h4 class="day-title">${day}</h4>`;
-        grouped[day].forEach(s => html += `<div class="shift-option"><input type="checkbox" id="chk-${s.val}" class="avail-checkbox" value="${s.val}" ${s.checked ? 'checked' : ''}><label for="chk-${s.val}"><strong>${s.name}</strong> (${s.time})</label></div>`);
+        grouped[day].forEach(s => html += `<div class="shift-option"><input type="checkbox" id="chk-${s.val}" class="avail-checkbox" value="${s.val}" ${s.checked ? 'checked' : ''}><label for="chk-${s.val}"><strong>${DOMPurify.sanitize(s.name)}</strong> (${s.time})</label></div>`);
         div.innerHTML = html; container.appendChild(div);
       }
     });

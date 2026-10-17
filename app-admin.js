@@ -151,13 +151,22 @@ async function loadPublishers() {
       const genderIcon = pub.gender === 'M' ? 'woman' : 'man';
       const statusBadge = pub.status === 'Entrenamiento' ? `<span class="badge-warning">Entrenamiento</span>` : '';
       const hardPairBadge = pub.hardPair ? `<span class="badge-red">Pareja Estricta</span>` : '';
+
+      const safeFirstName = DOMPurify.sanitize(pub.firstName || '');
+      const safeLastName = DOMPurify.sanitize(pub.lastName || '');
+      const safePartnerName = DOMPurify.sanitize(pub.partnerName || 'Ninguno');
+
       card.innerHTML = `
-        <div><h4 class="pub-name" style="margin:0 0 5px 0; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="color:#5d7aa9;">${genderIcon}</span> ${pub.firstName} ${pub.lastName || ''} ${statusBadge} ${hardPairBadge}</h4>
-        <p style="margin:0; font-size:0.85em; color:#666; margin-left: 30px;">Turnos al mes: ${pub.maxShifts || '5'} | Compañero: ${pub.partnerName || 'Ninguno'}</p></div>
+        <div><h4 class="pub-name" style="margin:0 0 5px 0; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="color:#5d7aa9;">${genderIcon}</span> ${safeFirstName} ${safeLastName} ${statusBadge} ${hardPairBadge}</h4>
+        <p style="margin:0; font-size:0.85em; color:#666; margin-left: 30px;">Turnos al mes: ${pub.maxShifts || '5'} | Compañero: ${safePartnerName}</p></div>
         <span class="material-symbols-outlined" style="color:#ccc;">chevron_right</span>
       `;
       listDiv.appendChild(card);
-      partnerSelect.innerHTML += `<option value="${pub.id}">${pub.firstName} ${pub.lastName || ''}</option>`;
+
+      const option = document.createElement('option');
+      option.value = pub.id;
+      option.textContent = `${safeFirstName} ${safeLastName}`;
+      partnerSelect.appendChild(option);
     });
   } catch (error) { listDiv.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar.</p>'; }
 }
@@ -167,10 +176,14 @@ function viewPublisher(id) {
     if(!pub) return;
     currentViewId = id;
     
-    document.getElementById('view-pub-name').innerHTML = `<span class="material-symbols-outlined" style="color:#5d7aa9; font-size:32px;">${pub.gender === 'M' ? 'woman' : 'man'}</span> ${pub.firstName} ${pub.lastName || ''}`;
+    const safeFirstName = DOMPurify.sanitize(pub.firstName || '');
+    const safeLastName = DOMPurify.sanitize(pub.lastName || '');
+    const safePartnerName = DOMPurify.sanitize(pub.partnerName || '');
+
+    document.getElementById('view-pub-name').innerHTML = `<span class="material-symbols-outlined" style="color:#5d7aa9; font-size:32px;">${pub.gender === 'M' ? 'woman' : 'man'}</span> ${safeFirstName} ${safeLastName}`;
     document.getElementById('view-pub-status').innerHTML = pub.status === 'Entrenamiento' ? '<span style="color:#856404; font-weight:bold;">⚠️ Entrenamiento</span>' : '✅ Aprobado';
     document.getElementById('view-pub-max').innerText = `${pub.maxShifts || 5} turnos`;
-    document.getElementById('view-pub-partner').innerText = pub.partnerName ? `${pub.partnerName} ${pub.hardPair ? '(Estricto)' : ''}` : 'Ninguno';
+    document.getElementById('view-pub-partner').innerText = safePartnerName ? `${safePartnerName} ${pub.hardPair ? '(Estricto)' : ''}` : 'Ninguno';
     
     document.getElementById('view-pub-phone').innerText = pub.phone || '-';
     document.getElementById('view-pub-email').innerText = pub.notificationEmail || '-';
@@ -502,11 +515,14 @@ async function loadLocations() {
       card.className = 'pub-card';
       const shiftsSummary = (loc.templates || []).map(t => `${t.day} ${t.startTime}-${t.endTime}`).join(', ');
       const statusBadge = loc.isActive !== false ? '<span class="badge-green">Activa</span>' : '<span class="badge-gray">Inactiva</span>';
+      const safeLocName = DOMPurify.sanitize(loc.name || '');
+
       card.innerHTML = `
-        <div><h4 style="margin:0 0 5px 0; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="color:#dc3545;">location_on</span> ${loc.name} <span style="font-size:0.8em; color:#666; font-weight:normal;">(Cap: ${loc.capacity})</span> ${statusBadge}</h4>
+        <div><h4 style="margin:0 0 5px 0; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="color:#dc3545;">location_on</span> ${safeLocName} <span style="font-size:0.8em; color:#666; font-weight:normal;">(Cap: ${loc.capacity})</span> ${statusBadge}</h4>
         <p style="margin:0; font-size:0.85em; color:#666; margin-left: 30px;">Turnos: ${shiftsSummary || 'Ninguno'}</p></div>
-        <button onclick='editLocation("${doc.id}")' class="btn-action btn-primary">Editar</button>
+        <button data-doc-id="${doc.id}" class="btn-edit-location btn-action btn-primary">Editar</button>
       `;
+      card.querySelector('.btn-edit-location').addEventListener('click', function() { editLocation(this.getAttribute('data-doc-id')); });
       listDiv.appendChild(card);
       
       // Populate Generator Checkboxes for active locations
@@ -515,7 +531,7 @@ async function loadLocations() {
           cbDiv.style.cssText = "display:flex; align-items:center; gap:5px;";
           cbDiv.innerHTML = `
             <input type="checkbox" id="gen-loc-${doc.id}" value="${doc.id}" checked>
-            <label for="gen-loc-${doc.id}" style="font-weight:bold; cursor:pointer;">${loc.name}</label>
+            <label for="gen-loc-${doc.id}" style="font-weight:bold; cursor:pointer;">${safeLocName}</label>
           `;
           generatorLocsDiv.appendChild(cbDiv);
       }
@@ -697,7 +713,11 @@ async function loadDayManagers() {
         
         let pubOptions = `<option value="">Ninguno</option>`;
         const sortedPubs = [...allPublishers].sort((a,b) => (a.firstName || '').localeCompare(b.firstName || ''));
-        sortedPubs.forEach(p => pubOptions += `<option value="${p.id}">${p.firstName} ${p.lastName}</option>`);
+        sortedPubs.forEach(p => {
+            const safeFirstName = DOMPurify.sanitize(p.firstName || '');
+            const safeLastName = DOMPurify.sanitize(p.lastName || '');
+            pubOptions += `<option value="${p.id}">${safeFirstName} ${safeLastName}</option>`;
+        });
 
         const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
         container.innerHTML = '';
@@ -1216,7 +1236,9 @@ function renderPreviewTable() {
     shift.assigned.forEach(p => {
         const warn = p.status === 'Entrenamiento' ? `<span class="material-symbols-outlined" style="font-size:14px; color:#ffc107; vertical-align:-2px;" title="En Entrenamiento">warning</span>` : '';
         const mgrBadge = p.isShiftManager ? `<span class="material-symbols-outlined" style="font-size:14px; color:#dc3545; vertical-align:-2px;" title="Encargado Físico">local_police</span>` : '';
-        namesHtml += `${p.firstName} ${p.lastName} ${warn}${mgrBadge}, `;
+        const safeFirstName = DOMPurify.sanitize(p.firstName || '');
+        const safeLastName = DOMPurify.sanitize(p.lastName || '');
+        namesHtml += `${safeFirstName} ${safeLastName} ${warn}${mgrBadge}, `;
         if (p.isShiftManager) hasManager = true;
     });
     namesHtml = namesHtml.slice(0, -2); 
@@ -1229,10 +1251,11 @@ function renderPreviewTable() {
     const row = document.createElement('tr');
     const isFull = shift.assigned.length >= shift.capacity;
     const statusColor = isFull ? '#28a745' : '#dc3545';
+    const safeLocation = DOMPurify.sanitize(shift.location || '');
     
     row.innerHTML = `
       <td style="text-transform: capitalize; font-weight: 500; min-width: 140px;">${formatSpanishDate(shift.dateString)}</td>
-      <td><strong>${shift.location}</strong><br><span style="color:#666; font-size:0.9em;">${shift.time}</span></td>
+      <td><strong>${safeLocation}</strong><br><span style="color:#666; font-size:0.9em;">${shift.time}</span></td>
       <td style="color:${statusColor};">
         ${namesHtml || 'Nadie disponible'} <br>
         <span style="font-size:0.85em; opacity: 0.8;">(${shift.assigned.length}/${shift.capacity})</span>
@@ -1240,11 +1263,13 @@ function renderPreviewTable() {
       </td>
       <td>
         <div style="display:flex; gap: 5px;">
-          <button onclick="openShiftEditModal(${index})" class="btn-action btn-primary" style="padding: 6px 12px; font-size: 0.9em;"><span class="material-symbols-outlined" style="font-size:16px;">edit</span> Editar</button>
-          <button onclick="deleteDraftShift('${shift.docId}')" class="btn-action btn-danger" style="padding: 6px 12px; font-size: 0.9em;" title="Eliminar este turno"><span class="material-symbols-outlined" style="font-size:16px;">delete</span></button>
+          <button data-index="${index}" class="btn-edit-shift btn-action btn-primary" style="padding: 6px 12px; font-size: 0.9em;"><span class="material-symbols-outlined" style="font-size:16px;">edit</span> Editar</button>
+          <button data-doc-id="${shift.docId}" class="btn-delete-shift btn-action btn-danger" style="padding: 6px 12px; font-size: 0.9em;" title="Eliminar este turno"><span class="material-symbols-outlined" style="font-size:16px;">delete</span></button>
         </div>
       </td>
     `;
+    row.querySelector('.btn-edit-shift').addEventListener('click', function() { openShiftEditModal(parseInt(this.getAttribute('data-index'))); });
+    row.querySelector('.btn-delete-shift').addEventListener('click', function() { deleteDraftShift(this.getAttribute('data-doc-id')); });
     tbody.appendChild(row);
   });
 }
@@ -1266,7 +1291,14 @@ function openShiftEditModal(shiftIndex) {
   assignedContainer.innerHTML = '';
   shift.assigned.forEach(pub => {
     const warn = pub.status === 'Entrenamiento' ? `<span class="badge-warning">Entrenamiento</span>` : '';
-    assignedContainer.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; background:#f9f9f9; padding:12px; border-radius:8px; border:1px solid #eee;"><span>${pub.firstName} ${pub.lastName || ''} ${warn}</span><button type="button" onclick="manualRemove(${shiftIndex}, '${pub.id}')" class="btn-action btn-danger" style="padding:6px 12px;">Quitar</button></div>`;
+    const safeFirstName = DOMPurify.sanitize(pub.firstName || '');
+    const safeLastName = DOMPurify.sanitize(pub.lastName || '');
+
+    const div = document.createElement('div');
+    div.style.cssText = "display:flex; justify-content:space-between; align-items:center; background:#f9f9f9; padding:12px; border-radius:8px; border:1px solid #eee;";
+    div.innerHTML = `<span>${safeFirstName} ${safeLastName} ${warn}</span><button type="button" data-shift-index="${shiftIndex}" data-pub-id="${pub.id}" class="btn-remove-assigned btn-action btn-danger" style="padding:6px 12px;">Quitar</button>`;
+    div.querySelector('.btn-remove-assigned').addEventListener('click', function() { manualRemove(parseInt(this.getAttribute('data-shift-index')), this.getAttribute('data-pub-id')); });
+    assignedContainer.appendChild(div);
   });
   
   const select = document.getElementById('shift-add-select');
@@ -1288,15 +1320,17 @@ function openShiftEditModal(shiftIndex) {
     if(pub.absences) { isAway = pub.absences.some(abs => shift.dateString >= abs.start && shift.dateString <= abs.end); }
 
     const isAvailableInProfile = (pub.availability || []).includes(availKey);
+    const safeFirstName = DOMPurify.sanitize(pub.firstName || '');
+    const safeLastName = DOMPurify.sanitize(pub.lastName || '');
 
     if (isAway) {
-        unavailableHtml += `<option value="${pub.id}">✈️ ${pub.firstName} ${pub.lastName || ''} (Vacaciones)</option>`;
+        unavailableHtml += `<option value="${pub.id}">✈️ ${safeFirstName} ${safeLastName} (Vacaciones)</option>`;
     } else if (pub.status === 'Entrenamiento') {
-        traineeHtml += `<option value="${pub.id}">⚠️ ${pub.firstName} ${pub.lastName}</option>`;
+        traineeHtml += `<option value="${pub.id}">⚠️ ${safeFirstName} ${safeLastName}</option>`;
     } else if(isAvailableInProfile) { 
-        availableHtml += `<option value="${pub.id}">✅ ${pub.firstName} ${pub.lastName}</option>`; 
+        availableHtml += `<option value="${pub.id}">✅ ${safeFirstName} ${safeLastName}</option>`;
     } else { 
-        unavailableHtml += `<option value="${pub.id}">❌ ${pub.firstName} ${pub.lastName || ''}</option>`;
+        unavailableHtml += `<option value="${pub.id}">❌ ${safeFirstName} ${safeLastName}</option>`;
     }
   });
   select.innerHTML = optionsHtml + availableHtml + `</optgroup>` + traineeHtml + `</optgroup>` + unavailableHtml + `</optgroup>`;

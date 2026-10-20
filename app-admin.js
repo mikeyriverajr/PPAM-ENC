@@ -87,7 +87,10 @@ function adminLogin() {
   errorDiv.innerText = "";
   let email = input;
   if (!input.includes('@')) { email = input.toLowerCase().replace(/\s+/g, '') + '@ppam.app'; }
-  auth.signInWithEmailAndPassword(email, pass).catch(e => { errorDiv.innerText = "Error: Verifica tu usuario o contraseña."; });
+  auth.signInWithEmailAndPassword(email, pass).catch(e => {
+    console.error("Firebase Admin Login Error:", e);
+    errorDiv.innerText = `Error: Verifica tu usuario o contraseña. (${e.code || e.message})`;
+  });
 }
 function logout() { auth.signOut(); }
 

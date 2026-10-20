@@ -1,0 +1,14 @@
+{
+  "name": "ppam-encarnacion",
+  "version": "1.0.0",
+  "description": "Sistema de programación y gestión de turnos para Predicación Pública en Áreas Metropolitanas (PPAM) en Encarnación.",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js",
+    "build": "echo \"Static site - no build step required\""
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

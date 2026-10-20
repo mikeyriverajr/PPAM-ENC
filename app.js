@@ -127,8 +127,12 @@ function handleGatekeeperLogin() {
   const pass = document.getElementById('gate-password').value;
   const errorDiv = document.getElementById('gate-error');
   errorDiv.innerText = "";
-  const email = usernameInput.toLowerCase().replace(/\s+/g, '') + '@ppam.app';
-  auth.signInWithEmailAndPassword(email, pass).catch(err => { errorDiv.innerText = "Error: Verifica tu usuario o contraseña."; });
+  const cleanInput = usernameInput.toLowerCase().replace(/\s+/g, '');
+  const email = cleanInput.includes('@') ? cleanInput : cleanInput + '@ppam.app';
+  auth.signInWithEmailAndPassword(email, pass).catch(err => {
+    console.error("Firebase Login Error:", err);
+    errorDiv.innerText = `Error: Verifica tu usuario o contraseña. (${err.code || err.message})`;
+  });
 }
 
 function logout() { auth.signOut(); }

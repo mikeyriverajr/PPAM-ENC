@@ -1,6 +1,6 @@
 // Firebase configuration for PPAM-Beta
 const firebaseConfig = {
-  apiKey: "AIzaSyC5HPI4WY19Om_HmQgJJl6IvXr0XrMmflQ",
+  apiKey: (typeof process !== "undefined" && process.env && process.env.FIREBASE_API_KEY) || "AIzaSyC5HPI4WY19Om_HmQgJJl6IvXr0XrMmflQ",
   authDomain: "ppam-beta.firebaseapp.com",
   projectId: "ppam-beta",
   storageBucket: "ppam-beta.firebasestorage.app",

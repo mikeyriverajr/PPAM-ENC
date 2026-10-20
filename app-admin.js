@@ -68,13 +68,18 @@ auth.onAuthStateChanged(async user => {
         } else {
              document.getElementById('admin-header-name').innerText = `| Conectado: ${user.email}`;
         }
-        loadPublishers(); 
+        await loadPublishers();
+        await initDraftListener();
       } else {
         auth.signOut();
         document.getElementById('login-error').innerText = "Acceso Denegado: Esta cuenta no tiene permisos de Administrador.";
       }
     } catch (e) { console.error(e); auth.signOut(); }
   } else {
+    if (typeof draftUnsubscribe === 'function' && draftUnsubscribe) {
+      draftUnsubscribe();
+      draftUnsubscribe = null;
+    }
     document.getElementById('login-section').style.display = 'block';
     document.getElementById('dashboard-section').style.display = 'none';
   }
@@ -162,6 +167,20 @@ async function loadPublishers() {
       listDiv.appendChild(card);
       partnerSelect.innerHTML += `<option value="${pub.id}">${pub.firstName} ${pub.lastName || ''}</option>`;
     });
+    if (typeof draftSchedule !== 'undefined' && draftSchedule.length > 0) {
+      draftSchedule.forEach(shift => {
+        if (Array.isArray(shift.participantIds)) {
+          shift.assigned = [];
+          shift.participantIds.forEach(uid => {
+            if (uid && uid !== "Disponible") {
+              const pub = allPublishers.find(p => p.id === uid);
+              if (pub) shift.assigned.push(pub);
+            }
+          });
+        }
+      });
+      renderPreviewTable();
+    }
   } catch (error) { listDiv.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar.</p>'; }
 }
 
@@ -211,31 +230,95 @@ async function openNewPublisherModal() {
 
 function closePubEditModal() { document.getElementById('pub-edit-modal').style.display = 'none'; }
 
+function getBaseLocationName(name) {
+  if (!name) return '';
+  return name.trim().replace(/[\s\-_#()]*\d+\)?\s*$/, '').trim() || name.trim();
+}
+
+let allActiveLocationsCache = [];
+
+function buildEquivalentAvailKeysMap(locationsList) {
+  const groupToKeys = {};
+  const keyToEquivKeys = {};
+  (locationsList || []).forEach(loc => {
+    const locId = loc.id;
+    const baseName = getBaseLocationName(loc.name).toLowerCase();
+    (loc.templates || []).forEach(t => {
+      const availKey = `${locId}_${t.day}_${t.startTime}`;
+      const groupKey = `${baseName}__${t.day}__${t.startTime}`;
+      if (!groupToKeys[groupKey]) groupToKeys[groupKey] = [];
+      if (!groupToKeys[groupKey].includes(availKey)) {
+        groupToKeys[groupKey].push(availKey);
+      }
+    });
+  });
+  Object.values(groupToKeys).forEach(keysArr => {
+    keysArr.forEach(k => {
+      keyToEquivKeys[k] = keysArr;
+    });
+  });
+  return keyToEquivKeys;
+}
+
+function isPubAvailableForSlot(pub, availKey, equivMap = null) {
+  const pubAvail = (pub && pub.availability) || [];
+  if (pubAvail.includes(availKey)) return true;
+  const map = equivMap || buildEquivalentAvailKeysMap(allActiveLocationsCache);
+  const equivKeys = map[availKey];
+  if (equivKeys && equivKeys.length > 1) {
+    return equivKeys.some(k => pubAvail.includes(k));
+  }
+  return false;
+}
+
 async function buildAdminAvailabilityForm(pubAvailability = []) {
   const container = document.getElementById('admin-avail-container');
   try {
     const locSnapshot = await db.collection('locations').where('isActive', '==', true).get();
     const daysOrder = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-    const grouped = { 'Lunes': [], 'Martes': [], 'Miércoles': [], 'Jueves': [], 'Viernes': [], 'Sábado': [], 'Domingo': [] };
+    const groupedMap = { 'Lunes': {}, 'Martes': {}, 'Miércoles': {}, 'Jueves': {}, 'Viernes': {}, 'Sábado': {}, 'Domingo': {} };
     
+    allActiveLocationsCache = [];
     locSnapshot.forEach(doc => {
       const loc = doc.data();
-      const locId = doc.id; 
+      const locId = doc.id;
+      allActiveLocationsCache.push({ ...loc, id: locId });
+      const baseName = getBaseLocationName(loc.name);
       (loc.templates || []).forEach(t => {
-        if (grouped[t.day] !== undefined) grouped[t.day].push({ name: loc.name, time: `${t.startTime}-${t.endTime}`, val: `${locId}_${t.day}_${t.startTime}` });
+        if (groupedMap[t.day] !== undefined) {
+          const availKey = `${locId}_${t.day}_${t.startTime}`;
+          const timeLabel = `${t.startTime}-${t.endTime}`;
+          const slotGroupKey = `${baseName.toLowerCase()}__${t.startTime}_${t.endTime}`;
+          if (!groupedMap[t.day][slotGroupKey]) {
+            groupedMap[t.day][slotGroupKey] = {
+              baseName: baseName,
+              originalNames: [loc.name],
+              time: timeLabel,
+              keys: [availKey]
+            };
+          } else if (!groupedMap[t.day][slotGroupKey].keys.includes(availKey)) {
+            groupedMap[t.day][slotGroupKey].keys.push(availKey);
+            groupedMap[t.day][slotGroupKey].originalNames.push(loc.name);
+          }
+        }
       });
     });
     
     container.innerHTML = '';
     let hasShifts = false;
     daysOrder.forEach(day => {
-      if (grouped[day].length > 0) {
-        hasShifts = true; grouped[day].sort((a, b) => a.time.localeCompare(b.time));
+      const slots = Object.values(groupedMap[day]);
+      if (slots.length > 0) {
+        hasShifts = true;
+        slots.sort((a, b) => a.time.localeCompare(b.time) || a.baseName.localeCompare(b.baseName));
         const div = document.createElement('div'); div.className = 'admin-avail-day';
         let html = `<h5>${day}</h5>`;
-        grouped[day].forEach(s => {
-          const isChecked = pubAvailability.includes(s.val) ? 'checked' : '';
-          html += `<div class="admin-avail-check"><input type="checkbox" id="admin-chk-${s.val}" class="admin-avail-checkbox" value="${s.val}" ${isChecked} style="width:16px; height:16px; accent-color:#5d7aa9; cursor:pointer;"><label for="admin-chk-${s.val}" style="cursor:pointer;">${s.name} (${s.time})</label></div>`;
+        slots.forEach(s => {
+          const displayName = s.keys.length > 1 ? s.baseName : s.originalNames[0];
+          const isChecked = s.keys.some(k => pubAvailability.includes(k)) ? 'checked' : '';
+          const combinedVal = s.keys.join(',');
+          const domId = `admin-chk-${s.keys[0]}`;
+          html += `<div class="admin-avail-check"><input type="checkbox" id="${domId}" class="admin-avail-checkbox" value="${combinedVal}" ${isChecked} style="width:16px; height:16px; accent-color:#5d7aa9; cursor:pointer;"><label for="${domId}" style="cursor:pointer;">${displayName} (${s.time})</label></div>`;
         });
         div.innerHTML = html; container.appendChild(div);
       }
@@ -339,7 +422,11 @@ async function savePublisher() {
   const emergencyName = document.getElementById('pub-emerg-name').value.trim();
   const emergencyPhone = document.getElementById('pub-emerg-phone').value.trim();
   const emailNotificationsEnabled = document.getElementById('pub-email-notif').checked;
-  const availability = Array.from(document.querySelectorAll('.admin-avail-checkbox:checked')).map(cb => cb.value);
+  const availSet = new Set();
+  document.querySelectorAll('.admin-avail-checkbox:checked').forEach(cb => {
+    cb.value.split(',').forEach(k => { if (k.trim()) availSet.add(k.trim()); });
+  });
+  const availability = Array.from(availSet);
 
   const phoneRegex = /^\+\d+$/;
   if (phone && !phoneRegex.test(phone.replace(/\s/g, ''))) { showToast("El teléfono debe incluir el código de país (ej. +595)", "error"); return; }
@@ -483,11 +570,6 @@ function filterPublishers() {
 // ==========================================
 // TAB 2: LOCATIONS (QUICK BUILDER FIX)
 // ==========================================
-// Initialize draft listener when page loads
-document.addEventListener('DOMContentLoaded', () => {
-    // Wait slightly to ensure allPublishers is loaded first, though ideally it should be chained.
-    setTimeout(initDraftListener, 1000);
-});
 
 async function loadLocations() {
   const listDiv = document.getElementById('locations-list');
@@ -498,9 +580,13 @@ async function loadLocations() {
     listDiv.innerHTML = '';
     const generatorLocsDiv = document.getElementById('generator-locations');
     if (generatorLocsDiv) generatorLocsDiv.innerHTML = '';
+    allActiveLocationsCache = [];
     
     snapshot.forEach(doc => {
       const loc = doc.data();
+      if (loc.isActive !== false) {
+        allActiveLocationsCache.push({ ...loc, id: doc.id });
+      }
       const card = document.createElement('div');
       card.className = 'pub-card';
       const shiftsSummary = (loc.templates || []).map(t => `${t.day} ${t.startTime}-${t.endTime}`).join(', ');
@@ -772,12 +858,75 @@ async function generateDraft() {
     }
 
     const locsSnap = await db.collection('locations').where('isActive', '==', true).get();
-    const locations = []; 
+    const locations = [];
+    const allActiveLocs = [];
     locsSnap.forEach(d => { 
+        let l = d.data(); l.id = d.id;
+        allActiveLocs.push(l);
         if(selectedLocIds.includes(d.id)) {
-            let l=d.data(); l.id=d.id; locations.push(l); 
+            locations.push(l); 
         }
     });
+    allActiveLocationsCache = allActiveLocs;
+    const equivAvailMap = buildEquivalentAvailKeysMap(allActiveLocs);
+
+    const allowSoloFallback = document.getElementById('gen-allow-solo') ? document.getElementById('gen-allow-solo').checked : true;
+
+    function isAbsent(pub, dateString) {
+        if (!pub || !pub.absences) return false;
+        return pub.absences.some(abs => dateString >= abs.start && dateString <= abs.end);
+    }
+
+    function isPreferredPartner(pubA, pubB) {
+        if (!pubA || !pubB) return false;
+        return pubA.partner === pubB.id || pubB.partner === pubA.id;
+    }
+
+    // Seed trackers from existing draftSchedule so batch generation respects existing assignments
+    let assignedCounts = {};
+    let assignedDates = {};
+    let pairCounts = {};
+    const existingShiftKeys = new Set();
+
+    function getPairKey(idA, idB) {
+        return idA < idB ? `${idA}_${idB}` : `${idB}_${idA}`;
+    }
+    function getPairCount(idA, idB) {
+        return pairCounts[getPairKey(idA, idB)] || 0;
+    }
+    function recordPair(idA, idB) {
+        if (!idA || !idB || idA === "Disponible" || idB === "Disponible") return;
+        const key = getPairKey(idA, idB);
+        pairCounts[key] = (pairCounts[key] || 0) + 1;
+    }
+    function assignPublisherToTask(task, pub) {
+        task.assigned.push(pub);
+        assignedCounts[pub.id] = (assignedCounts[pub.id] || 0) + 1;
+        if (!assignedDates[pub.id]) assignedDates[pub.id] = new Set();
+        assignedDates[pub.id].add(task.dateString);
+        // If this completes a pair on the shift, record the pair history
+        if (task.assigned.length % 2 === 0) {
+            const prevPub = task.assigned[task.assigned.length - 2];
+            if (prevPub && prevPub.id && prevPub.id !== "Disponible") {
+                recordPair(prevPub.id, pub.id);
+            }
+        }
+    }
+
+    if (Array.isArray(draftSchedule)) {
+        draftSchedule.forEach(s => {
+            existingShiftKeys.add(`${s.dateString}_${s.locationId}_${s.time}`);
+            const validPubs = (s.assigned || []).filter(p => p && p.id && p.id !== "Disponible");
+            validPubs.forEach(p => {
+                assignedCounts[p.id] = (assignedCounts[p.id] || 0) + 1;
+                if (!assignedDates[p.id]) assignedDates[p.id] = new Set();
+                assignedDates[p.id].add(s.dateString);
+            });
+            for (let i = 0; i + 1 < validPubs.length; i += 2) {
+                recordPair(validPubs[i].id, validPubs[i + 1].id);
+            }
+        });
+    }
 
     const daysMap = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
     let shiftTasks = [];
@@ -791,16 +940,20 @@ async function generateDraft() {
       locations.forEach(loc => {
         (loc.templates || []).forEach(t => {
           if (t.day === dayName) {
-            shiftTasks.push({
-              docId: null, dateObj: new Date(currentDate), dateString: dateString, 
-              location: loc.name, 
-              locationId: loc.id, 
-              requiresManager: loc.requiresManager || false,
-              time: `${t.startTime}-${t.endTime}`,
-              capacity: loc.capacity, 
-              availKey: `${loc.id}_${t.day}_${t.startTime}`, 
-              pool: [], assigned: []
-            });
+            const timeStr = `${t.startTime}-${t.endTime}`;
+            const shiftUniqueKey = `${dateString}_${loc.id}_${timeStr}`;
+            if (!existingShiftKeys.has(shiftUniqueKey)) {
+              shiftTasks.push({
+                docId: null, dateObj: new Date(currentDate), dateString: dateString, 
+                location: loc.name, 
+                locationId: loc.id, 
+                requiresManager: loc.requiresManager || false,
+                time: timeStr,
+                capacity: loc.capacity, 
+                availKey: `${loc.id}_${t.day}_${t.startTime}`, 
+                pool: [], assigned: []
+              });
+            }
           }
         });
       });
@@ -808,16 +961,32 @@ async function generateDraft() {
       currentDate.setDate(currentDate.getDate() + 1);
     }
 
+    if (shiftTasks.length === 0) {
+        showToast("Todos los turnos de este rango y ubicación ya existen en el borrador.", "info");
+        return;
+    }
+
+    // Populate each shift task's pool ONLY with publishers who are approved and actually available on that specific date (including sibling locations)
     allPublishers.forEach(pub => {
-      const avail = pub.availability || [];
-      shiftTasks.forEach(task => { if (avail.includes(task.availKey)) task.pool.push(pub); });
+      if (pub.status === 'Entrenamiento') return;
+      shiftTasks.forEach(task => {
+        if (!isPubAvailableForSlot(pub, task.availKey, equivAvailMap)) return;
+        if (isAbsent(pub, task.dateString)) return;
+        // If publisher has a strict hardPair, verify their partner is also approved, available for this slot, and not absent on this date
+        if (pub.hardPair && pub.partner) {
+          const strictPartner = allPublishers.find(p => p.id === pub.partner);
+          if (!strictPartner || strictPartner.status === 'Entrenamiento') return;
+          if (!isPubAvailableForSlot(strictPartner, task.availKey, equivAvailMap)) return;
+          if (isAbsent(strictPartner, task.dateString)) return;
+        }
+        task.pool.push(pub);
+      });
     });
 
-    shiftTasks.sort((a, b) => a.pool.length - b.pool.length);
+    // Sort shifts by effective scarcity (fewest actually eligible publishers first)
+    shiftTasks.sort((a, b) => (a.pool.length - b.pool.length) || (a.dateObj - b.dateObj));
 
-    let assignedCounts = {}; let assignedDates = {};  
-
-    // Pre-calculate total monthly availability and random tie-breaker
+    // Pre-calculate effective monthly availability and random tie-breaker
     let totalAvailability = {};
     let randomTieBreakers = {};
     allPublishers.forEach(pub => {
@@ -825,14 +994,9 @@ async function generateDraft() {
         randomTieBreakers[pub.id] = Math.random();
     });
 
-    function isAbsent(pub, dateString) {
-        if (!pub.absences) return false;
-        return pub.absences.some(abs => dateString >= abs.start && dateString <= abs.end);
-    }
-
     function canAssign(pubId, dateObj, dateString) {
       let pub = allPublishers.find(p => p.id === pubId);
-      
+      if (!pub) return false;
       if (pub.status === 'Entrenamiento') return false;
       if (isAbsent(pub, dateString)) return false;
       
@@ -845,10 +1009,27 @@ async function generateDraft() {
       return true;
     }
 
-    
-    // Sorting utility to balance shifts and space them out
-    function sortCandidatesByPriority(candidates, dateObj) {
+    function canAssignAsSoftPartner(candidate, partnerPub, task) {
+      if (!candidate || candidate.id === partnerPub.id) return false;
+      if (task.assigned.some(a => a.id === candidate.id)) return false;
+      if (!canAssign(candidate.id, task.dateObj, task.dateString)) return false;
+      // If candidate has hardPair, they can only be paired with their strict partner
+      if (candidate.hardPair && candidate.partner && candidate.partner !== partnerPub.id) return false;
+      return true;
+    }
+
+    // Sorting utility to balance shifts, space them out, and rotate partners when partnerForId is provided
+    function sortCandidatesByPriority(candidates, dateObj, partnerForId = null) {
         return candidates.sort((a, b) => {
+            // 0. If pairing with a specific person (random same-gender), prefer someone they haven't worked with repeatedly
+            if (partnerForId) {
+                const pairA = getPairCount(partnerForId, a.id);
+                const pairB = getPairCount(partnerForId, b.id);
+                if (pairA !== pairB) {
+                    return pairA - pairB;
+                }
+            }
+
             // 1. Lowest current shift count
             const countA = assignedCounts[a.id] || 0;
             const countB = assignedCounts[b.id] || 0;
@@ -895,43 +1076,73 @@ async function generateDraft() {
         });
     }
 
+    function findBestPartnerFor(person, task) {
+        // 1. Strict Hard Pair
+        if (person.hardPair && person.partner) {
+            return task.pool.find(p =>
+                p.id === person.partner &&
+                !task.assigned.some(a => a.id === p.id) &&
+                canAssign(p.id, task.dateObj, task.dateString)
+            ) || null;
+        }
+        // 2. Two-Way Preferred Partner (Soft Pair, bypasses gender rule)
+        const preferredMatches = task.pool.filter(p =>
+            isPreferredPartner(person, p) &&
+            canAssignAsSoftPartner(p, person, task)
+        );
+        if (preferredMatches.length > 0) {
+            sortCandidatesByPriority(preferredMatches, task.dateObj);
+            return preferredMatches[0];
+        }
+        // 3. Same-Gender Solo Partner (with Partner Variety)
+        const sameGenderMatches = task.pool.filter(p =>
+            p.id !== person.id &&
+            p.gender === person.gender &&
+            !p.hardPair &&
+            !task.assigned.some(a => a.id === p.id) &&
+            canAssign(p.id, task.dateObj, task.dateString)
+        );
+        if (sameGenderMatches.length > 0) {
+            sortCandidatesByPriority(sameGenderMatches, task.dateObj, person.id);
+            return sameGenderMatches[0];
+        }
+        return null;
+    }
+
     // 1. First Pass: Assign Required Local Managers
     shiftTasks.forEach(task => {
         if (task.requiresManager && task.assigned.length < task.capacity) {
-            const eligibleManagers = task.pool.filter(p => p.isShiftManager && canAssign(p.id, task.dateObj, task.dateString));
-            sortCandidatesByPriority(eligibleManagers, task.dateObj);
+            const eligibleManagers = task.pool.filter(p => {
+                if (!p.isShiftManager || !canAssign(p.id, task.dateObj, task.dateString)) return false;
+                // Respect strict Hard Pair for managers
+                if (p.hardPair && p.partner) {
+                    if (task.capacity - task.assigned.length < 2) return false;
+                    const strictPartner = task.pool.find(sp => sp.id === p.partner && canAssign(sp.id, task.dateObj, task.dateString));
+                    if (!strictPartner) return false;
+                }
+                // If solo fallback is disabled, require that the manager has at least one valid partner when capacity >= 2
+                if (!allowSoloFallback && (task.capacity - task.assigned.length >= 2)) {
+                    if (!findBestPartnerFor(p, task)) return false;
+                }
+                return true;
+            });
+
+            // Prefer managers who have a valid partner available so we avoid incomplete pairs whenever possible
+            eligibleManagers.sort((a, b) => {
+                const hasPartnerA = findBestPartnerFor(a, task) ? 1 : 0;
+                const hasPartnerB = findBestPartnerFor(b, task) ? 1 : 0;
+                if (hasPartnerA !== hasPartnerB) return hasPartnerB - hasPartnerA;
+                return sortCandidatesByPriority([a, b], task.dateObj)[0].id === a.id ? -1 : 1;
+            });
+
             const manager = eligibleManagers.length > 0 ? eligibleManagers[0] : null;
             
             if (manager) {
-                task.assigned.push(manager);
-                assignedCounts[manager.id] = (assignedCounts[manager.id] || 0) + 1;
-                if(!assignedDates[manager.id]) assignedDates[manager.id] = new Set();
-                assignedDates[manager.id].add(task.dateString);
-                
-                // Priority: Pull in their preferred partner (Soft or Hard Pair)
-                let partnerAssigned = false;
-                if (manager.partner && task.assigned.length < task.capacity) {
-                    const partner = allPublishers.find(p => p.id === manager.partner);
-                    if (partner && task.pool.find(p => p.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString)) {
-                        task.assigned.push(partner);
-                        assignedCounts[partner.id] = (assignedCounts[partner.id] || 0) + 1;
-                        if(!assignedDates[partner.id]) assignedDates[partner.id] = new Set();
-                        assignedDates[partner.id].add(task.dateString);
-                        partnerAssigned = true;
-                    }
-                }
-
-                if (!partnerAssigned && task.assigned.length < task.capacity) {
-                    // Fallback: Manager was assigned solo, we need to complete the pair with same gender
-                    const eligibleSameGender = task.pool.filter(p => p.id !== manager.id && p.gender === manager.gender && !p.hardPair && canAssign(p.id, task.dateObj, task.dateString));
-                    sortCandidatesByPriority(eligibleSameGender, task.dateObj);
-                    const sameGenderPartner = eligibleSameGender.length > 0 ? eligibleSameGender[0] : null;
-
-                    if (sameGenderPartner) {
-                        task.assigned.push(sameGenderPartner);
-                        assignedCounts[sameGenderPartner.id] = (assignedCounts[sameGenderPartner.id] || 0) + 1;
-                        if(!assignedDates[sameGenderPartner.id]) assignedDates[sameGenderPartner.id] = new Set();
-                        assignedDates[sameGenderPartner.id].add(task.dateString);
+                const partner = (task.capacity - task.assigned.length >= 2) ? findBestPartnerFor(manager, task) : null;
+                assignPublisherToTask(task, manager);
+                if (task.assigned.length < task.capacity) {
+                    if (partner) {
+                        assignPublisherToTask(task, partner);
                     } else {
                         task.assigned.push({ id: "Disponible" });
                     }
@@ -940,55 +1151,22 @@ async function generateDraft() {
         }
     });
 
-    // 2. Second Pass: Fill remaining spots with anyone, seamlessly integrating Hard Pairs
+    // 2. Second Pass: Fill remaining spots in pairs (2-by-2)
     shiftTasks.forEach(task => {
         while (task.assigned.length < task.capacity) {
-            // If length is odd, we must complete a pair with the SAME GENDER as the last assigned person
+            // If length is odd, complete the pair with the last assigned person
             if (task.assigned.length % 2 !== 0) {
                 const lastAssigned = task.assigned[task.assigned.length - 1];
                 
-                // If the last assigned was already a dummy 'Disponible', we can't match it. 
-                // We just add another 'Disponible' to close the pair.
                 if (lastAssigned.id === "Disponible" || !lastAssigned.gender) {
                     task.assigned.push({ id: "Disponible" });
                     continue;
                 }
 
-                // Priority 1: Look for a PREFERRED PARTNER (Soft Pair) bypassing gender rules
-                const eligiblePreferredPartners = task.pool.filter(p => 
-                    !task.assigned.find(a => a.id === p.id) && // Not already assigned
-                    !p.hardPair &&                             // Must be solo (hard pairs take 2 spots)
-                    (lastAssigned.partner === p.id || p.partner === lastAssigned.id) && 
-                    canAssign(p.id, task.dateObj, task.dateString)
-                );
-                sortCandidatesByPriority(eligiblePreferredPartners, task.dateObj);
-                const preferredPartnerMatch = eligiblePreferredPartners.length > 0 ? eligiblePreferredPartners[0] : null;
-
-                if (preferredPartnerMatch) {
-                    task.assigned.push(preferredPartnerMatch);
-                    assignedCounts[preferredPartnerMatch.id] = (assignedCounts[preferredPartnerMatch.id] || 0) + 1;
-                    if(!assignedDates[preferredPartnerMatch.id]) assignedDates[preferredPartnerMatch.id] = new Set();
-                    assignedDates[preferredPartnerMatch.id].add(task.dateString);
-                    continue; // Successfully paired
-                }
-
-                // Priority 2: Look for a solo person of the SAME gender
-                const eligibleSameGender = task.pool.filter(p => 
-                    !task.assigned.find(a => a.id === p.id) && // Not already assigned
-                    p.gender === lastAssigned.gender &&        // Same gender
-                    !p.hardPair &&                             // Must be solo
-                    canAssign(p.id, task.dateObj, task.dateString)
-                );
-                sortCandidatesByPriority(eligibleSameGender, task.dateObj);
-                const sameGenderMatch = eligibleSameGender.length > 0 ? eligibleSameGender[0] : null;
-
-                if (sameGenderMatch) {
-                    task.assigned.push(sameGenderMatch);
-                    assignedCounts[sameGenderMatch.id] = (assignedCounts[sameGenderMatch.id] || 0) + 1;
-                    if(!assignedDates[sameGenderMatch.id]) assignedDates[sameGenderMatch.id] = new Set();
-                    assignedDates[sameGenderMatch.id].add(task.dateString);
+                const partnerMatch = findBestPartnerFor(lastAssigned, task);
+                if (partnerMatch) {
+                    assignPublisherToTask(task, partnerMatch);
                 } else {
-                    // No match found, leave empty to close the pair
                     task.assigned.push({ id: "Disponible" });
                 }
             } 
@@ -997,93 +1175,45 @@ async function generateDraft() {
                 let nextPerson = null;
                 let partnerMatch = null;
                 
-                // Priority 1: Find ANY person who has an available partner (Hard Pair, Soft Pair, or Same Gender)
+                // Priority 1: Find ANY person who has a valid available partner (Hard Pair, 2-way Soft Pair, or Same Gender)
                 const eligiblePairStarters = task.pool.filter(p => {
-                    if (task.assigned.find(a => a.id === p.id) || !canAssign(p.id, task.dateObj, task.dateString)) return false;
-
-                    // Check for Hard Pair
-                    if (p.hardPair && p.partner) {
-                        const hpCandidate = task.pool.find(partner => partner.id === p.partner && !task.assigned.find(a => a.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString));
-                        if (hpCandidate) return true;
-                    }
-
-                    // Solo people (not a hard pair)
-                    if (!p.hardPair) {
-                        // Check for Soft Pair
-                        if (p.partner) {
-                            const spCandidate = task.pool.find(partner => partner.id === p.partner && !task.assigned.find(a => a.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString) && !partner.hardPair);
-                            if (spCandidate) return true;
-                        }
-
-                        // Check for Same Gender
-                        const sameGenderCandidate = task.pool.find(partner =>
-                            partner.id !== p.id &&
-                            partner.gender === p.gender &&
-                            !task.assigned.find(a => a.id === partner.id) &&
-                            !partner.hardPair &&
-                            canAssign(partner.id, task.dateObj, task.dateString)
-                        );
-                        if (sameGenderCandidate) return true;
-                    }
-
-                    return false;
+                    if (task.assigned.some(a => a.id === p.id) || !canAssign(p.id, task.dateObj, task.dateString)) return false;
+                    return findBestPartnerFor(p, task) !== null;
                 });
 
                 if (eligiblePairStarters.length > 0) {
                     sortCandidatesByPriority(eligiblePairStarters, task.dateObj);
                     nextPerson = eligiblePairStarters[0];
-
-                    // Now lock in the specific partner in order of priority: Hard Pair -> Soft Pair -> Same Gender
-                    if (nextPerson.hardPair) {
-                         partnerMatch = task.pool.find(partner => partner.id === nextPerson.partner);
-                    } else if (nextPerson.partner) {
-                         partnerMatch = task.pool.find(partner => partner.id === nextPerson.partner && !task.assigned.find(a => a.id === partner.id) && canAssign(partner.id, task.dateObj, task.dateString) && !partner.hardPair);
-                    }
-
-                    if (!partnerMatch) {
-                         // Fallback to Same Gender
-                         const eligibleSameGender = task.pool.filter(partner =>
-                             partner.id !== nextPerson.id &&
-                             partner.gender === nextPerson.gender &&
-                             !task.assigned.find(a => a.id === partner.id) &&
-                             !partner.hardPair &&
-                             canAssign(partner.id, task.dateObj, task.dateString)
-                         );
-                         sortCandidatesByPriority(eligibleSameGender, task.dateObj);
-                         partnerMatch = eligibleSameGender.length > 0 ? eligibleSameGender[0] : null;
-                    }
+                    partnerMatch = findBestPartnerFor(nextPerson, task);
                 }
 
-                // If no valid pair is possible, fallback to the standard first available solo person (will result in "Disponible" partner)
-                if (!nextPerson) {
+                // If no complete pair is possible, optionally fallback to 1 solo publisher + "Disponible"
+                if (!nextPerson && allowSoloFallback) {
                     const eligibleNextPersons = task.pool.filter(p => 
-                        !task.assigned.find(a => a.id === p.id) && 
+                        !task.assigned.some(a => a.id === p.id) && 
                         canAssign(p.id, task.dateObj, task.dateString) &&
-                        !p.hardPair // Don't assign a hard pair person solo
+                        !p.hardPair // Never assign a hardPair publisher solo
                     );
                     sortCandidatesByPriority(eligibleNextPersons, task.dateObj);
                     nextPerson = eligibleNextPersons.length > 0 ? eligibleNextPersons[0] : null;
                 }
 
                 if (!nextPerson) {
-                    // Pool is exhausted, pad the rest of the shift with 'Disponible'
+                    // Pool is exhausted (or solo fallback is disabled), pad the rest of the shift with 'Disponible'
                     while (task.assigned.length < task.capacity) {
                         task.assigned.push({ id: "Disponible" });
                     }
                     break;
                 }
 
-                task.assigned.push(nextPerson);
-                assignedCounts[nextPerson.id] = (assignedCounts[nextPerson.id] || 0) + 1;
-                if(!assignedDates[nextPerson.id]) assignedDates[nextPerson.id] = new Set();
-                assignedDates[nextPerson.id].add(task.dateString);
+                assignPublisherToTask(task, nextPerson);
 
-                // If we found a partner in the first step, immediately assign them to complete the pair
-                if (partnerMatch) {
-                    task.assigned.push(partnerMatch);
-                    assignedCounts[partnerMatch.id] = (assignedCounts[partnerMatch.id] || 0) + 1;
-                    if(!assignedDates[partnerMatch.id]) assignedDates[partnerMatch.id] = new Set();
-                    assignedDates[partnerMatch.id].add(task.dateString);
+                if (task.assigned.length < task.capacity) {
+                    if (partnerMatch) {
+                        assignPublisherToTask(task, partnerMatch);
+                    } else {
+                        task.assigned.push({ id: "Disponible" });
+                    }
                 }
             }
         }
@@ -1290,7 +1420,7 @@ function openShiftEditModal(shiftIndex) {
     let isAway = false;
     if(pub.absences) { isAway = pub.absences.some(abs => shift.dateString >= abs.start && shift.dateString <= abs.end); }
 
-    const isAvailableInProfile = (pub.availability || []).includes(availKey);
+    const isAvailableInProfile = isPubAvailableForSlot(pub, availKey);
 
     if (isAway) {
         unavailableHtml += `<option value="${pub.id}">✈️ ${pub.firstName} ${pub.lastName || ''} (Vacaciones)</option>`;
@@ -1657,10 +1787,25 @@ let draftUnsubscribe = null;
 async function initDraftListener() {
     if (draftUnsubscribe) draftUnsubscribe();
     
-    // Fetch locations to know which ones require a manager
+    // Ensure publishers are loaded before resolving draft shift participant IDs
+    if (!allPublishers || allPublishers.length === 0) {
+        await loadPublishers();
+    }
+
+    // Fetch locations to know which ones require a manager and populate active locations cache
     const locsSnap = await db.collection('locations').get();
     const locMap = {};
-    locsSnap.forEach(d => { locMap[d.data().name] = { id: d.id, requiresManager: d.data().requiresManager || false }; });
+    const activeLocs = [];
+    locsSnap.forEach(d => {
+        const lData = d.data();
+        const info = { id: d.id, requiresManager: lData.requiresManager || false };
+        locMap[lData.name] = info;
+        locMap[d.id] = info;
+        if (lData.isActive !== false) {
+            activeLocs.push({ ...lData, id: d.id });
+        }
+    });
+    allActiveLocationsCache = activeLocs;
     
     draftUnsubscribe = db.collection('draft_shifts').orderBy('date', 'asc').onSnapshot(snapshot => {
         draftSchedule = [];
@@ -1679,15 +1824,17 @@ async function initDraftListener() {
                 }
             });
             
-            const locRequiresManager = locMap[data.location]?.requiresManager || false;
+            const locRequiresManager = (data.locationId && locMap[data.locationId]?.requiresManager) || locMap[data.location]?.requiresManager || false;
             
             draftSchedule.push({
                 docId: doc.id,
+                dateObj: new Date(data.date + 'T00:00:00'),
                 dateString: data.date,
                 location: data.location,
                 locationId: data.locationId,
                 time: data.time,
                 capacity: data.capacity,
+                participantIds: data.participants || [],
                 assigned: assignedPubs,
                 requiresManager: locRequiresManager
             });
@@ -1758,10 +1905,11 @@ function openDraftStatsModal() {
       draftAvailKeys.add(`${shift.locationId}_${dayName}_${startTime}`);
   });
 
-  // Initialize counts for active publishers who are actually available for the drafted shifts
+  // Initialize counts for active publishers who are actually available for the drafted shifts (including sibling locations)
+  const equivMap = buildEquivalentAvailKeysMap(allActiveLocationsCache);
   allPublishers.forEach(pub => {
       if (pub.status !== 'Entrenamiento') { // Exclude trainees from stats as they are manually handled
-          const isAvailableForDraft = (pub.availability || []).some(availKey => draftAvailKeys.has(availKey));
+          const isAvailableForDraft = Array.from(draftAvailKeys).some(availKey => isPubAvailableForSlot(pub, availKey, equivMap));
           if (isAvailableForDraft) {
               pubCounts[pub.id] = 0;
           }
@@ -1918,9 +2066,10 @@ function checkAvailability() {
         return;
     }
 
+    const equivMap = buildEquivalentAvailKeysMap(availLocationsCache);
     const availablePubs = allPublishers.filter(pub =>
         pub.status !== 'Entrenamiento' &&
-        (pub.availability || []).includes(availKey)
+        isPubAvailableForSlot(pub, availKey, equivMap)
     );
 
     availablePubs.sort((a, b) => (a.firstName || '').localeCompare(b.firstName || ''));

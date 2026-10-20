@@ -8,7 +8,7 @@ const messaging = firebase.messaging();
 // ==========================================
 // PWA CACHING LOGIC
 // ==========================================
-const CACHE_NAME = 'ppam-schedule-v13';
+const CACHE_NAME = 'ppam-schedule-v15';
 const ASSETS = [
   './',
   './legacy.html',

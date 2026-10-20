@@ -635,6 +635,11 @@ if (typeof messaging !== 'undefined') {
 // ==========================================
 // TAB 4: MI HORARIO
 // ==========================================
+function getBaseLocationName(name) {
+  if (!name) return '';
+  return name.trim().replace(/[\s\-_#()]*\d+\)?\s*$/, '').trim() || name.trim();
+}
+
 async function loadAvailabilityForm() {
   if (!currentUserPublisherId) return;
   const container = document.getElementById('availability-form-container');
@@ -643,23 +648,32 @@ async function loadAvailabilityForm() {
     const myAvail = pubDoc.data().availability || [];
     const locSnapshot = await db.collection('locations').where('isActive', '==', true).get();
     const daysOrder = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-    const grouped = { 'Lunes': [], 'Martes': [], 'Miércoles': [], 'Jueves': [], 'Viernes': [], 'Sábado': [], 'Domingo': [] };
+    const groupedMap = { 'Lunes': {}, 'Martes': {}, 'Miércoles': {}, 'Jueves': {}, 'Viernes': {}, 'Sábado': {}, 'Domingo': {} };
     
     locSnapshot.forEach(doc => {
       const loc = doc.data();
-      const locId = doc.id; // <-- WE GRAB THE IMMUTABLE ID HERE
+      const locId = doc.id;
+      const baseName = getBaseLocationName(loc.name);
 
       (loc.templates || []).forEach(t => {
-        if (grouped[t.day] !== undefined) {
-            // Build the key using locId, but keep loc.name for the UI label
+        if (groupedMap[t.day] !== undefined) {
             const availKey = `${locId}_${t.day}_${t.startTime}`;
+            const timeLabel = `${t.startTime} - ${t.endTime}`;
+            const slotGroupKey = `${baseName.toLowerCase()}__${t.startTime}_${t.endTime}`;
             
-            grouped[t.day].push({
-                name: loc.name,
-                time: `${t.startTime} - ${t.endTime}`,
-                val: availKey,
-                checked: myAvail.includes(availKey)
-            });
+            if (!groupedMap[t.day][slotGroupKey]) {
+                groupedMap[t.day][slotGroupKey] = {
+                    baseName: baseName,
+                    originalNames: [loc.name],
+                    time: timeLabel,
+                    keys: [availKey]
+                };
+            } else {
+                if (!groupedMap[t.day][slotGroupKey].keys.includes(availKey)) {
+                    groupedMap[t.day][slotGroupKey].keys.push(availKey);
+                    groupedMap[t.day][slotGroupKey].originalNames.push(loc.name);
+                }
+            }
         }
       });
     });
@@ -667,11 +681,19 @@ async function loadAvailabilityForm() {
     container.innerHTML = '';
     let hasShifts = false;
     daysOrder.forEach(day => {
-      if (grouped[day].length > 0) {
-        hasShifts = true; grouped[day].sort((a, b) => a.time.localeCompare(b.time));
+      const slots = Object.values(groupedMap[day]);
+      if (slots.length > 0) {
+        hasShifts = true;
+        slots.sort((a, b) => a.time.localeCompare(b.time) || a.baseName.localeCompare(b.baseName));
         const div = document.createElement('div'); div.className = 'day-group';
         let html = `<h4 class="day-title">${day}</h4>`;
-        grouped[day].forEach(s => html += `<div class="shift-option"><input type="checkbox" id="chk-${s.val}" class="avail-checkbox" value="${s.val}" ${s.checked ? 'checked' : ''}><label for="chk-${s.val}"><strong>${s.name}</strong> (${s.time})</label></div>`);
+        slots.forEach(s => {
+            const displayName = s.keys.length > 1 ? s.baseName : s.originalNames[0];
+            const isChecked = s.keys.some(k => myAvail.includes(k));
+            const combinedVal = s.keys.join(',');
+            const domId = `chk-${s.keys[0]}`;
+            html += `<div class="shift-option"><input type="checkbox" id="${domId}" class="avail-checkbox" value="${combinedVal}" ${isChecked ? 'checked' : ''}><label for="${domId}"><strong>${displayName}</strong> (${s.time})</label></div>`;
+        });
         div.innerHTML = html; container.appendChild(div);
       }
     });
@@ -683,7 +705,11 @@ async function loadAvailabilityForm() {
 
 async function saveAvailability() {
   if (!currentUserPublisherId) return;
-  const selected = Array.from(document.querySelectorAll('.avail-checkbox:checked')).map(cb => cb.value);
+  const selectedSet = new Set();
+  document.querySelectorAll('.avail-checkbox:checked').forEach(cb => {
+      cb.value.split(',').forEach(k => { if (k.trim()) selectedSet.add(k.trim()); });
+  });
+  const selected = Array.from(selectedSet);
   try {
     await db.collection('publishers').doc(currentUserPublisherId).update({
         availability: selected,

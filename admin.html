@@ -423,6 +423,13 @@
                 </div>
             </div>
 
+            <div style="margin-top: 15px; background: #fff; padding: 12px 15px; border: 1px solid #ddd; border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;">
+                <input type="checkbox" id="gen-allow-solo" checked style="width: 18px; height: 18px; margin-top: 2px; cursor: pointer; accent-color: #5d7aa9;">
+                <label for="gen-allow-solo" style="margin: 0; font-weight: normal; cursor: pointer; font-size: 0.9em; color: #444;">
+                    <strong>Permitir turnos incompletos (1 Publicador + Disponible):</strong> Si no hay dos personas compatibles para formar pareja, asignar a 1 publicador solo y dejar el segundo espacio como "Disponible". <span style="color:#666; font-size:0.85em; display:block; margin-top:3px;">Desmarca esta opción si prefieres que el turno quede completamente vacío cuando no se pueda formar una pareja completa.</span>
+                </label>
+            </div>
+
             <div style="margin-top: 25px;">
                 <button id="btn-gen-draft" onclick="generateDraft()" class="btn-action btn-primary" style="width:100%; padding: 12px; font-size: 1.05em;"><span class="material-symbols-outlined">magic_button</span> Añadir a la mesa de trabajo</button>
             </div>
@@ -581,6 +588,6 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
 <script src="firebase-config.js"></script>
-<script src="app-admin.js?v=7"></script>
+<script src="app-admin.js?v=9"></script>
 </body>
 </html>

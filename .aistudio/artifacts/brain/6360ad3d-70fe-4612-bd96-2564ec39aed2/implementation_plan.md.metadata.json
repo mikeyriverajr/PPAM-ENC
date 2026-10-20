@@ -1,0 +1,6 @@
+{
+  "summary":  "Analysis and implementation plan for handling multi-pair locations (e.g., Ex-Hospital Regional 1 & Ex-Hospital Regional 2) by unifying their availability selection in Mi Horario and sharing their availability pool in the generator.",
+  "updatedAt":  "2026-10-20T19:50:04.996286192Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

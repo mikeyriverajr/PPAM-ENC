@@ -130,6 +130,242 @@
               margin-top: 2vh;
           }
       }
+
+      /* Animated Tutorial Player Styles */
+      .tutorial-player-wrapper {
+          max-width: 350px;
+          margin: 22px auto;
+          background: #1e293b;
+          border-radius: 22px;
+          padding: 12px;
+          box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+          color: #fff;
+          user-select: none;
+      }
+      .tutorial-phone-screen {
+          background: #f4f6f8;
+          color: #333;
+          border-radius: 14px;
+          overflow: hidden;
+          position: relative;
+          height: 410px;
+          display: flex;
+          flex-direction: column;
+          border: 1px solid #334155;
+      }
+      .tut-app-header {
+          background: #5d7aa9;
+          color: #fff;
+          padding: 10px 14px;
+          font-weight: 700;
+          font-size: 0.88em;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+      }
+      .tut-app-tabs {
+          display: flex;
+          background: #fff;
+          border-bottom: 1px solid #e5e7eb;
+          font-size: 0.72em;
+          font-weight: 600;
+          color: #777;
+      }
+      .tut-app-tab {
+          flex: 1;
+          text-align: center;
+          padding: 8px 2px;
+      }
+      .tut-app-tab.active {
+          color: #5d7aa9;
+          border-bottom: 2px solid #5d7aa9;
+      }
+      .tut-viewport-body {
+          flex: 1;
+          padding: 12px;
+          position: relative;
+          overflow: hidden;
+          font-size: 0.82em;
+      }
+      .tut-banner {
+          background: #fff8e6;
+          border: 1px solid #ffd88a;
+          border-left: 4px solid #f59f00;
+          border-radius: 8px;
+          padding: 9px 10px;
+          margin-bottom: 10px;
+          font-size: 0.88em;
+          transition: all 0.35s ease;
+      }
+      .tut-shift-card {
+          background: #fff;
+          border-radius: 9px;
+          padding: 12px;
+          border: 1px solid #e5e7eb;
+          border-left: 4px solid #f59f00;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+          transition: all 0.35s ease;
+      }
+      .tut-shift-card.completed {
+          border-left-color: #28a745;
+      }
+      .tut-btn-primary {
+          margin-top: 10px;
+          width: 100%;
+          padding: 8px 10px;
+          border-radius: 6px;
+          border: none;
+          background: #5d7aa9;
+          color: #fff;
+          font-weight: 600;
+          font-size: 0.92em;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 5px;
+          transition: transform 0.2s, background 0.2s;
+      }
+      .tut-btn-primary.pulse-highlight {
+          box-shadow: 0 0 0 3px rgba(93, 122, 169, 0.35);
+      }
+      /* Simulated Modal Overlay inside Phone */
+      .tut-modal-overlay {
+          position: absolute;
+          inset: 0;
+          background: rgba(0, 0, 0, 0.55);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 12px;
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity 0.35s ease;
+          z-index: 5;
+      }
+      .tut-modal-overlay.visible {
+          opacity: 1;
+      }
+      .tut-modal-card {
+          background: #fff;
+          width: 100%;
+          border-radius: 12px;
+          padding: 14px;
+          box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+          transform: translateY(12px) scale(0.96);
+          transition: transform 0.35s ease;
+      }
+      .tut-modal-overlay.visible .tut-modal-card {
+          transform: translateY(0) scale(1);
+      }
+      .tut-input-box {
+          width: 100%;
+          padding: 7px 9px;
+          border: 1.5px solid #d1d5db;
+          border-radius: 6px;
+          box-sizing: border-box;
+          font-size: 0.95em;
+          background: #fff;
+          color: #111;
+          min-height: 30px;
+          transition: border-color 0.25s, box-shadow 0.25s;
+      }
+      .tut-input-box.active-field {
+          border-color: #5d7aa9;
+          box-shadow: 0 0 0 3px rgba(93, 122, 169, 0.22);
+      }
+      /* Animated Finger Pointer */
+      .tut-pointer {
+          position: absolute;
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          background: rgba(245, 159, 0, 0.35);
+          border: 2px solid #f59f00;
+          pointer-events: none;
+          z-index: 10;
+          opacity: 0;
+          transform: translate(-50%, -50%) scale(1);
+          transition: top 0.5s ease, left 0.5s ease, opacity 0.25s ease, transform 0.2s ease;
+      }
+      .tut-pointer.tapping {
+          transform: translate(-50%, -50%) scale(0.75);
+          background: rgba(245, 159, 0, 0.65);
+      }
+      .tut-caption-box {
+          padding: 12px 10px 8px 10px;
+          min-height: 68px;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+      }
+      .tut-step-badge {
+          font-size: 0.75em;
+          text-transform: uppercase;
+          letter-spacing: 0.6px;
+          color: #93c5fd;
+          font-weight: 700;
+          margin-bottom: 3px;
+      }
+      .tut-caption-text {
+          font-size: 0.9em;
+          line-height: 1.4;
+          color: #f8fafc;
+          margin: 0;
+      }
+      .tut-progress-track {
+          height: 4px;
+          background: #334155;
+          border-radius: 2px;
+          overflow: hidden;
+          margin: 6px 10px 10px 10px;
+      }
+      .tut-progress-bar {
+          height: 100%;
+          background: #60a5fa;
+          width: 25%;
+          transition: width 0.3s linear;
+      }
+      .tut-controls {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0 6px 2px 6px;
+          gap: 8px;
+      }
+      .tut-ctrl-btn {
+          background: #334155;
+          color: #fff;
+          border: none;
+          border-radius: 8px;
+          padding: 6px 10px;
+          font-size: 0.82em;
+          font-weight: 600;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          transition: background 0.2s;
+      }
+      .tut-ctrl-btn:hover {
+          background: #475569;
+      }
+      .tut-dots {
+          display: flex;
+          gap: 6px;
+          align-items: center;
+      }
+      .tut-dot {
+          width: 9px;
+          height: 9px;
+          border-radius: 50%;
+          background: #475569;
+          cursor: pointer;
+          transition: all 0.2s;
+      }
+      .tut-dot.active {
+          background: #60a5fa;
+          transform: scale(1.25);
+      }
   </style>
 </head>
 <body>
@@ -175,6 +411,130 @@
 
           <img src="Perfil.jpeg" alt="Ejemplo de Mi Perfil" class="guide-image" onerror="this.style.display='none'">
 
+          <h2>Paso 4. Completa tu Informe de Turno</h2>
+          <p>Al finalizar cada turno, en la pestaña <strong>"Mis Turnos"</strong> aparecerá el botón para enviar un breve <strong>Informe de Turno</strong> con la cantidad de interacciones y cualquier experiencia positiva. Mira cómo funciona aquí:</p>
+
+          <!-- Animated Tutorial Player -->
+          <div class="tutorial-player-wrapper" id="informe-tutorial-player">
+              <div class="tutorial-phone-screen">
+                  <div class="tut-app-header">
+                      <span>PPAM | Juan Pérez</span>
+                      <span class="material-symbols-outlined" style="font-size: 16px;">calendar_month</span>
+                  </div>
+                  <div class="tut-app-tabs">
+                      <div class="tut-app-tab active">Mis Turnos</div>
+                      <div class="tut-app-tab">Libres</div>
+                      <div class="tut-app-tab">Mi Horario</div>
+                      <div class="tut-app-tab">Perfil</div>
+                  </div>
+
+                  <div class="tut-viewport-body">
+                      <!-- Pending Banner -->
+                      <div class="tut-banner" id="tut-pending-banner">
+                          <div style="font-weight: 700; color: #92400e; margin-bottom: 2px; display: flex; align-items: center; gap: 4px;">
+                              <span class="material-symbols-outlined" style="font-size: 15px; color: #d97706;">assignment_late</span>
+                              Tienes 1 informe pendiente
+                          </div>
+                          <div style="color: #78350f; font-size: 0.9em;">Comparte cuántas interacciones tuvieron en tu turno.</div>
+                      </div>
+
+                      <div style="font-weight: 700; color: #444; margin: 8px 0 6px 0; display: flex; align-items: center; gap: 4px; font-size: 0.92em;">
+                          <span class="material-symbols-outlined" style="font-size: 16px; color: #5d7aa9;">task_alt</span>
+                          Turnos Recién Finalizados
+                      </div>
+
+                      <!-- Finished Shift Card -->
+                      <div class="tut-shift-card" id="tut-shift-card">
+                          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f0f0f0; padding-bottom: 6px; margin-bottom: 6px;">
+                              <strong style="color: #333;">Miércoles 21 de Octubre</strong>
+                              <span style="background: #f4f6f8; padding: 2px 6px; border-radius: 4px; color: #666; font-size: 0.85em;">08:00 - 10:00</span>
+                          </div>
+                          <div style="color: #444; margin-bottom: 4px;">📍 <strong>Costanera</strong></div>
+                          <div style="color: #666; font-size: 0.92em;">👥 Con: Carlos Gómez</div>
+
+                          <!-- Sent Summary (Visible in Step 4) -->
+                          <div id="tut-sent-badge" style="display: none; background: #f0f9f2; border: 1px solid #c3e6cb; border-radius: 6px; padding: 8px; margin-top: 8px; color: #155724; font-size: 0.9em;">
+                              <div style="font-weight: 700; display: flex; align-items: center; gap: 4px;">
+                                  <span class="material-symbols-outlined" style="font-size: 15px; color: #28a745;">check_circle</span>
+                                  Informe enviado • Interacciones: 4
+                              </div>
+                              <div style="font-style: italic; margin-top: 3px; color: #2d5738;">"Una señora pidió información sobre el curso bíblico."</div>
+                          </div>
+
+                          <button type="button" class="tut-btn-primary" id="tut-card-btn">
+                              <span class="material-symbols-outlined" style="font-size: 15px;" id="tut-card-btn-icon">assignment</span>
+                              <span id="tut-card-btn-text">Completar Informe de Turno</span>
+                          </button>
+                      </div>
+
+                      <!-- Simulated Informe Modal -->
+                      <div class="tut-modal-overlay" id="tut-modal-overlay">
+                          <div class="tut-modal-card">
+                              <div style="font-weight: 700; color: #2c5282; font-size: 1.05em; margin-bottom: 8px; display: flex; align-items: center; gap: 5px;">
+                                  <span class="material-symbols-outlined" style="font-size: 17px; color: #5d7aa9;">assignment</span>
+                                  Informe de Turno
+                              </div>
+                              <div style="background: #f4f7fb; border: 1px solid #dce4ee; border-radius: 6px; padding: 6px 8px; margin-bottom: 10px; font-size: 0.85em; color: #333;">
+                                  <div><strong>Fecha:</strong> Miércoles 21 (08:00 - 10:00)</div>
+                                  <div><strong>Ubicación:</strong> Costanera</div>
+                              </div>
+
+                              <div style="margin-bottom: 10px;">
+                                  <label style="display: block; font-weight: 600; font-size: 0.86em; color: #444; margin-bottom: 4px;">¿Cuántas interacciones tuvieron?</label>
+                                  <div class="tut-input-box" id="tut-input-interactions">0</div>
+                              </div>
+
+                              <div style="margin-bottom: 12px;">
+                                  <label style="display: block; font-weight: 600; font-size: 0.86em; color: #444; margin-bottom: 4px;">Comentarios o experiencias positivas</label>
+                                  <div class="tut-input-box" id="tut-input-comments" style="min-height: 54px; font-size: 0.88em; color: #555;"></div>
+                              </div>
+
+                              <button type="button" id="tut-save-btn" style="width: 100%; padding: 8px; border: none; border-radius: 6px; background: #28a745; color: #fff; font-weight: 700; font-size: 0.92em; display: flex; align-items: center; justify-content: center; gap: 5px;">
+                                  <span class="material-symbols-outlined" style="font-size: 16px;">check_circle</span>
+                                  Guardar Informe
+                              </button>
+                          </div>
+                      </div>
+
+                      <!-- Animated Finger Tap Pointer -->
+                      <div class="tut-pointer" id="tut-pointer"></div>
+                  </div>
+              </div>
+
+              <!-- Captions -->
+              <div class="tut-caption-box">
+                  <div class="tut-step-badge" id="tut-step-label">Paso 1 de 4 • Al finalizar tu turno</div>
+                  <p class="tut-caption-text" id="tut-caption-text">Cuando tu turno termina, entra a "Mis Turnos" y toca el botón "Completar Informe de Turno".</p>
+              </div>
+
+              <!-- Progress Bar -->
+              <div class="tut-progress-track">
+                  <div class="tut-progress-bar" id="tut-progress-bar"></div>
+              </div>
+
+              <!-- Player Controls -->
+              <div class="tut-controls">
+                  <div style="display: flex; gap: 6px;">
+                      <button type="button" class="tut-ctrl-btn" onclick="prevTutStep()" title="Paso anterior">
+                          <span class="material-symbols-outlined" style="font-size: 17px;">skip_previous</span>
+                      </button>
+                      <button type="button" class="tut-ctrl-btn" id="tut-play-pause-btn" onclick="toggleTutPlay()">
+                          <span class="material-symbols-outlined" style="font-size: 17px;" id="tut-play-icon">pause</span>
+                          <span id="tut-play-label">Pausa</span>
+                      </button>
+                      <button type="button" class="tut-ctrl-btn" onclick="nextTutStep()" title="Siguiente paso">
+                          <span class="material-symbols-outlined" style="font-size: 17px;">skip_next</span>
+                      </button>
+                  </div>
+                  <div class="tut-dots">
+                      <div class="tut-dot active" onclick="goToTutStep(0)"></div>
+                      <div class="tut-dot" onclick="goToTutStep(1)"></div>
+                      <div class="tut-dot" onclick="goToTutStep(2)"></div>
+                      <div class="tut-dot" onclick="goToTutStep(3)"></div>
+                  </div>
+              </div>
+          </div>
+
           <div class="tip-box">
               <span class="material-symbols-outlined" style="color:#f59f00; font-size: 28px;">tips_and_updates</span>
               <div>
@@ -191,5 +551,210 @@
       </div>
   </div>
 
+  <script>
+      (function() {
+          let currentStep = 0;
+          let isPlaying = true;
+          let stepTimer = null;
+          let subTimers = [];
+
+          const stepsMeta = [
+              {
+                  badge: "Paso 1 de 4 • Al terminar tu turno",
+                  caption: "Cuando tu turno termina, ve a \"Mis Turnos\" y presiona \"Completar Informe de Turno\"."
+              },
+              {
+                  badge: "Paso 2 de 4 • Cantidad de interacciones",
+                  caption: "Escribe cuántas conversaciones o personas se acercaron al exhibidor durante el turno."
+              },
+              {
+                  badge: "Paso 3 de 4 • Experiencias positivas",
+                  caption: "Opcionalmente, escribe un comentario o comparte alguna bonita experiencia del turno."
+              },
+              {
+                  badge: "Paso 4 de 4 • Guardar y listo",
+                  caption: "Toca \"Guardar Informe\". ¡Tu turno quedará marcado en verde como enviado!"
+              }
+          ];
+
+          function clearSubTimers() {
+              subTimers.forEach(t => clearTimeout(t));
+              subTimers = [];
+          }
+
+          function renderStep(stepIndex) {
+              clearSubTimers();
+              currentStep = stepIndex;
+
+              const modal = document.getElementById('tut-modal-overlay');
+              const banner = document.getElementById('tut-pending-banner');
+              const shiftCard = document.getElementById('tut-shift-card');
+              const sentBadge = document.getElementById('tut-sent-badge');
+              const cardBtn = document.getElementById('tut-card-btn');
+              const cardBtnIcon = document.getElementById('tut-card-btn-icon');
+              const cardBtnText = document.getElementById('tut-card-btn-text');
+              const inputInter = document.getElementById('tut-input-interactions');
+              const inputComm = document.getElementById('tut-input-comments');
+              const saveBtn = document.getElementById('tut-save-btn');
+              const pointer = document.getElementById('tut-pointer');
+
+              document.getElementById('tut-step-label').innerText = stepsMeta[stepIndex].badge;
+              document.getElementById('tut-caption-text').innerText = stepsMeta[stepIndex].caption;
+              document.getElementById('tut-progress-bar').style.width = ((stepIndex + 1) * 25) + '%';
+
+              document.querySelectorAll('.tut-dot').forEach((d, idx) => {
+                  d.classList.toggle('active', idx === stepIndex);
+              });
+
+              // Reset defaults
+              inputInter.classList.remove('active-field');
+              inputComm.classList.remove('active-field');
+              cardBtn.classList.remove('pulse-highlight');
+              saveBtn.style.transform = 'scale(1)';
+              pointer.classList.remove('tapping');
+              pointer.style.opacity = '0';
+
+              if (stepIndex === 0) {
+                  modal.classList.remove('visible');
+                  banner.style.display = 'block';
+                  shiftCard.classList.remove('completed');
+                  sentBadge.style.display = 'none';
+                  cardBtn.style.background = '#5d7aa9';
+                  cardBtn.style.color = '#fff';
+                  cardBtnIcon.innerText = 'assignment';
+                  cardBtnText.innerText = 'Completar Informe de Turno';
+                  cardBtn.classList.add('pulse-highlight');
+
+                  subTimers.push(setTimeout(() => {
+                      pointer.style.top = '232px';
+                      pointer.style.left = '50%';
+                      pointer.style.opacity = '1';
+                  }, 500));
+
+                  subTimers.push(setTimeout(() => {
+                      pointer.classList.add('tapping');
+                      cardBtn.style.transform = 'scale(0.96)';
+                  }, 2100));
+
+                  subTimers.push(setTimeout(() => {
+                      pointer.classList.remove('tapping');
+                      cardBtn.style.transform = 'scale(1)';
+                  }, 2500));
+              } else if (stepIndex === 1) {
+                  modal.classList.add('visible');
+                  inputInter.innerText = '0';
+                  inputComm.innerText = 'Comparte alguna buena experiencia...';
+                  inputComm.style.color = '#9ca3af';
+
+                  subTimers.push(setTimeout(() => {
+                      pointer.style.top = '155px';
+                      pointer.style.left = '65%';
+                      pointer.style.opacity = '1';
+                      inputInter.classList.add('active-field');
+                  }, 400));
+
+                  subTimers.push(setTimeout(() => {
+                      pointer.classList.add('tapping');
+                      inputInter.innerText = '4';
+                      inputInter.style.fontWeight = '700';
+                      inputInter.style.color = '#2c5282';
+                  }, 1400));
+
+                  subTimers.push(setTimeout(() => {
+                      pointer.classList.remove('tapping');
+                      pointer.style.opacity = '0';
+                  }, 1900));
+              } else if (stepIndex === 2) {
+                  modal.classList.add('visible');
+                  inputInter.innerText = '4';
+                  inputInter.style.fontWeight = '700';
+                  inputInter.style.color = '#2c5282';
+                  inputComm.innerText = '';
+                  inputComm.style.color = '#111';
+                  inputComm.classList.add('active-field');
+
+                  const sampleText = "Una señora pidió información sobre el curso bíblico.";
+                  let charIdx = 0;
+                  function typeNextChar() {
+                      if (charIdx <= sampleText.length) {
+                          inputComm.innerText = sampleText.substring(0, charIdx);
+                          charIdx += 2;
+                          subTimers.push(setTimeout(typeNextChar, 65));
+                      }
+                  }
+                  subTimers.push(setTimeout(typeNextChar, 350));
+              } else if (stepIndex === 3) {
+                  modal.classList.add('visible');
+                  inputInter.innerText = '4';
+                  inputComm.innerText = 'Una señora pidió información sobre el curso bíblico.';
+                  inputComm.style.color = '#111';
+
+                  subTimers.push(setTimeout(() => {
+                      pointer.style.top = '300px';
+                      pointer.style.left = '50%';
+                      pointer.style.opacity = '1';
+                  }, 300));
+
+                  subTimers.push(setTimeout(() => {
+                      pointer.classList.add('tapping');
+                      saveBtn.style.transform = 'scale(0.95)';
+                  }, 1100));
+
+                  subTimers.push(setTimeout(() => {
+                      pointer.classList.remove('tapping');
+                      pointer.style.opacity = '0';
+                      saveBtn.style.transform = 'scale(1)';
+                      modal.classList.remove('visible');
+                      banner.style.display = 'none';
+                      shiftCard.classList.add('completed');
+                      sentBadge.style.display = 'block';
+                      cardBtn.style.background = '#eef2f7';
+                      cardBtn.style.color = '#2c5282';
+                      cardBtnIcon.innerText = 'edit';
+                      cardBtnText.innerText = 'Ver / Editar Informe';
+                  }, 1600));
+              }
+          }
+
+          function scheduleAutoAdvance() {
+              clearTimeout(stepTimer);
+              if (!isPlaying) return;
+              stepTimer = setTimeout(() => {
+                  const next = (currentStep + 1) % 4;
+                  renderStep(next);
+                  scheduleAutoAdvance();
+              }, 4200);
+          }
+
+          window.goToTutStep = function(idx) {
+              renderStep(idx);
+              scheduleAutoAdvance();
+          };
+
+          window.nextTutStep = function() {
+              renderStep((currentStep + 1) % 4);
+              scheduleAutoAdvance();
+          };
+
+          window.prevTutStep = function() {
+              renderStep((currentStep + 3) % 4);
+              scheduleAutoAdvance();
+          };
+
+          window.toggleTutPlay = function() {
+              isPlaying = !isPlaying;
+              document.getElementById('tut-play-icon').innerText = isPlaying ? 'pause' : 'play_arrow';
+              document.getElementById('tut-play-label').innerText = isPlaying ? 'Pausa' : 'Reproducir';
+              if (isPlaying) {
+                  scheduleAutoAdvance();
+              } else {
+                  clearTimeout(stepTimer);
+              }
+          };
+
+          renderStep(0);
+          scheduleAutoAdvance();
+      })();
+  </script>
 </body>
 </html>

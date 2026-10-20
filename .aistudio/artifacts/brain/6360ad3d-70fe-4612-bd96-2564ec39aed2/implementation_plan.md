@@ -1,93 +1,51 @@
-# Informe de Turno & Publisher Shift History Plan
+# Animated Tutorial Player: "Cómo Completar el Informe de Turno" (Onboarding Guide Only)
 
-This plan adds post-shift reporting (**Informe de Turno**) for publishers once their shift finishes, tracks detailed cancellation history, and gives administrators both a dedicated **Informes** tab and a per-publisher **Shift & Cancellation History** view in the Directory.
+This plan adds an interactive, video-style **Animated Tutorial Player** directly inside the onboarding guide (**`empezar.html`**) to show participants step-by-step how to fill out and submit their **Informe de Turno** after finishing a shift.
 
-## User Review & Critical Decisions
+## 1. Overview & User Experience
 
-> [!IMPORTANT]
-> **How Past Cancellations Are Handled:**
-> - **What your database currently has**: Previously, `attemptCancel()` in `app.js` only saved a single field—`lastCancelledShift` (the date/time of the most recent cancellation)—and overwrote it each time without incrementing a counter or saving which shift was cancelled.
-> - **What will be included automatically**:
->   1. Any publisher who has a `lastCancelledShift` timestamp in Firestore will automatically start with **1 cancellation** recorded in their history (showing the exact date & time from `lastCancelledShift`) instead of `0`.
->   2. If a publisher cancelled *multiple* times in the past, Firestore only kept the last timestamp because the old code overwrote it. From this update forward, **every** cancellation will be permanently counted and logged with the shift's date, time, location, and cancellation timestamp.
+### A. Placement — Onboarding Guide Only (`empezar.html`)
+- Adds a new **Paso 4. Completa tu Informe de Turno** section in `empezar.html` (right after Paso 3).
+- Keeps the main app (`index.html` / `app.js`) completely untouched so there is no extra clutter on the **Mis Turnos** screen.
 
-- **Zero-Config Compatibility with Live Firestore Rules & Cloud Functions**:
-  - Shift reports are stored inside `shifts/{shiftId}` (`reports.{publisherId}`) and cancellation logs inside `publishers/{id}` (`cancelledCount` + `cancellationHistory`), working immediately with your existing Firestore Security Rules without triggering unwanted push/email notifications.
-
----
-
-## 1. Overview & User Flows
-
-### A. Publisher Flow: Filling Out the "Informe de Turno" (`index.html` / `app.js`)
-1. **Detecting Finished Shifts**:
-   - In `loadMyShifts()`, the app checks the publisher's assigned shifts:
-     - **Upcoming Shifts**: Shifts in the future (or today before `endTime`) show the normal shift card with **Cancelar Turno**.
-     - **Finished Shifts (Last 14 Days)**: Once `${shift.date} ${endTime}` has passed, the shift card transitions from "Cancelar Turno" to **"📋 Completar Informe de Turno"** (or **"✅ Informe Enviado — Ver / Editar"** if already submitted).
-   - If the publisher has at least one finished shift from the last 14 days with no report submitted yet, a prominent alert banner at the top of **Mis Turnos** prompts them to submit their report.
-2. **Informe de Turno Modal**:
-   - Displays the shift's **Fecha**, **Ubicación**, **Horario**, and **Compañero(a)**.
-   - **¿Cuántas interacciones tuvieron?** (Numeric input, `0` or more).
-   - **Comentarios o experiencias positivas** (Textarea for sharing experiences, observations, or incidents).
-   - **Guardar Informe** button saves the report to `shifts/{shiftId}` under `reports.{publisherId}` (recording `publisherId`, `publisherName`, `interactions`, `comments`, `updatedAt`).
-
-### B. Cancellation Tracking (`app.js`)
-- When a publisher cancels a shift via `attemptCancel()`:
-  - Calculates the base count (`pub.cancelledCount` if present, or `1` if `pub.lastCancelledShift` already existed, else `0`) and increments it by `1`.
-  - Appends `{ shiftId, date, time, location, cancelledAt }` to `cancellationHistory` on their `publishers/{id}` document (and if they had a legacy `lastCancelledShift` not yet in `cancellationHistory`, preserves it as the first entry so it is never lost).
-  - Also records `{ publisherId, cancelledAt }` in `cancelledParticipants` on the `shifts/{shiftId}` document so shift history retains cancelled shifts even after the user is removed from `participants`.
-
-### C. Admin Flow 1: Publisher Shift & Cancellation History (`admin.html` / `app-admin.js`)
-- When an admin clicks a publisher in **Directorio** (`viewPublisher(id)`):
-  - **Summary Badges**:
-    - **Turnos Asignados**: Count of completed + upcoming shifts in the database.
-    - **Cancelaciones**: Total cancellation count (automatically includes `1` for any existing `lastCancelledShift` plus all newly tracked cancellations).
-    - **Interacciones Reportadas**: Sum of interactions from reports they submitted.
-  - **Historial de Turnos y Cancelaciones Section**:
-    - Lists the publisher's shifts (most recent first) showing Date, Location, Time, Partner(s), and status badge (`Próximo`, `Completado`, or `Cancelado`), plus any submitted interaction count and comment.
-    - Lists all recorded cancellation events (including the legacy `lastCancelledShift` date/time if present).
-
-### D. Admin Flow 2: Congregation-Wide "Informes" Tab (`admin.html` / `app-admin.js`)
-- Adds a 5th tab in the Admin navigation bar: **`📋 Informes`**.
-- **Top Summary Cards**:
-  - **Informes Recibidos** (count of submitted shift reports)
-  - **Total de Interacciones** (sum of interactions across filtered reports)
-  - **Experiencias / Comentarios** (count of reports with written comments)
-- **Filters & Feed**:
-  - Filter by **Mes** and search by **Publicador, Ubicación o Comentario**.
-  - Displays each report card with Date, Location, Time, Publisher name, Partner name, an **Interacciones** badge, and the full text of their comment or positive experience.
+### B. How the Animated Tutorial Player Works
+- Embedded directly in `empezar.html` as a **Phone-Screen Video Player** (matching the vertical mobile proportions of the Android video above it) with smooth animations, a simulated finger tap indicator, a progress bar, **Play/Pause**, **Anterior/Siguiente**, and **Repetir** controls:
+  - **Paso 1 — Al terminar tu turno (0:00 – 0:06)**:
+    - Shows the **Mis Turnos** screen once a shift ends, highlighting the yellow reminder banner (*"Tienes 1 informe de turno pendiente"*) and the **Completar Informe de Turno** button with an animated tap effect.
+  - **Paso 2 — Anota las interacciones (0:06 – 0:12)**:
+    - Transitions into the **Informe de Turno** modal, focusing on the **"¿Cuántas interacciones tuvieron?"** input field and animating a number (`4`) being entered with a caption explaining what counts as an interaction.
+  - **Paso 3 — Comparte experiencias positivas (0:12 – 0:19)**:
+    - Focuses on the **"Comentarios o experiencias positivas"** text box and animates typing a short positive experience (*"Una joven se acercó al exhibidor y aceptó información..."*).
+  - **Paso 4 — Guarda tu informe (0:19 – 0:25)**:
+    - Animates tapping **"Guardar Informe"** and shows the shift card turning green (**"✅ Informe enviado • Interacciones: 4"**) while noting that they can still tap **Ver / Editar Informe** if they need to update it.
 
 ---
 
-## 2. Technical Architecture & Data Flow
+## 2. Technical Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                    Publisher App (index.html / app.js)                  │
-├─────────────────────────────────────────────────────────────────────────┤
-│ 1. Shift Finishes (Date + EndTime <= Now)                               │
-│    └── "Mis Turnos" shows pending report banner & "Completar Informe"   │
-│                                                                         │
-│ 2. Submit Informe Modal                                                 │
-│    ├── Inputs: Interactions (number) + Comments/Experiences (textarea)  │
-│    └── Saves to shifts/{shiftId}.reports[publisherId]                   │
-│                                                                         │
-│ 3. Cancel Shift (attemptCancel)                                         │
-│    ├── Preserves existing lastCancelledShift as 1st history entry       │
-│    ├── Removes UID from shifts/{shiftId}.participants                   │
-│    ├── Adds entry to shifts/{shiftId}.cancelledParticipants[]           │
-│    └── Increments publishers/{id}.cancelledCount & cancellationHistory[]│
-└─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│                   Admin Panel (admin.html / app-admin.js)               │
-├─────────────────────────────────────────────────────────────────────────┤
-│ • Directorio -> Ver Publicador Modal (#pub-view-modal)                  │
-│   ├── Summary Counters: Turnos | Cancelaciones | Interacciones          │
-│   └── Chronological Shift & Cancellation History for that Publisher     │
-│                                                                         │
-│ • New "Informes" Tab (#tab-reports)                                     │
-│   ├── Congregation KPIs: Total Reports, Interactions, Experiences       │
-│   └── Searchable / Month-filtered feed of all Informes de Turno         │
-└─────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                   Onboarding Guide (empezar.html)                    │
+├──────────────────────────────────────────────────────────────────────┤
+│  Paso 1. Obtén tus credenciales                                      │
+│  Paso 2. Instala la APP                                              │
+│  Paso 3. Entra y Configura la aplicación                             │
+│  Paso 4. Completa tu Informe de Turno (NEW)                          │
+│  ┌────────────────────────────────────────────────────────────────┐  │
+│  │        Embedded Animated Tutorial Player                       │  │
+│  │  ┌──────────────────────────────────────────────────────────┐  │  │
+│  │  │  Simulated Phone Viewport (CSS Keyframes + Step Engine)  │  │  │
+│  │  │  • Scene 1: "Mis Turnos" -> Tap "Completar Informe"      │  │  │
+│  │  │  • Scene 2: Enter Interactions Count (Animated Typing)   │  │  │
+│  │  │  • Scene 3: Write Positive Experience (Animated Typing)  │  │  │
+│  │  │  • Scene 4: Tap "Guardar" -> Green Confirmation Card     │  │  │
+│  │  └──────────────────────────────────────────────────────────┘  │  │
+│  │  Captions Bar (Spanish explanation for each scene)             │  │
+│  │  Controls: [ ⏮ ] [ ⏯ Play/Pausa ] [ ⏭ ]   Step Dots: ● ○ ○ ○  │  │
+│  └────────────────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────────────────┘
 ```
+
+## 3. Files to Modify
+- **`empezar.html`**:
+  - Add **Paso 4. Completa tu Informe de Turno** with the self-contained animated phone tutorial player, CSS animations, Spanish captions, and playback controls.

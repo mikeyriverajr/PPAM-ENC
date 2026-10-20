@@ -1,6 +1,6 @@
 {
-  "summary":  "Updated plan clarifying how past cancellations are recovered from existing lastCancelledShift data and adding full tracking for all future cancellations.",
-  "updatedAt":  "2026-10-20T20:31:41.987854886Z",
+  "summary":  "Revised implementation plan to embed the animated Informe de Turno tutorial player exclusively in the onboarding guide (empezar.html).",
+  "updatedAt":  "2026-10-20T20:59:26.043086936Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

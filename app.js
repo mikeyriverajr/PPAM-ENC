@@ -422,55 +422,283 @@ function filterAllShifts() {
 }
 
 let myCurrentShifts = [];
+let myAllAssignedShifts = [];
+let demoReportShift = null;
+
+function isTestPreviewEnv() {
+  const h = window.location.hostname || '';
+  return h.includes('run.app') || h === 'localhost' || h === '127.0.0.1';
+}
+
+function toggleDemoReportShift() {
+  if (demoReportShift) {
+    demoReportShift = null;
+  } else {
+    demoReportShift = {
+      id: '__demo_report_shift__',
+      date: getTodayString(),
+      time: '08:00 - 10:00',
+      location: 'Costanera (Turno de Prueba)',
+      participants: [currentUserPublisherId],
+      reports: {}
+    };
+  }
+  loadMyShifts();
+  if (demoReportShift) {
+    openShiftReportModal('__demo_report_shift__');
+  }
+}
+
+function getDaysAgoString(days) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function isShiftFinished(shift) {
+  if (!shift || !shift.date) return false;
+  const parts = (shift.time || '').split('-');
+  const endTime = (parts[1] || parts[0] || '23:59').trim();
+  const shiftEndDate = new Date(`${shift.date}T${endTime}:00`);
+  if (isNaN(shiftEndDate.getTime())) {
+    return shift.date < getTodayString();
+  }
+  return shiftEndDate <= new Date();
+}
+
 async function loadMyShifts() {
   if (!currentUserPublisherId) return;
   const container = document.getElementById('mine-container');
   container.innerHTML = '<p style="text-align:center; color:#666;">Buscando tus turnos...</p>';
   try {
     const todayStr = getTodayString();
+    const cutoffStr = getDaysAgoString(14);
     const shiftsSnapshot = await db.collection('shifts').where('participants', 'array-contains', currentUserPublisherId).get();
     myCurrentShifts = [];
+    myAllAssignedShifts = [];
+    const recentFinishedShifts = [];
+
     shiftsSnapshot.forEach(doc => {
         let s = doc.data(); s.id = doc.id;
-        if (s.date >= todayStr) myCurrentShifts.push(s);
+        myAllAssignedShifts.push(s);
+        if (isShiftFinished(s)) {
+            if (s.date >= cutoffStr) {
+                recentFinishedShifts.push(s);
+            }
+        } else if (s.date >= todayStr) {
+            myCurrentShifts.push(s);
+        }
     });
 
-    if (myCurrentShifts.length === 0) {
-      container.innerHTML = `<div style="text-align:center; padding: 30px 10px; background: white; border-radius: 10px; border: 1px dashed #ccc;"><p style="color:#666; margin:0;">No tienes próximos turnos asignados.</p></div>`;
-      return;
+    if (demoReportShift) {
+      myAllAssignedShifts.unshift(demoReportShift);
+      recentFinishedShifts.unshift(demoReportShift);
     }
 
     container.innerHTML = '';
-    myCurrentShifts.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    myCurrentShifts.forEach(shift => {
-      const others = (shift.participants || []).filter(id => id !== currentUserPublisherId).map(id => publisherCache[id]?.name || 'Desconocido');
-      const partnerText = others.length > 0 ? others.join(', ') : 'Solo/a';
-      const contactHtml = getShiftContactHtml(shift);
-      const shiftCard = document.createElement('div');
-      shiftCard.className = 'shift-card mine';
-      shiftCard.innerHTML = `
-        <div class="shift-card-header">
-          <h4 class="shift-card-title" style="color:#2c5282;"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">event</span>${formatSpanishDate(shift.date)}</h4>
-          <span class="shift-card-time"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">schedule</span>${shift.time}</span>
-        </div>
-        <p class="shift-card-detail" style="display:flex; justify-content:space-between; align-items:center;">
-          <span><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545; vertical-align:-3px;">location_on</span> <strong>${shift.location}</strong></span>
-          <button onclick="openLocationInfoModal('${shift.locationId}', '${shift.location}')" style="background:none; border:none; color:#2c5282; font-size:0.9em; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:3px;"><span class="material-symbols-outlined" style="font-size:1.1em;">info</span> Info</button>
-        </p>
-        <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> Con: ${partnerText}</p>
-        ${contactHtml}
-        <div class="card-actions" style="margin-top: 15px; border-top: 1px solid #f0f0f0; padding-top: 10px;">
-           <button onclick="attemptCancel('${shift.id}', '${shift.date}', '${shift.time}', '${shift.location}')" class="btn-action btn-danger" style="width: 100%;">Cancelar Turno</button>
-        </div>
+    // In AI Studio preview only: show a safe sandbox button to preview the Informe de Turno
+    if (isTestPreviewEnv()) {
+      const previewBar = document.createElement('div');
+      previewBar.style.cssText = 'background: #eef4ff; border: 1px dashed #5d7aa9; padding: 10px 15px; border-radius: 8px; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 0.88em; color: #2c5282;';
+      previewBar.innerHTML = `
+        <span><strong>🛠️ Modo Vista Previa (Solo en AI Studio):</strong> Prueba cómo se ve y funciona el <em>Informe de Turno</em> sin tocar la base de datos en vivo.</span>
+        <button type="button" onclick="toggleDemoReportShift()" class="btn-action" style="background: ${demoReportShift ? '#6c757d' : '#5d7aa9'}; color: white; padding: 6px 12px; font-size: 0.9em;">
+          <span class="material-symbols-outlined" style="font-size: 16px;">${demoReportShift ? 'visibility_off' : 'visibility'}</span>
+          ${demoReportShift ? 'Ocultar Turno de Prueba' : 'Ver / Probar Informe de Turno'}
+        </button>
       `;
-      container.appendChild(shiftCard);
+      container.appendChild(previewBar);
+    }
+
+    if (myCurrentShifts.length === 0 && recentFinishedShifts.length === 0) {
+      const emptyDiv = document.createElement('div');
+      emptyDiv.style.cssText = 'text-align:center; padding: 30px 10px; background: white; border-radius: 10px; border: 1px dashed #ccc;';
+      emptyDiv.innerHTML = `<p style="color:#666; margin:0;">No tienes próximos turnos asignados.</p>`;
+      container.appendChild(emptyDiv);
+      return;
+    }
+
+    myCurrentShifts.sort((a, b) => a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || ''));
+    recentFinishedShifts.sort((a, b) => b.date.localeCompare(a.date) || (b.time || '').localeCompare(a.time || ''));
+
+    // Check if there are finished shifts without a submitted report from this publisher
+    const pendingReportShifts = recentFinishedShifts.filter(s => !(s.reports && s.reports[currentUserPublisherId]));
+    if (pendingReportShifts.length > 0) {
+      const firstPending = pendingReportShifts[0];
+      const bannerDiv = document.createElement('div');
+      bannerDiv.style.cssText = 'background: #fff8e6; border: 1px solid #ffd88a; border-left: 5px solid #f59f00; padding: 15px 18px; border-radius: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap;';
+      bannerDiv.innerHTML = `
+        <div style="display: flex; align-items: flex-start; gap: 10px; flex: 1; min-width: 220px;">
+          <span class="material-symbols-outlined" style="color: #d97706; font-size: 26px; margin-top: 2px;">assignment_late</span>
+          <div>
+            <strong style="color: #92400e; display: block; margin-bottom: 3px;">Tienes ${pendingReportShifts.length === 1 ? '1 informe de turno pendiente' : `${pendingReportShifts.length} informes de turno pendientes`}</strong>
+            <span style="font-size: 0.9em; color: #78350f;">Por favor, completa tu Informe de Turno para compartir cuántas interacciones tuvieron y cualquier experiencia positiva.</span>
+          </div>
+        </div>
+        <button type="button" onclick="openShiftReportModal('${firstPending.id}')" class="btn-action" style="background: #f59f00; color: white; white-space: nowrap;">
+          <span class="material-symbols-outlined" style="font-size: 18px;">edit_note</span> Completar Informe
+        </button>
+      `;
+      container.appendChild(bannerDiv);
+    }
+
+    if (myCurrentShifts.length > 0) {
+      myCurrentShifts.forEach(shift => {
+        const others = (shift.participants || []).filter(id => id && id !== "Disponible" && id !== currentUserPublisherId).map(id => publisherCache[id]?.name || 'Desconocido');
+        const partnerText = others.length > 0 ? others.join(', ') : 'Solo/a';
+        const contactHtml = getShiftContactHtml(shift);
+        const shiftCard = document.createElement('div');
+        shiftCard.className = 'shift-card mine';
+        shiftCard.innerHTML = `
+          <div class="shift-card-header">
+            <h4 class="shift-card-title" style="color:#2c5282;"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">event</span>${formatSpanishDate(shift.date)}</h4>
+            <span class="shift-card-time"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">schedule</span>${shift.time}</span>
+          </div>
+          <p class="shift-card-detail" style="display:flex; justify-content:space-between; align-items:center;">
+            <span><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545; vertical-align:-3px;">location_on</span> <strong>${shift.location}</strong></span>
+            <button onclick="openLocationInfoModal('${shift.locationId}', '${shift.location}')" style="background:none; border:none; color:#2c5282; font-size:0.9em; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:3px;"><span class="material-symbols-outlined" style="font-size:1.1em;">info</span> Info</button>
+          </p>
+          <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> Con: ${partnerText}</p>
+          ${contactHtml}
+          <div class="card-actions" style="margin-top: 15px; border-top: 1px solid #f0f0f0; padding-top: 10px;">
+             <button onclick="attemptCancel('${shift.id}', '${shift.date}', '${shift.time}', '${shift.location}')" class="btn-action btn-danger" style="width: 100%;">Cancelar Turno</button>
+          </div>
+        `;
+        container.appendChild(shiftCard);
+      });
+    } else {
+      const noUpcoming = document.createElement('div');
+      noUpcoming.style.cssText = 'text-align:center; padding: 20px 10px; background: white; border-radius: 10px; border: 1px dashed #ccc; margin-bottom: 20px;';
+      noUpcoming.innerHTML = '<p style="color:#666; margin:0;">No tienes próximos turnos asignados.</p>';
+      container.appendChild(noUpcoming);
+    }
+
+    if (recentFinishedShifts.length > 0) {
+      const finishedHeader = document.createElement('div');
+      finishedHeader.style.cssText = 'margin: 25px 0 12px 0; padding: 0 5px; display: flex; align-items: center; gap: 8px;';
+      finishedHeader.innerHTML = `<h4 style="margin: 0; color: #444; font-size: 1.1em; display: flex; align-items: center; gap: 6px;"><span class="material-symbols-outlined" style="color: #5d7aa9; font-size: 20px;">task_alt</span> Turnos Recién Finalizados (Informe de Turno)</h4>`;
+      container.appendChild(finishedHeader);
+
+      recentFinishedShifts.forEach(shift => {
+        const others = (shift.participants || []).filter(id => id && id !== "Disponible" && id !== currentUserPublisherId).map(id => publisherCache[id]?.name || 'Desconocido');
+        const partnerText = others.length > 0 ? others.join(', ') : 'Solo/a';
+        const myReport = shift.reports ? shift.reports[currentUserPublisherId] : null;
+        const shiftCard = document.createElement('div');
+        shiftCard.className = 'shift-card';
+        shiftCard.style.borderLeft = myReport ? '5px solid #28a745' : '5px solid #f59f00';
+
+        let reportSummaryHtml = '';
+        let actionBtnHtml = '';
+        if (myReport) {
+          reportSummaryHtml = `
+            <div style="background: #f0f9f2; border: 1px solid #c3e6cb; border-radius: 8px; padding: 10px 12px; margin-top: 6px; font-size: 0.9em; color: #155724;">
+              <div style="font-weight: 600; display: flex; align-items: center; gap: 5px;">
+                <span class="material-symbols-outlined" style="font-size: 16px; color: #28a745;">check_circle</span>
+                Informe enviado • Interacciones: ${myReport.interactions ?? 0}
+              </div>
+              ${myReport.comments ? `<p style="margin: 5px 0 0 0; color: #2d5738; font-style: italic;">"${myReport.comments}"</p>` : ''}
+            </div>
+          `;
+          actionBtnHtml = `<button type="button" onclick="openShiftReportModal('${shift.id}')" class="btn-action" style="width: 100%; background: #eef2f7; color: #2c5282; border: 1px solid #cdd8e6;"><span class="material-symbols-outlined" style="font-size: 18px;">edit</span> Ver / Editar Informe</button>`;
+        } else {
+          actionBtnHtml = `<button type="button" onclick="openShiftReportModal('${shift.id}')" class="btn-action" style="width: 100%; background: #5d7aa9; color: white;"><span class="material-symbols-outlined" style="font-size: 18px;">assignment</span> Completar Informe de Turno</button>`;
+        }
+
+        shiftCard.innerHTML = `
+          <div class="shift-card-header">
+            <h4 class="shift-card-title" style="color:#333;"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px; color: ${myReport ? '#28a745' : '#f59f00'};">event_available</span>${formatSpanishDate(shift.date)}</h4>
+            <span class="shift-card-time"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">schedule</span>${shift.time}</span>
+          </div>
+          <p class="shift-card-detail">
+            <span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545;">location_on</span> <strong>${shift.location}</strong>
+          </p>
+          <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> Con: ${partnerText}</p>
+          ${reportSummaryHtml}
+          <div class="card-actions" style="margin-top: 12px; border-top: 1px solid #f0f0f0; padding-top: 10px;">
+            ${actionBtnHtml}
+          </div>
+        `;
+        container.appendChild(shiftCard);
+      });
+    }
+  } catch (error) {
+    console.error("Error loading my shifts:", error);
+    container.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar tus turnos.</p>';
+  }
+}
+
+function openShiftReportModal(shiftId) {
+  const shift = myAllAssignedShifts.find(s => s.id === shiftId);
+  if (!shift) {
+    showToast("No se encontró la información del turno.", "error");
+    return;
+  }
+  document.getElementById('report-shift-id').value = shiftId;
+  const others = (shift.participants || []).filter(id => id && id !== "Disponible" && id !== currentUserPublisherId).map(id => publisherCache[id]?.name || 'Desconocido');
+  const partnerText = others.length > 0 ? others.join(', ') : (shiftId === '__demo_report_shift__' ? 'Compañero de Ejemplo' : 'Solo/a');
+
+  document.getElementById('report-shift-summary').innerHTML = `
+    <div><strong>Fecha:</strong> ${formatSpanishDate(shift.date)} (${shift.time})</div>
+    <div><strong>Ubicación:</strong> ${shift.location}</div>
+    <div><strong>Compañero(a):</strong> ${partnerText}</div>
+  `;
+
+  const existingReport = shift.reports ? shift.reports[currentUserPublisherId] : null;
+  document.getElementById('report-interactions').value = existingReport && existingReport.interactions !== undefined ? existingReport.interactions : 0;
+  document.getElementById('report-comments').value = existingReport && existingReport.comments ? existingReport.comments : '';
+
+  document.getElementById('shift-report-modal').style.display = 'flex';
+}
+
+function closeShiftReportModal() {
+  document.getElementById('shift-report-modal').style.display = 'none';
+}
+
+async function saveShiftReport() {
+  const shiftId = document.getElementById('report-shift-id').value;
+  if (!shiftId || !currentUserPublisherId) return;
+
+  const interactionsRaw = document.getElementById('report-interactions').value;
+  const interactions = Math.max(0, parseInt(interactionsRaw, 10) || 0);
+  const comments = document.getElementById('report-comments').value.trim();
+  const btn = document.getElementById('btn-save-report');
+  btn.disabled = true;
+
+  try {
+    const reportPayload = {
+      publisherId: currentUserPublisherId,
+      publisherName: publisherCache[currentUserPublisherId]?.name || '',
+      interactions: interactions,
+      comments: comments,
+      updatedAt: new Date().toISOString()
+    };
+
+    if (shiftId === '__demo_report_shift__' && demoReportShift) {
+      demoReportShift.reports[currentUserPublisherId] = reportPayload;
+      closeShiftReportModal();
+      showToast("¡Informe de prueba guardado (solo en vista previa)!");
+      await loadMyShifts();
+      return;
+    }
+
+    await db.collection('shifts').doc(shiftId).update({
+      [`reports.${currentUserPublisherId}`]: reportPayload
     });
-  } catch (error) { container.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar tus turnos.</p>'; }
+
+    closeShiftReportModal();
+    showToast("¡Informe de turno guardado! Muchas gracias.");
+    await loadMyShifts();
+  } catch (err) {
+    console.error("Error al guardar informe:", err);
+    showToast("Error al guardar el informe: " + err.message, "error");
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function attemptCancel(shiftId, dateStr, timeStr, locationName) {
-  const startTime = timeStr.split('-')[0];
+  const startTime = timeStr.split('-')[0].trim();
   const shiftDateTime = new Date(`${dateStr}T${startTime}:00`);
   const now = new Date();
 
@@ -480,12 +708,67 @@ async function attemptCancel(shiftId, dateStr, timeStr, locationName) {
   if(!isConfirmed) return;
 
   try {
+    const nowIso = new Date().toISOString();
     const shiftRef = db.collection('shifts').doc(shiftId);
     const docSnap = await shiftRef.get();
-    let currentParticipants = docSnap.data().participants || [];
+    const shiftData = docSnap.data() || {};
+    let currentParticipants = shiftData.participants || [];
     currentParticipants = currentParticipants.filter(id => id !== currentUserPublisherId);
-    await shiftRef.update({ participants: currentParticipants });
-    await db.collection('publishers').doc(currentUserPublisherId).update({ lastCancelledShift: new Date().toISOString() });
+
+    const cancelledParticipants = Array.isArray(shiftData.cancelledParticipants) ? [...shiftData.cancelledParticipants] : [];
+    cancelledParticipants.push({
+      publisherId: currentUserPublisherId,
+      publisherName: publisherCache[currentUserPublisherId]?.name || '',
+      cancelledAt: nowIso
+    });
+
+    await shiftRef.update({
+      participants: currentParticipants,
+      cancelledParticipants: cancelledParticipants
+    });
+
+    // Preserve any existing legacy lastCancelledShift and increment cancellation count
+    const pubRef = db.collection('publishers').doc(currentUserPublisherId);
+    const pubSnap = await pubRef.get();
+    const pubData = pubSnap.exists ? pubSnap.data() : (currentPubData || {});
+    let history = Array.isArray(pubData.cancellationHistory) ? [...pubData.cancellationHistory] : [];
+
+    if (history.length === 0 && pubData.lastCancelledShift) {
+      history.push({
+        shiftId: 'legacy',
+        date: pubData.lastCancelledShift.split('T')[0],
+        time: '',
+        location: 'Cancelación anterior registrada',
+        cancelledAt: pubData.lastCancelledShift,
+        isLegacy: true
+      });
+    }
+
+    const baseCount = typeof pubData.cancelledCount === 'number'
+      ? pubData.cancelledCount
+      : (pubData.lastCancelledShift ? Math.max(1, history.length) : history.length);
+    const newCancelledCount = baseCount + 1;
+
+    history.push({
+      shiftId: shiftId,
+      date: dateStr,
+      time: timeStr,
+      location: locationName,
+      cancelledAt: nowIso
+    });
+
+    await pubRef.update({
+      lastCancelledShift: nowIso,
+      cancelledCount: newCancelledCount,
+      cancellationHistory: history
+    });
+
+    if (currentPubData) {
+      currentPubData.lastCancelledShift = nowIso;
+      currentPubData.cancelledCount = newCancelledCount;
+      currentPubData.cancellationHistory = history;
+    }
+
     showToast("Turno cancelado exitosamente.");
     loadMyShifts(); loadAvailableShifts(); loadShifts();
   } catch (err) { showToast("Error al cancelar: " + err.message, "error"); }

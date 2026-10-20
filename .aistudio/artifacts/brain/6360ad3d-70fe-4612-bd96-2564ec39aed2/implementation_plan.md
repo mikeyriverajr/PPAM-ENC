@@ -1,83 +1,93 @@
-# Multi-Pair Location Availability: Analysis & Implementation Plan
+# Informe de Turno & Publisher Shift History Plan
 
-This document explains why the `Ex-Hospital Regional 1` / `Ex-Hospital Regional 2` availability dilemma happens in the current architecture and proposes a zero-friction solution that works immediately with your existing locations and publishers.
+This plan adds post-shift reporting (**Informe de Turno**) for publishers once their shift finishes, tracks detailed cancellation history, and gives administrators both a dedicated **Informes** tab and a per-publisher **Shift & Cancellation History** view in the Directory.
 
 ## User Review & Critical Decisions
 
 > [!IMPORTANT]
-> **Why You Currently Need Two Locations (`... 1` and `... 2`)**:
-> If you set a single location to `Capacidad: 4`, the app creates a single 4-person shift (`[Pub1, Pub2, Pub3, Pub4]`). In **Mis Turnos**, everyone sees all 3 other names together (`Con: Pub2, Pub3, Pub4`) without knowing who is paired with whom, and any cancellation notifies all 3 people.
->
-> Having two 2-person shifts (`Ex-Hospital Regional 1` and `Ex-Hospital Regional 2`) is actually the **best way** to keep the two pairs separate on the schedule—the only problem is that **Mi Horario** treats them as two unrelated locations!
+> **How Past Cancellations Are Handled:**
+> - **What your database currently has**: Previously, `attemptCancel()` in `app.js` only saved a single field—`lastCancelledShift` (the date/time of the most recent cancellation)—and overwrote it each time without incrementing a counter or saving which shift was cancelled.
+> - **What will be included automatically**:
+>   1. Any publisher who has a `lastCancelledShift` timestamp in Firestore will automatically start with **1 cancellation** recorded in their history (showing the exact date & time from `lastCancelledShift`) instead of `0`.
+>   2. If a publisher cancelled *multiple* times in the past, Firestore only kept the last timestamp because the old code overwrote it. From this update forward, **every** cancellation will be permanently counted and logged with the shift's date, time, location, and cancellation timestamp.
 
-- **Recommended Solution (Unified Availability for Numbered Locations)**:
-  1. **In the Generator & Admin Disponibilidad Tab (`app-admin.js`)**: Automatically link locations that share the same base name (e.g., `Ex-Hospital Regional 1` and `Ex-Hospital Regional 2` → base name `Ex-Hospital Regional`) at the same day and time. If a publisher checked *either* `Ex-Hospital Regional 1` *or* `Ex-Hospital Regional 2` on Wednesday at 10:00, the generator automatically considers them available for **both** shifts (while still never assigning the same person to both at once).
-  2. **In the Publisher's "Mi Horario" Tab (`app.js`)**: Merge sibling numbered locations (`Ex-Hospital Regional 1` and `Ex-Hospital Regional 2`) that have the same day and time into **one single checkbox** (`Ex-Hospital Regional (10:00 - 12:00)`). When the publisher checks that single box and saves, it automatically saves both location keys behind the scenes.
-
----
-
-## 1. Overview & How the Recommendation Works
-
-### Why This Solves the Dilemma Immediately
-1. **No Publisher Action Needed**: Even before publishers open the app again, the generator will treat anyone who selected `Ex-Hospital Regional 1` (or `2`) on Wednesday at 10:00 AM as available for **both** `Ex-Hospital Regional 1` and `Ex-Hospital Regional 2`.
-2. **Simpler "Mi Horario" Screen for Publishers**: When publishers go to **Mi Horario**, they will no longer see duplicate checkboxes like:
-   - `Ex-Hospital Regional 1 (10:00 - 12:00)`
-   - `Ex-Hospital Regional 2 (10:00 - 12:00)`
-   Instead, they will see a single unified checkbox:
-   - `Ex-Hospital Regional (10:00 - 12:00)`
-   Checking that one box checks all matching numbered sub-locations for that day and time.
-3. **Preserves Pair Separation on the Calendar**:
-   - In the Admin Generator and the live calendar, `Ex-Hospital Regional 1` and `Ex-Hospital Regional 2` remain two separate 2-person shifts.
-   - You keep 100% control over which pair works together in Shift 1 vs. Shift 2.
-   - Each publisher in **Mis Turnos** only sees their actual 1 partner (`Con: ...`), and push/email notifications only go to their partner.
+- **Zero-Config Compatibility with Live Firestore Rules & Cloud Functions**:
+  - Shift reports are stored inside `shifts/{shiftId}` (`reports.{publisherId}`) and cancellation logs inside `publishers/{id}` (`cancelledCount` + `cancellationHistory`), working immediately with your existing Firestore Security Rules without triggering unwanted push/email notifications.
 
 ---
 
-## 2. User Experience & Visual Design
+## 1. Overview & User Flows
 
-### Publisher View (`index.html` / `app.js` — "Mi Horario")
-- **Unified Checkbox Display**:
-  - Locations whose names only differ by a trailing number (e.g., `Ex-Hospital Regional 1`, `Ex-Hospital Regional 2`, or `Costanera #1`, `Costanera #2`) and share the same `day` and `startTime - endTime` are grouped into one row labeled with the clean base name (`Ex-Hospital Regional (10:00 - 12:00)`).
-  - If the publisher previously had *either* `1` or `2` checked, the unified checkbox appears **checked**.
-  - When they click **Guardar Horario**, the app writes both `loc1Id_day_startTime` and `loc2Id_day_startTime` into their `availability` array in Firestore.
+### A. Publisher Flow: Filling Out the "Informe de Turno" (`index.html` / `app.js`)
+1. **Detecting Finished Shifts**:
+   - In `loadMyShifts()`, the app checks the publisher's assigned shifts:
+     - **Upcoming Shifts**: Shifts in the future (or today before `endTime`) show the normal shift card with **Cancelar Turno**.
+     - **Finished Shifts (Last 14 Days)**: Once `${shift.date} ${endTime}` has passed, the shift card transitions from "Cancelar Turno" to **"📋 Completar Informe de Turno"** (or **"✅ Informe Enviado — Ver / Editar"** if already submitted).
+   - If the publisher has at least one finished shift from the last 14 days with no report submitted yet, a prominent alert banner at the top of **Mis Turnos** prompts them to submit their report.
+2. **Informe de Turno Modal**:
+   - Displays the shift's **Fecha**, **Ubicación**, **Horario**, and **Compañero(a)**.
+   - **¿Cuántas interacciones tuvieron?** (Numeric input, `0` or more).
+   - **Comentarios o experiencias positivas** (Textarea for sharing experiences, observations, or incidents).
+   - **Guardar Informe** button saves the report to `shifts/{shiftId}` under `reports.{publisherId}` (recording `publisherId`, `publisherName`, `interactions`, `comments`, `updatedAt`).
 
-### Admin View (`admin.html` / `app-admin.js`)
-- **Generator (`generateDraft`)**:
-  - Automatically builds a shared availability group for any locations that share the same normalized base name + day + start time.
-  - A publisher who has *any* of those sibling keys in their `availability` is eligible for all sibling shifts at that time (and once assigned to `Ex-Hospital Regional 1` on that day, `canAssign()` naturally prevents them from also being assigned to `Ex-Hospital Regional 2` on the same day).
-- **Manual Shift Edit Modal (`openShiftEditModal`) & Consultar Disponibilidad Tab (`checkAvailability`)**:
-  - Also uses the shared sibling availability check so when you manually edit `Ex-Hospital Regional 2` or check availability in Tab 4, publishers who only checked `Ex-Hospital Regional 1` appear under `✅ Disponibles (Aprobados)` instead of `❌ No Disponibles`!
-- **Admin Publisher Edit Modal (`buildAdminAvailabilityForm`)**:
-  - Also groups sibling numbered locations into a single checkbox so admins editing a publisher's availability don't have to check both `1` and `2` manually either.
+### B. Cancellation Tracking (`app.js`)
+- When a publisher cancels a shift via `attemptCancel()`:
+  - Calculates the base count (`pub.cancelledCount` if present, or `1` if `pub.lastCancelledShift` already existed, else `0`) and increments it by `1`.
+  - Appends `{ shiftId, date, time, location, cancelledAt }` to `cancellationHistory` on their `publishers/{id}` document (and if they had a legacy `lastCancelledShift` not yet in `cancellationHistory`, preserves it as the first entry so it is never lost).
+  - Also records `{ publisherId, cancelledAt }` in `cancelledParticipants` on the `shifts/{shiftId}` document so shift history retains cancelled shifts even after the user is removed from `participants`.
+
+### C. Admin Flow 1: Publisher Shift & Cancellation History (`admin.html` / `app-admin.js`)
+- When an admin clicks a publisher in **Directorio** (`viewPublisher(id)`):
+  - **Summary Badges**:
+    - **Turnos Asignados**: Count of completed + upcoming shifts in the database.
+    - **Cancelaciones**: Total cancellation count (automatically includes `1` for any existing `lastCancelledShift` plus all newly tracked cancellations).
+    - **Interacciones Reportadas**: Sum of interactions from reports they submitted.
+  - **Historial de Turnos y Cancelaciones Section**:
+    - Lists the publisher's shifts (most recent first) showing Date, Location, Time, Partner(s), and status badge (`Próximo`, `Completado`, or `Cancelado`), plus any submitted interaction count and comment.
+    - Lists all recorded cancellation events (including the legacy `lastCancelledShift` date/time if present).
+
+### D. Admin Flow 2: Congregation-Wide "Informes" Tab (`admin.html` / `app-admin.js`)
+- Adds a 5th tab in the Admin navigation bar: **`📋 Informes`**.
+- **Top Summary Cards**:
+  - **Informes Recibidos** (count of submitted shift reports)
+  - **Total de Interacciones** (sum of interactions across filtered reports)
+  - **Experiencias / Comentarios** (count of reports with written comments)
+- **Filters & Feed**:
+  - Filter by **Mes** and search by **Publicador, Ubicación o Comentario**.
+  - Displays each report card with Date, Location, Time, Publisher name, Partner name, an **Interacciones** badge, and the full text of their comment or positive experience.
 
 ---
 
-## 3. Key Product Decisions & Trade-Offs
-
-- **Decision 1: Automatic Base-Name Grouping (`getBaseLocationName`) vs. Restructuring Database**
-  - *Chosen Approach*: Normalize location names by stripping trailing numbers/markers (e.g. `"Ex-Hospital Regional 1"` → `"Ex-Hospital Regional"`) to detect sibling locations at the same day & time.
-  - *Why*: Requires zero database migration, works immediately with your existing `Ex-Hospital Regional 1` and `Ex-Hospital Regional 2` locations, and automatically works for any future numbered locations you create (e.g., `Plaza 1` & `Plaza 2`).
-
----
-
-## 4. Technical Architecture & Data Flow
+## 2. Technical Architecture & Data Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│             Sibling Location Grouping (getBaseLocationName)             │
-│   "Ex-Hospital Regional 1" ─┐                                           │
-│                             ├──► Base Name: "Ex-Hospital Regional"      │
-│   "Ex-Hospital Regional 2" ─┘    Same Day + Same Time (Mié 10:00-12:00) │
+│                    Publisher App (index.html / app.js)                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│ 1. Shift Finishes (Date + EndTime <= Now)                               │
+│    └── "Mis Turnos" shows pending report banner & "Completar Informe"   │
+│                                                                         │
+│ 2. Submit Informe Modal                                                 │
+│    ├── Inputs: Interactions (number) + Comments/Experiences (textarea)  │
+│    └── Saves to shifts/{shiftId}.reports[publisherId]                   │
+│                                                                         │
+│ 3. Cancel Shift (attemptCancel)                                         │
+│    ├── Preserves existing lastCancelledShift as 1st history entry       │
+│    ├── Removes UID from shifts/{shiftId}.participants                   │
+│    ├── Adds entry to shifts/{shiftId}.cancelledParticipants[]           │
+│    └── Increments publishers/{id}.cancelledCount & cancellationHistory[]│
 └─────────────────────────────────────────────────────────────────────────┘
-                   │                                     │
-                   ▼                                     ▼
-┌────────────────────────────────────┐ ┌──────────────────────────────────┐
-│   Publisher App ("Mi Horario")     │ │   Admin Generator & Edit Modal   │
-├────────────────────────────────────┤ ├──────────────────────────────────┤
-│ • Shows 1 unified checkbox:        │ │ • Treats availability in ANY     │
-│   "Ex-Hospital Regional (10-12)"   │ │   sibling location at that day & │
-│ • Checked if user has loc1 OR loc2 │ │   time as valid for BOTH shifts  │
-│ • Saving writes BOTH loc1 & loc2   │ │ • Prevents assigning the same    │
-│   keys to Firestore availability[] │ │   person to both simultaneously  │
-└────────────────────────────────────┘ └──────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                   Admin Panel (admin.html / app-admin.js)               │
+├─────────────────────────────────────────────────────────────────────────┤
+│ • Directorio -> Ver Publicador Modal (#pub-view-modal)                  │
+│   ├── Summary Counters: Turnos | Cancelaciones | Interacciones          │
+│   └── Chronological Shift & Cancellation History for that Publisher     │
+│                                                                         │
+│ • New "Informes" Tab (#tab-reports)                                     │
+│   ├── Congregation KPIs: Total Reports, Interactions, Experiences       │
+│   └── Searchable / Month-filtered feed of all Informes de Turno         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```

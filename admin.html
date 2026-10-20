@@ -140,6 +140,7 @@
         <div class="tab" onclick="switchAdminTab('locations')" id="tab-btn-locations"><span class="material-symbols-outlined">location_on</span> Ubicaciones</div>
         <div class="tab" onclick="switchAdminTab('schedule')" id="tab-btn-schedule"><span class="material-symbols-outlined">calendar_month</span> Generador</div>
         <div class="tab" onclick="switchAdminTab('availability')" id="tab-btn-availability"><span class="material-symbols-outlined">event_available</span> Disponibilidad</div>
+        <div class="tab" onclick="switchAdminTab('reports')" id="tab-btn-reports"><span class="material-symbols-outlined">assignment</span> Informes</div>
     </div>
     
     <div id="tab-users" class="tab-content active">
@@ -156,11 +157,26 @@
     </div>
 
     <div id="pub-view-modal" class="modal">
-      <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-content" style="max-width: 650px;">
           <span class="close-modal" onclick="closePubViewModal()"><span class="material-symbols-outlined">close</span></span>
           <h3 id="view-pub-name" style="margin-top: 0; color: #333; font-size: 1.4em; border-bottom: 1px solid #f0f0f0; padding-bottom: 15px; display:flex; align-items:center; gap:10px;">Nombre</h3>
+
+          <div style="display: flex; gap: 10px; margin-top: 15px; margin-bottom: 15px; flex-wrap: wrap;">
+              <div style="flex: 1; min-width: 120px; background: #eef2f7; padding: 12px; border-radius: 8px; text-align: center; border: 1px solid #dce4ee;">
+                  <div id="view-pub-shifts-count" style="font-size: 1.4em; font-weight: bold; color: #2c5282;">-</div>
+                  <div style="font-size: 0.78em; color: #555; font-weight: 600; text-transform: uppercase;">Turnos Asignados</div>
+              </div>
+              <div style="flex: 1; min-width: 120px; background: #fff5f5; padding: 12px; border-radius: 8px; text-align: center; border: 1px solid #f5c6cb;">
+                  <div id="view-pub-cancels-count" style="font-size: 1.4em; font-weight: bold; color: #dc3545;">-</div>
+                  <div style="font-size: 0.78em; color: #721c24; font-weight: 600; text-transform: uppercase;">Cancelaciones</div>
+              </div>
+              <div style="flex: 1; min-width: 120px; background: #e6f4ea; padding: 12px; border-radius: 8px; text-align: center; border: 1px solid #c3e6cb;">
+                  <div id="view-pub-interactions-count" style="font-size: 1.4em; font-weight: bold; color: #28a745;">-</div>
+                  <div style="font-size: 0.78em; color: #155724; font-weight: 600; text-transform: uppercase;">Interacciones</div>
+              </div>
+          </div>
           
-          <div class="data-list" style="margin-top: 20px;">
+          <div class="data-list" style="margin-top: 15px;">
               <div style="display:flex; gap: 20px;">
                   <div class="data-item" style="flex:1;"><span class="data-label">Estado</span><span class="data-value" id="view-pub-status">Aprobado</span></div>
                   <div class="data-item" style="flex:1;"><span class="data-label">Límite Mensual</span><span class="data-value" id="view-pub-max">5 turnos</span></div>
@@ -185,9 +201,20 @@
                   <div class="data-item" style="flex:1;"><span class="data-label">Último Cambio de Perfil</span><span class="data-value" id="view-pub-lastprofile" style="font-size: 0.9em;">-</span></div>
                   <div class="data-item" style="flex:1;"><span class="data-label">Último Turno Cancelado</span><span class="data-value" id="view-pub-lastcancel" style="font-size: 0.9em;">-</span></div>
               </div>
+
+              <hr style="border:0; border-top:1px solid #eee; width:100%; margin: 5px 0;">
+
+              <div>
+                  <h4 style="margin: 0 0 10px 0; color: #5d7aa9; display: flex; align-items: center; gap: 6px; font-size: 1em;">
+                      <span class="material-symbols-outlined" style="font-size: 20px;">history</span> Historial de Turnos y Cancelaciones
+                  </h4>
+                  <div id="view-pub-history-container" style="max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background: #f8f9fa; padding: 12px; border-radius: 8px; border: 1px solid #eaeaea;">
+                      <p style="margin: 0; color: #666; font-size: 0.9em; text-align: center;">Cargando historial...</p>
+                  </div>
+              </div>
           </div>
           
-          <div style="margin-top: 30px; display: flex; justify-content: flex-end;">
+          <div style="margin-top: 25px; display: flex; justify-content: flex-end;">
               <button onclick="switchToEditPub()" class="btn-action btn-info"><span class="material-symbols-outlined">edit</span> Editar Publicador</button>
           </div>
       </div>
@@ -491,6 +518,58 @@
         </div>
     </div>
 
+    <div id="tab-reports" class="tab-content">
+        <div class="panel">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
+                <div>
+                    <h3 style="margin: 0; color: #5d7aa9; display: flex; align-items: center; gap: 8px;"><span class="material-symbols-outlined">assignment</span> Informes de Turno</h3>
+                    <p style="color: #666; font-size: 0.95em; margin: 4px 0 0 0;">Revisa las interacciones y experiencias positivas compartidas por los publicadores al finalizar sus turnos.</p>
+                </div>
+                <button type="button" onclick="loadShiftReports()" class="btn-action btn-primary" style="padding: 8px 15px;">
+                    <span class="material-symbols-outlined" style="font-size: 18px;">refresh</span> Actualizar
+                </button>
+            </div>
+
+            <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 160px; background: #f4f7fb; padding: 15px; border-radius: 10px; border: 1px solid #dce4ee; text-align: center;">
+                    <div id="rep-kpi-total" style="font-size: 1.8em; font-weight: bold; color: #2c5282;">0</div>
+                    <div style="font-size: 0.85em; color: #555; font-weight: 600;">Informes Recibidos</div>
+                </div>
+                <div style="flex: 1; min-width: 160px; background: #e6f4ea; padding: 15px; border-radius: 10px; border: 1px solid #c3e6cb; text-align: center;">
+                    <div id="rep-kpi-interactions" style="font-size: 1.8em; font-weight: bold; color: #28a745;">0</div>
+                    <div style="font-size: 0.85em; color: #155724; font-weight: 600;">Total de Interacciones</div>
+                </div>
+                <div style="flex: 1; min-width: 160px; background: #fff8e6; padding: 15px; border-radius: 10px; border: 1px solid #ffeeba; text-align: center;">
+                    <div id="rep-kpi-comments" style="font-size: 1.8em; font-weight: bold; color: #d97706;">0</div>
+                    <div style="font-size: 0.85em; color: #856404; font-weight: 600;">Experiencias / Comentarios</div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center;">
+                <div style="min-width: 180px;">
+                    <select id="rep-month-filter" onchange="renderShiftReports()" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white;">
+                        <option value="">Todos los meses</option>
+                    </select>
+                </div>
+                <div style="min-width: 200px;">
+                    <select id="rep-status-filter" onchange="renderShiftReports()" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white;">
+                        <option value="all">Todos los informes enviados</option>
+                        <option value="comments">Solo con comentarios / experiencias</option>
+                        <option value="pending">Turnos finalizados sin informe</option>
+                    </select>
+                </div>
+                <div class="search-wrapper" style="min-width: 220px;">
+                    <span class="material-symbols-outlined search-icon">search</span>
+                    <input type="text" id="rep-search-input" class="search-box" placeholder="Buscar publicador, ubicación o experiencia..." oninput="renderShiftReports()">
+                </div>
+            </div>
+
+            <div id="reports-list-container" style="display: flex; flex-direction: column; gap: 12px;">
+                <p style="color: #666; text-align: center;">Cargando informes...</p>
+            </div>
+        </div>
+    </div>
+
     <!-- Estadísticas del Borrador Modal -->
     <div id="stats-modal" class="modal">
       <div class="modal-content" style="max-width: 600px;">
@@ -588,6 +667,6 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
 <script src="firebase-config.js"></script>
-<script src="app-admin.js?v=9"></script>
+<script src="app-admin.js?v=10"></script>
 </body>
 </html>

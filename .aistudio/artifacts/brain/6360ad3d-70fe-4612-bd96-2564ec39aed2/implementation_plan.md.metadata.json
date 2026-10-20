@@ -1,6 +1,6 @@
 {
-  "summary":  "Analysis and implementation plan for handling multi-pair locations (e.g., Ex-Hospital Regional 1 & Ex-Hospital Regional 2) by unifying their availability selection in Mi Horario and sharing their availability pool in the generator.",
-  "updatedAt":  "2026-10-20T19:50:04.996286192Z",
+  "summary":  "Updated plan clarifying how past cancellations are recovered from existing lastCancelledShift data and adding full tracking for all future cancellations.",
+  "updatedAt":  "2026-10-20T20:31:41.987854886Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

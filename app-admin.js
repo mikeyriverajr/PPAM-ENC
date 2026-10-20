@@ -113,6 +113,9 @@ function switchAdminTab(tabId) {
   if (tabId === 'availability') {
       loadAvailabilityLocations();
   }
+  if (tabId === 'reports') {
+      loadShiftReports();
+  }
 }
 
 // ==========================================
@@ -159,8 +162,10 @@ async function loadPublishers() {
       const genderIcon = pub.gender === 'M' ? 'woman' : 'man';
       const statusBadge = pub.status === 'Entrenamiento' ? `<span class="badge-warning">Entrenamiento</span>` : '';
       const hardPairBadge = pub.hardPair ? `<span class="badge-red">Pareja Estricta</span>` : '';
+      const cancelCount = getPublisherCancelCount(pub);
+      const cancelBadge = cancelCount > 0 ? `<span class="badge-red" title="Turnos cancelados">Cancelaciones: ${cancelCount}</span>` : '';
       card.innerHTML = `
-        <div><h4 class="pub-name" style="margin:0 0 5px 0; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="color:#5d7aa9;">${genderIcon}</span> ${pub.firstName} ${pub.lastName || ''} ${statusBadge} ${hardPairBadge}</h4>
+        <div><h4 class="pub-name" style="margin:0 0 5px 0; display:flex; align-items:center; gap:5px; flex-wrap:wrap;"><span class="material-symbols-outlined" style="color:#5d7aa9;">${genderIcon}</span> ${pub.firstName} ${pub.lastName || ''} ${statusBadge} ${hardPairBadge} ${cancelBadge}</h4>
         <p style="margin:0; font-size:0.85em; color:#666; margin-left: 30px;">Turnos al mes: ${pub.maxShifts || '5'} | Compañero: ${pub.partnerName || 'Ninguno'}</p></div>
         <span class="material-symbols-outlined" style="color:#ccc;">chevron_right</span>
       `;
@@ -184,7 +189,25 @@ async function loadPublishers() {
   } catch (error) { listDiv.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar.</p>'; }
 }
 
-function viewPublisher(id) {
+function getPublisherCancelCount(pub) {
+    if (!pub) return 0;
+    const historyLen = Array.isArray(pub.cancellationHistory) ? pub.cancellationHistory.length : 0;
+    if (typeof pub.cancelledCount === 'number') {
+        return Math.max(pub.cancelledCount, historyLen);
+    }
+    if (historyLen > 0) return historyLen;
+    if (pub.lastCancelledShift) return 1;
+    return 0;
+}
+
+function formatIsoTimestamp(isoString) {
+    if (!isoString) return 'Nunca';
+    const date = new Date(isoString);
+    if (isNaN(date.getTime())) return 'Nunca';
+    return `${formatSpanishDate(isoString.split('T')[0])} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+async function viewPublisher(id) {
     const pub = allPublishers.find(p => p.id === id);
     if(!pub) return;
     currentViewId = id;
@@ -199,18 +222,17 @@ function viewPublisher(id) {
     document.getElementById('view-pub-ename').innerText = pub.emergencyName || '-';
     document.getElementById('view-pub-ephone').innerText = pub.emergencyPhone || '-';
 
-    const formatTimestamp = (isoString) => {
-        if (!isoString) return 'Nunca';
-        const date = new Date(isoString);
-        if (isNaN(date.getTime())) return 'Nunca';
-        return `${formatSpanishDate(isoString.split('T')[0])} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
-    };
+    document.getElementById('view-pub-lastlogin').innerText = formatIsoTimestamp(pub.lastLogin);
+    document.getElementById('view-pub-lastprofile').innerText = formatIsoTimestamp(pub.lastProfileChange);
+    document.getElementById('view-pub-lastcancel').innerText = formatIsoTimestamp(pub.lastCancelledShift);
 
-    document.getElementById('view-pub-lastlogin').innerText = formatTimestamp(pub.lastLogin);
-    document.getElementById('view-pub-lastprofile').innerText = formatTimestamp(pub.lastProfileChange);
-    document.getElementById('view-pub-lastcancel').innerText = formatTimestamp(pub.lastCancelledShift);
+    document.getElementById('view-pub-shifts-count').innerText = '...';
+    document.getElementById('view-pub-cancels-count').innerText = getPublisherCancelCount(pub);
+    document.getElementById('view-pub-interactions-count').innerText = '...';
+    document.getElementById('view-pub-history-container').innerHTML = '<p style="margin: 0; color: #666; font-size: 0.9em; text-align: center;">Cargando historial de turnos...</p>';
     
     document.getElementById('pub-view-modal').style.display = 'flex';
+    await loadPublisherShiftHistory(pub);
 }
 
 function closePubViewModal() { document.getElementById('pub-view-modal').style.display = 'none'; }
@@ -2093,6 +2115,361 @@ function checkAvailability() {
     }
 
     document.getElementById('avail-results').style.display = 'block';
+}
+
+// ==========================================
+// PUBLISHER SHIFT & CANCELLATION HISTORY + TAB 5: INFORMES
+// ==========================================
+let adminShiftsCache = [];
+
+function isAdminShiftFinished(shift) {
+    if (!shift || !shift.date) return false;
+    const parts = (shift.time || '').split('-');
+    const endTime = (parts[1] || parts[0] || '23:59').trim();
+    const shiftEndDate = new Date(`${shift.date}T${endTime}:00`);
+    if (isNaN(shiftEndDate.getTime())) {
+        const todayStr = formatDate(new Date());
+        return shift.date < todayStr;
+    }
+    return shiftEndDate <= new Date();
+}
+
+function getPublisherNameById(id) {
+    const p = allPublishers.find(x => x.id === id);
+    return p ? `${p.firstName || ''} ${p.lastName || ''}`.trim() : 'Desconocido';
+}
+
+async function loadPublisherShiftHistory(pub) {
+    const historyContainer = document.getElementById('view-pub-history-container');
+    try {
+        const shiftsSnap = await db.collection('shifts').orderBy('date', 'desc').get();
+        adminShiftsCache = [];
+        shiftsSnap.forEach(doc => {
+            const d = doc.data();
+            d.id = doc.id;
+            adminShiftsCache.push(d);
+        });
+
+        const assignedShifts = adminShiftsCache.filter(s => Array.isArray(s.participants) && s.participants.includes(pub.id));
+        let totalInteractions = 0;
+
+        assignedShifts.forEach(s => {
+            if (s.reports && s.reports[pub.id] && typeof s.reports[pub.id].interactions === 'number') {
+                totalInteractions += s.reports[pub.id].interactions;
+            }
+        });
+
+        // Build unified cancellation entries (preserving legacy lastCancelledShift if present)
+        const cancelEntries = [];
+        const seenCancelKeys = new Set();
+
+        if (Array.isArray(pub.cancellationHistory)) {
+            pub.cancellationHistory.forEach(item => {
+                const key = `${item.shiftId || 'legacy'}__${item.cancelledAt || item.date || ''}`;
+                if (!seenCancelKeys.has(key)) {
+                    seenCancelKeys.add(key);
+                    cancelEntries.push(item);
+                }
+            });
+        }
+
+        // Also check shifts with cancelledParticipants in case any were logged there
+        adminShiftsCache.forEach(s => {
+            if (Array.isArray(s.cancelledParticipants)) {
+                s.cancelledParticipants.forEach(cp => {
+                    if (cp.publisherId === pub.id) {
+                        const key = `${s.id}__${cp.cancelledAt || s.date || ''}`;
+                        if (!seenCancelKeys.has(key)) {
+                            seenCancelKeys.add(key);
+                            cancelEntries.push({
+                                shiftId: s.id,
+                                date: s.date,
+                                time: s.time,
+                                location: s.location,
+                                cancelledAt: cp.cancelledAt
+                            });
+                        }
+                    }
+                });
+            }
+        });
+
+        // If legacy lastCancelledShift exists and isn't already represented in cancelEntries, include it
+        if (pub.lastCancelledShift) {
+            const alreadyIncluded = cancelEntries.some(c => c.cancelledAt === pub.lastCancelledShift);
+            if (!alreadyIncluded) {
+                cancelEntries.push({
+                    shiftId: 'legacy',
+                    date: pub.lastCancelledShift.split('T')[0],
+                    time: '',
+                    location: 'Cancelación registrada anteriormente',
+                    cancelledAt: pub.lastCancelledShift,
+                    isLegacy: true
+                });
+            }
+        }
+
+        const totalCancelCount = Math.max(getPublisherCancelCount(pub), cancelEntries.length);
+
+        document.getElementById('view-pub-shifts-count').innerText = assignedShifts.length;
+        document.getElementById('view-pub-cancels-count').innerText = totalCancelCount;
+        document.getElementById('view-pub-interactions-count').innerText = totalInteractions;
+
+        const timelineItems = [];
+
+        assignedShifts.forEach(s => {
+            const finished = isAdminShiftFinished(s);
+            const others = (s.participants || []).filter(uid => uid && uid !== 'Disponible' && uid !== pub.id).map(uid => getPublisherNameById(uid));
+            const partnerStr = others.length > 0 ? others.join(', ') : 'Solo/a';
+            const myReport = s.reports ? s.reports[pub.id] : null;
+            timelineItems.push({
+                type: 'shift',
+                sortDate: s.date || '',
+                shift: s,
+                finished: finished,
+                partnerStr: partnerStr,
+                report: myReport
+            });
+        });
+
+        cancelEntries.forEach(c => {
+            const sortDate = c.date || (c.cancelledAt ? c.cancelledAt.split('T')[0] : '');
+            timelineItems.push({
+                type: 'cancel',
+                sortDate: sortDate,
+                cancel: c
+            });
+        });
+
+        timelineItems.sort((a, b) => (b.sortDate || '').localeCompare(a.sortDate || ''));
+
+        if (timelineItems.length === 0) {
+            historyContainer.innerHTML = '<p style="margin: 0; color: #666; font-size: 0.9em; text-align: center; font-style: italic;">No hay turnos ni cancelaciones registradas para este publicador.</p>';
+            return;
+        }
+
+        historyContainer.innerHTML = '';
+        timelineItems.forEach(item => {
+            const row = document.createElement('div');
+            if (item.type === 'cancel') {
+                const c = item.cancel;
+                const cancelDetails = c.isLegacy
+                    ? `<div style="font-size: 0.85em; color: #721c24;">Fecha/hora de cancelación: <strong>${formatIsoTimestamp(c.cancelledAt)}</strong></div>`
+                    : `<div style="font-size: 0.88em; color: #444;"><strong>${c.location || 'Ubicación'}</strong> • ${formatSpanishDate(c.date)} ${c.time ? `(${c.time})` : ''}</div>
+                       <div style="font-size: 0.8em; color: #721c24; margin-top: 2px;">Cancelado el ${formatIsoTimestamp(c.cancelledAt)}</div>`;
+                row.style.cssText = 'background: #fff5f5; border: 1px solid #f5c6cb; border-left: 4px solid #dc3545; border-radius: 6px; padding: 10px 12px;';
+                row.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                        <strong style="color: #dc3545; font-size: 0.9em; display: flex; align-items: center; gap: 4px;">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">cancel</span> Turno Cancelado
+                        </strong>
+                        <span class="badge-red" style="margin: 0;">Cancelación</span>
+                    </div>
+                    ${cancelDetails}
+                `;
+            } else {
+                const s = item.shift;
+                const badgeHtml = item.finished
+                    ? `<span class="badge-green" style="margin: 0;">Completado</span>`
+                    : `<span class="badge-blue" style="margin: 0;">Próximo</span>`;
+                let reportHtml = '';
+                if (item.report) {
+                    reportHtml = `
+                        <div style="margin-top: 6px; padding-top: 6px; border-top: 1px dashed #dce4ee; font-size: 0.85em; color: #155724;">
+                            <strong>📋 Informe:</strong> ${item.report.interactions ?? 0} interacciones
+                            ${item.report.comments ? `<div style="font-style: italic; color: #333; margin-top: 3px;">"${item.report.comments}"</div>` : ''}
+                        </div>
+                    `;
+                }
+                row.style.cssText = 'background: white; border: 1px solid #e4e9f0; border-left: 4px solid ' + (item.finished ? '#28a745' : '#5d7aa9') + '; border-radius: 6px; padding: 10px 12px;';
+                row.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <strong style="color: #2c5282; font-size: 0.92em;">${formatSpanishDate(s.date)} • ${s.time}</strong>
+                        ${badgeHtml}
+                    </div>
+                    <div style="font-size: 0.86em; color: #444; margin-top: 4px;">
+                        <strong>📍 ${s.location}</strong> &nbsp;|&nbsp; 👥 Con: ${item.partnerStr}
+                    </div>
+                    ${reportHtml}
+                `;
+            }
+            historyContainer.appendChild(row);
+        });
+    } catch (e) {
+        console.error("Error loading publisher shift history:", e);
+        historyContainer.innerHTML = '<p style="margin: 0; color: #dc3545; font-size: 0.9em; text-align: center;">Error al cargar el historial.</p>';
+    }
+}
+
+async function loadShiftReports() {
+    const container = document.getElementById('reports-list-container');
+    if (!container) return;
+    container.innerHTML = '<p style="color: #666; text-align: center;">Cargando informes de turno...</p>';
+
+    try {
+        const shiftsSnap = await db.collection('shifts').orderBy('date', 'desc').get();
+        adminShiftsCache = [];
+        const monthsSet = new Set();
+
+        shiftsSnap.forEach(doc => {
+            const d = doc.data();
+            d.id = doc.id;
+            adminShiftsCache.push(d);
+            if (d.date && d.date.length >= 7) {
+                monthsSet.add(d.date.substring(0, 7));
+            }
+        });
+
+        const monthSelect = document.getElementById('rep-month-filter');
+        const currentSelectedMonth = monthSelect ? monthSelect.value : '';
+        if (monthSelect) {
+            const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+            monthSelect.innerHTML = '<option value="">Todos los meses</option>';
+            Array.from(monthsSet).sort().reverse().forEach(ym => {
+                const [y, m] = ym.split('-');
+                const mName = monthNames[parseInt(m, 10) - 1] || m;
+                const sel = ym === currentSelectedMonth ? 'selected' : '';
+                monthSelect.innerHTML += `<option value="${ym}" ${sel}>${mName} ${y}</option>`;
+            });
+        }
+
+        renderShiftReports();
+    } catch (e) {
+        console.error("Error loading shift reports:", e);
+        container.innerHTML = '<p style="color: #dc3545; text-align: center;">Error al cargar los informes.</p>';
+    }
+}
+
+function renderShiftReports() {
+    const container = document.getElementById('reports-list-container');
+    if (!container) return;
+
+    const monthFilter = (document.getElementById('rep-month-filter')?.value || '').trim();
+    const statusFilter = document.getElementById('rep-status-filter')?.value || 'all';
+    const searchQuery = (document.getElementById('rep-search-input')?.value || '').toLowerCase().trim();
+
+    const submittedEntries = [];
+    const pendingShifts = [];
+
+    adminShiftsCache.forEach(shift => {
+        if (monthFilter && (!shift.date || !shift.date.startsWith(monthFilter))) {
+            return;
+        }
+
+        const reportsMap = shift.reports || {};
+        const reportKeys = Object.keys(reportsMap);
+        const realParticipants = (shift.participants || []).filter(id => id && id !== 'Disponible');
+
+        if (reportKeys.length > 0) {
+            reportKeys.forEach(pubId => {
+                const rep = reportsMap[pubId];
+                const pubName = rep.publisherName || getPublisherNameById(pubId);
+                const partners = realParticipants.filter(id => id !== pubId).map(id => getPublisherNameById(id));
+                const partnerText = partners.length > 0 ? partners.join(', ') : 'Solo/a';
+                submittedEntries.push({
+                    shift: shift,
+                    publisherId: pubId,
+                    publisherName: pubName,
+                    partnerText: partnerText,
+                    interactions: Number(rep.interactions) || 0,
+                    comments: (rep.comments || '').trim(),
+                    updatedAt: rep.updatedAt || ''
+                });
+            });
+        } else if (isAdminShiftFinished(shift) && realParticipants.length > 0) {
+            const participantNames = realParticipants.map(id => getPublisherNameById(id)).join(', ');
+            pendingShifts.push({
+                shift: shift,
+                participantNames: participantNames
+            });
+        }
+    });
+
+    // Update KPIs based on submitted reports matching month & search query
+    const filteredSubmittedForKpi = submittedEntries.filter(entry => {
+        if (!searchQuery) return true;
+        const haystack = `${entry.publisherName} ${entry.partnerText} ${entry.shift.location} ${entry.shift.date} ${formatSpanishDate(entry.shift.date)} ${entry.comments}`.toLowerCase();
+        return haystack.includes(searchQuery);
+    });
+
+    const totalReports = filteredSubmittedForKpi.length;
+    const totalInteractions = filteredSubmittedForKpi.reduce((sum, e) => sum + e.interactions, 0);
+    const totalWithComments = filteredSubmittedForKpi.filter(e => e.comments.length > 0).length;
+
+    document.getElementById('rep-kpi-total').innerText = totalReports;
+    document.getElementById('rep-kpi-interactions').innerText = totalInteractions;
+    document.getElementById('rep-kpi-comments').innerText = totalWithComments;
+
+    container.innerHTML = '';
+
+    if (statusFilter === 'pending') {
+        const filteredPending = pendingShifts.filter(item => {
+            if (!searchQuery) return true;
+            const haystack = `${item.participantNames} ${item.shift.location} ${item.shift.date} ${formatSpanishDate(item.shift.date)}`.toLowerCase();
+            return haystack.includes(searchQuery);
+        });
+
+        if (filteredPending.length === 0) {
+            container.innerHTML = '<div style="text-align: center; padding: 30px; background: #f9f9f9; border-radius: 10px; border: 1px dashed #ccc; color: #666;">No hay turnos finalizados pendientes de informe con este filtro.</div>';
+            return;
+        }
+
+        filteredPending.forEach(item => {
+            const s = item.shift;
+            const card = document.createElement('div');
+            card.style.cssText = 'background: white; border: 1px solid #eaeaea; border-left: 5px solid #f59f00; border-radius: 10px; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;';
+            card.innerHTML = `
+                <div>
+                    <div style="font-weight: 600; color: #333; font-size: 1.05em;">${formatSpanishDate(s.date)} • ${s.time}</div>
+                    <div style="color: #555; font-size: 0.92em; margin-top: 4px;">📍 <strong>${s.location}</strong> &nbsp;|&nbsp; 👥 Asignados: ${item.participantNames}</div>
+                </div>
+                <span class="badge-warning" style="padding: 6px 12px; font-size: 0.85em;">Sin Informe Aún</span>
+            `;
+            container.appendChild(card);
+        });
+        return;
+    }
+
+    const displayList = filteredSubmittedForKpi.filter(entry => {
+        if (statusFilter === 'comments') return entry.comments.length > 0;
+        return true;
+    });
+
+    if (displayList.length === 0) {
+        container.innerHTML = '<div style="text-align: center; padding: 30px; background: #f9f9f9; border-radius: 10px; border: 1px dashed #ccc; color: #666;">No se encontraron informes de turno para los filtros seleccionados.</div>';
+        return;
+    }
+
+    displayList.forEach(entry => {
+        const s = entry.shift;
+        const card = document.createElement('div');
+        card.style.cssText = 'background: white; border: 1px solid #eaeaea; border-left: 5px solid #5d7aa9; border-radius: 10px; padding: 18px 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.02);';
+        const commentBlock = entry.comments
+            ? `<div style="margin-top: 12px; background: #f8faff; border: 1px solid #e2eaf5; border-radius: 8px; padding: 12px 15px; color: #2d3748; font-size: 0.95em; line-height: 1.5;">
+                 <strong style="color: #5d7aa9; display: block; font-size: 0.82em; text-transform: uppercase; margin-bottom: 4px;">Experiencia / Comentario:</strong>
+                 ${entry.comments.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+               </div>`
+            : `<div style="margin-top: 8px; font-size: 0.85em; color: #999; font-style: italic;">Sin comentarios adicionales.</div>`;
+
+        card.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; border-bottom: 1px solid #f0f0f0; padding-bottom: 10px;">
+                <div>
+                    <h4 style="margin: 0; color: #2c5282; font-size: 1.05em; display: flex; align-items: center; gap: 6px;">
+                        <span class="material-symbols-outlined" style="font-size: 19px; color: #5d7aa9;">event</span>
+                        ${formatSpanishDate(s.date)} <span style="color: #666; font-weight: normal; font-size: 0.9em;">(${s.time})</span>
+                    </h4>
+                    <div style="margin-top: 5px; font-size: 0.92em; color: #444;">
+                        📍 <strong>${s.location}</strong> &nbsp;•&nbsp; 👤 Reportado por: <strong>${entry.publisherName}</strong> (Con: ${entry.partnerText})
+                    </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span class="badge-green" style="font-size: 0.9em; padding: 6px 12px;">🤝 ${entry.interactions} ${entry.interactions === 1 ? 'Interacción' : 'Interacciones'}</span>
+                </div>
+            </div>
+            ${commentBlock}
+        `;
+        container.appendChild(card);
+    });
 }
 
 // For Node.js testing

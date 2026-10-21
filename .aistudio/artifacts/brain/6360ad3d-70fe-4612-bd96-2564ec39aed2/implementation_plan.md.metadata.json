@@ -1,6 +1,6 @@
 {
-  "summary":  "Revised implementation plan to embed the animated Informe de Turno tutorial player exclusively in the onboarding guide (empezar.html).",
-  "updatedAt":  "2026-10-20T20:59:26.043086936Z",
+  "summary":  "Implementation plan to fix the Firestore permissions error by storing shift reports (shiftReports) and cancellation logs on publishers/{publisherId} instead of shifts/{shiftId}.",
+  "updatedAt":  "2026-10-21T14:49:06.412049950Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

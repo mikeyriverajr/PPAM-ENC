@@ -466,6 +466,20 @@ function isShiftFinished(shift) {
   return shiftEndDate <= new Date();
 }
 
+function getMyReportForShift(shift) {
+  if (!shift) return null;
+  if (shift.id === '__demo_report_shift__' && shift.reports && shift.reports[currentUserPublisherId]) {
+    return shift.reports[currentUserPublisherId];
+  }
+  if (currentPubData && currentPubData.shiftReports && currentPubData.shiftReports[shift.id]) {
+    return currentPubData.shiftReports[shift.id];
+  }
+  if (shift.reports && shift.reports[currentUserPublisherId]) {
+    return shift.reports[currentUserPublisherId];
+  }
+  return null;
+}
+
 async function loadMyShifts() {
   if (!currentUserPublisherId) return;
   const container = document.getElementById('mine-container');
@@ -523,7 +537,7 @@ async function loadMyShifts() {
     recentFinishedShifts.sort((a, b) => b.date.localeCompare(a.date) || (b.time || '').localeCompare(a.time || ''));
 
     // Check if there are finished shifts without a submitted report from this publisher
-    const pendingReportShifts = recentFinishedShifts.filter(s => !(s.reports && s.reports[currentUserPublisherId]));
+    const pendingReportShifts = recentFinishedShifts.filter(s => !getMyReportForShift(s));
     if (pendingReportShifts.length > 0) {
       const firstPending = pendingReportShifts[0];
       const bannerDiv = document.createElement('div');
@@ -583,7 +597,7 @@ async function loadMyShifts() {
       recentFinishedShifts.forEach(shift => {
         const others = (shift.participants || []).filter(id => id && id !== "Disponible" && id !== currentUserPublisherId).map(id => publisherCache[id]?.name || 'Desconocido');
         const partnerText = others.length > 0 ? others.join(', ') : 'Solo/a';
-        const myReport = shift.reports ? shift.reports[currentUserPublisherId] : null;
+        const myReport = getMyReportForShift(shift);
         const shiftCard = document.createElement('div');
         shiftCard.className = 'shift-card';
         shiftCard.style.borderLeft = myReport ? '5px solid #28a745' : '5px solid #f59f00';
@@ -644,7 +658,7 @@ function openShiftReportModal(shiftId) {
     <div><strong>Compañero(a):</strong> ${partnerText}</div>
   `;
 
-  const existingReport = shift.reports ? shift.reports[currentUserPublisherId] : null;
+  const existingReport = getMyReportForShift(shift);
   document.getElementById('report-interactions').value = existingReport && existingReport.interactions !== undefined ? existingReport.interactions : 0;
   document.getElementById('report-comments').value = existingReport && existingReport.comments ? existingReport.comments : '';
 
@@ -659,6 +673,7 @@ async function saveShiftReport() {
   const shiftId = document.getElementById('report-shift-id').value;
   if (!shiftId || !currentUserPublisherId) return;
 
+  const shift = myAllAssignedShifts.find(s => s.id === shiftId);
   const interactionsRaw = document.getElementById('report-interactions').value;
   const interactions = Math.max(0, parseInt(interactionsRaw, 10) || 0);
   const comments = document.getElementById('report-comments').value.trim();
@@ -666,7 +681,15 @@ async function saveShiftReport() {
   btn.disabled = true;
 
   try {
+    const others = ((shift && shift.participants) || []).filter(id => id && id !== "Disponible" && id !== currentUserPublisherId).map(id => publisherCache[id]?.name || 'Desconocido');
+    const partnerText = others.length > 0 ? others.join(', ') : 'Solo/a';
+
     const reportPayload = {
+      shiftId: shiftId,
+      date: shift ? shift.date : '',
+      time: shift ? shift.time : '',
+      location: shift ? shift.location : '',
+      partnerText: partnerText,
       publisherId: currentUserPublisherId,
       publisherName: publisherCache[currentUserPublisherId]?.name || '',
       interactions: interactions,
@@ -682,9 +705,14 @@ async function saveShiftReport() {
       return;
     }
 
-    await db.collection('shifts').doc(shiftId).update({
-      [`reports.${currentUserPublisherId}`]: reportPayload
+    // Save on publishers/{currentUserPublisherId} where the user already has write permission
+    await db.collection('publishers').doc(currentUserPublisherId).update({
+      [`shiftReports.${shiftId}`]: reportPayload
     });
+
+    if (!currentPubData) currentPubData = {};
+    if (!currentPubData.shiftReports) currentPubData.shiftReports = {};
+    currentPubData.shiftReports[shiftId] = reportPayload;
 
     closeShiftReportModal();
     showToast("¡Informe de turno guardado! Muchas gracias.");
@@ -715,19 +743,12 @@ async function attemptCancel(shiftId, dateStr, timeStr, locationName) {
     let currentParticipants = shiftData.participants || [];
     currentParticipants = currentParticipants.filter(id => id !== currentUserPublisherId);
 
-    const cancelledParticipants = Array.isArray(shiftData.cancelledParticipants) ? [...shiftData.cancelledParticipants] : [];
-    cancelledParticipants.push({
-      publisherId: currentUserPublisherId,
-      publisherName: publisherCache[currentUserPublisherId]?.name || '',
-      cancelledAt: nowIso
-    });
-
+    // Only update participants on shifts/{shiftId} to comply with Firestore Security Rules
     await shiftRef.update({
-      participants: currentParticipants,
-      cancelledParticipants: cancelledParticipants
+      participants: currentParticipants
     });
 
-    // Preserve any existing legacy lastCancelledShift and increment cancellation count
+    // Preserve any existing legacy lastCancelledShift and increment cancellation count on publishers/{id}
     const pubRef = db.collection('publishers').doc(currentUserPublisherId);
     const pubSnap = await pubRef.get();
     const pubData = pubSnap.exists ? pubSnap.data() : (currentPubData || {});

@@ -2139,6 +2139,17 @@ function getPublisherNameById(id) {
     return p ? `${p.firstName || ''} ${p.lastName || ''}`.trim() : 'Desconocido';
 }
 
+function getReportForPublisherShift(pub, shift) {
+    if (!pub || !shift) return null;
+    if (pub.shiftReports && pub.shiftReports[shift.id]) {
+        return pub.shiftReports[shift.id];
+    }
+    if (shift.reports && shift.reports[pub.id]) {
+        return shift.reports[pub.id];
+    }
+    return null;
+}
+
 async function loadPublisherShiftHistory(pub) {
     const historyContainer = document.getElementById('view-pub-history-container');
     try {
@@ -2154,8 +2165,9 @@ async function loadPublisherShiftHistory(pub) {
         let totalInteractions = 0;
 
         assignedShifts.forEach(s => {
-            if (s.reports && s.reports[pub.id] && typeof s.reports[pub.id].interactions === 'number') {
-                totalInteractions += s.reports[pub.id].interactions;
+            const rep = getReportForPublisherShift(pub, s);
+            if (rep && typeof rep.interactions === 'number') {
+                totalInteractions += rep.interactions;
             }
         });
 
@@ -2221,7 +2233,7 @@ async function loadPublisherShiftHistory(pub) {
             const finished = isAdminShiftFinished(s);
             const others = (s.participants || []).filter(uid => uid && uid !== 'Disponible' && uid !== pub.id).map(uid => getPublisherNameById(uid));
             const partnerStr = others.length > 0 ? others.join(', ') : 'Solo/a';
-            const myReport = s.reports ? s.reports[pub.id] : null;
+            const myReport = getReportForPublisherShift(pub, s);
             timelineItems.push({
                 type: 'shift',
                 sortDate: s.date || '',
@@ -2307,7 +2319,18 @@ async function loadShiftReports() {
     container.innerHTML = '<p style="color: #666; text-align: center;">Cargando informes de turno...</p>';
 
     try {
-        const shiftsSnap = await db.collection('shifts').orderBy('date', 'desc').get();
+        const [pubSnap, shiftsSnap] = await Promise.all([
+            db.collection('publishers').orderBy('firstName').get(),
+            db.collection('shifts').orderBy('date', 'desc').get()
+        ]);
+
+        allPublishers = [];
+        pubSnap.forEach(doc => {
+            const p = doc.data();
+            p.id = doc.id;
+            allPublishers.push(p);
+        });
+
         adminShiftsCache = [];
         const monthsSet = new Set();
 
@@ -2351,21 +2374,35 @@ function renderShiftReports() {
     const submittedEntries = [];
     const pendingShifts = [];
 
+    // Index all publisher shiftReports by shiftId -> { [pubId]: report }
+    const pubReportsByShiftId = {};
+    allPublishers.forEach(pub => {
+        if (pub.shiftReports && typeof pub.shiftReports === 'object') {
+            Object.keys(pub.shiftReports).forEach(sId => {
+                if (!pubReportsByShiftId[sId]) pubReportsByShiftId[sId] = {};
+                pubReportsByShiftId[sId][pub.id] = pub.shiftReports[sId];
+            });
+        }
+    });
+
     adminShiftsCache.forEach(shift => {
         if (monthFilter && (!shift.date || !shift.date.startsWith(monthFilter))) {
             return;
         }
 
-        const reportsMap = shift.reports || {};
-        const reportKeys = Object.keys(reportsMap);
+        const combinedReportsMap = {
+            ...(shift.reports || {}),
+            ...(pubReportsByShiftId[shift.id] || {})
+        };
+        const reportKeys = Object.keys(combinedReportsMap);
         const realParticipants = (shift.participants || []).filter(id => id && id !== 'Disponible');
 
         if (reportKeys.length > 0) {
             reportKeys.forEach(pubId => {
-                const rep = reportsMap[pubId];
+                const rep = combinedReportsMap[pubId];
                 const pubName = rep.publisherName || getPublisherNameById(pubId);
                 const partners = realParticipants.filter(id => id !== pubId).map(id => getPublisherNameById(id));
-                const partnerText = partners.length > 0 ? partners.join(', ') : 'Solo/a';
+                const partnerText = partners.length > 0 ? partners.join(', ') : (rep.partnerText || 'Solo/a');
                 submittedEntries.push({
                     shift: shift,
                     publisherId: pubId,

@@ -679,6 +679,16 @@
   </div>
 </div>
 
+<!-- Admin Photo Preview Lightbox Modal -->
+<div id="admin-photo-preview-modal" class="modal" onclick="if(event.target===this) closeAdminPhotoPreviewModal()">
+  <div class="modal-content" style="max-width: 360px; padding: 24px; border-radius: 16px; text-align: center;">
+    <span class="close-modal" onclick="closeAdminPhotoPreviewModal()"><span class="material-symbols-outlined">close</span></span>
+    <h4 id="admin-photo-preview-title" style="margin: 0 0 15px 0; color: #2c5282; font-size: 1.15em; padding-right: 25px;">Foto de Perfil</h4>
+    <img id="admin-photo-preview-img" src="" alt="Foto de perfil" style="width: 260px; height: 260px; border-radius: 50%; object-fit: cover; border: 4px solid #eef2f7; box-shadow: 0 6px 20px rgba(0,0,0,0.15); margin: 0 auto 15px auto; display: block;">
+    <button type="button" onclick="closeAdminPhotoPreviewModal()" class="btn-action btn-primary" style="width: 100%; padding: 10px;">Cerrar</button>
+  </div>
+</div>
+
 <!-- Quill Rich Text Editor -->
 <script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
 
@@ -688,6 +698,6 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
 <script src="firebase-config.js"></script>
-<script src="app-admin.js?v=12"></script>
+<script src="app-admin.js?v=13"></script>
 </body>
 </html>

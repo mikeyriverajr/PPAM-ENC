@@ -134,11 +134,32 @@ function getAdminInitials(firstName, lastName) {
   return ((f[0] || '') + (l[0] || f[1] || '')).toUpperCase();
 }
 
+function openAdminPhotoPreviewModal(name, photoUrl, evt) {
+  if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
+  if (!photoUrl) return;
+  document.getElementById('admin-photo-preview-title').innerText = name || 'Foto de Perfil';
+  document.getElementById('admin-photo-preview-img').src = photoUrl;
+  document.getElementById('admin-photo-preview-modal').style.display = 'flex';
+}
+
+function closeAdminPhotoPreviewModal() {
+  const modal = document.getElementById('admin-photo-preview-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function openAdminPubPhotoById(pubId, evt) {
+  if (evt && typeof evt.stopPropagation === 'function') evt.stopPropagation();
+  const pub = allPublishers.find(p => p.id === pubId);
+  if (!pub || !pub.photoUrl) return;
+  openAdminPhotoPreviewModal(`${pub.firstName || ''} ${pub.lastName || ''}`.trim(), pub.photoUrl);
+}
+
 function getAdminAvatarHtml(pub, sizePx = 36) {
   if (pub && pub.photoUrl) {
-    return `<span style="width:${sizePx}px; height:${sizePx}px; border-radius:50%; overflow:hidden; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; border:2px solid #dce4ee; background:#eee;">
+    const fullName = `${pub.firstName || ''} ${pub.lastName || ''}`.trim().replace(/"/g, '&quot;');
+    return `<button type="button" onclick="openAdminPubPhotoById('${pub.id}', event)" title="Ver foto de ${fullName} en grande" style="width:${sizePx}px; height:${sizePx}px; border-radius:50%; padding:0; overflow:hidden; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; border:2px solid #dce4ee; background:#eee; cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,0.1);">
       <img src="${pub.photoUrl}" alt="" style="width:100%; height:100%; object-fit:cover; display:block;">
-    </span>`;
+    </button>`;
   }
   const genderIcon = pub && pub.gender === 'M' ? 'woman' : 'man';
   return `<span style="width:${sizePx}px; height:${sizePx}px; border-radius:50%; background:#eef2f7; color:#5d7aa9; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid #dce4ee;">
@@ -146,7 +167,7 @@ function getAdminAvatarHtml(pub, sizePx = 36) {
   </span>`;
 }
 
-function compressAdminAvatarDataUrl(file, size = 160) {
+function compressAdminAvatarDataUrl(file, size = 300) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -162,7 +183,7 @@ function compressAdminAvatarDataUrl(file, size = 160) {
         const sx = Math.floor((img.width - minSide) / 2);
         const sy = Math.floor((img.height - minSide) / 2);
         ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
-        resolve(canvas.toDataURL('image/jpeg', 0.78));
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
       };
       img.onerror = err => reject(err);
     };
@@ -177,12 +198,19 @@ function renderAdminPubPhotoPreview() {
   if (!preview) return;
 
   if (currentEditPhotoUrl) {
+    const fullName = `${document.getElementById('pub-firstname')?.value || ''} ${document.getElementById('pub-lastname')?.value || ''}`.trim() || 'Foto de Perfil';
     preview.style.background = '#eee';
+    preview.style.cursor = 'pointer';
+    preview.title = 'Toca para ver la foto en grande';
+    preview.onclick = (e) => openAdminPhotoPreviewModal(fullName, currentEditPhotoUrl, e);
     preview.innerHTML = `<img src="${currentEditPhotoUrl}" alt="Foto" style="width:100%; height:100%; object-fit:cover; display:block;">`;
-    if (status) status.innerHTML = '<span style="color:#28a745; font-weight:600;">✓ Foto cargada (haz clic en Guardar)</span>';
+    if (status) status.innerHTML = '<span style="color:#28a745; font-weight:600;">✓ Foto cargada (toca para ampliar)</span>';
     if (removeBtn) removeBtn.style.display = 'inline-flex';
   } else {
     preview.style.background = '#5d7aa9';
+    preview.style.cursor = 'default';
+    preview.title = '';
+    preview.onclick = null;
     preview.innerHTML = `<span class="material-symbols-outlined">person</span>`;
     if (status) status.innerText = 'Opcional • Visible para compañeros de turno';
     if (removeBtn) removeBtn.style.display = 'none';
@@ -193,7 +221,7 @@ async function handleAdminPubPhotoUpload(event) {
   const file = event?.target?.files?.[0];
   if (!file) return;
   try {
-    currentEditPhotoUrl = await compressAdminAvatarDataUrl(file, 160);
+    currentEditPhotoUrl = await compressAdminAvatarDataUrl(file, 300);
     renderAdminPubPhotoPreview();
     showToast("Foto procesada. Recuerda guardar el publicador.", "info");
   } catch (e) {

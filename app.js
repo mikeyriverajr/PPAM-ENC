@@ -480,9 +480,11 @@ function getAvatarHtml(pubId, sizePx = 36) {
 
 function openPhotoPreviewModal(pubId) {
   const pub = publisherCache[pubId];
-  if (!pub || !pub.photoUrl) return;
-  document.getElementById('photo-preview-title').innerText = pub.name || 'Compañero de Turno';
-  document.getElementById('photo-preview-img').src = pub.photoUrl;
+  const photoUrl = (pub && pub.photoUrl) || (pubId === currentUserPublisherId && currentPubData?.photoUrl) || '';
+  if (!photoUrl) return;
+  const displayName = (pub && pub.name) || `${currentPubData?.firstName || ''} ${currentPubData?.lastName || ''}`.trim() || 'Foto de Perfil';
+  document.getElementById('photo-preview-title').innerText = displayName;
+  document.getElementById('photo-preview-img').src = photoUrl;
   document.getElementById('photo-preview-modal').style.display = 'flex';
 }
 
@@ -1411,7 +1413,7 @@ function removeMyAbsence(index) {
     checkProfileChanges();
 }
 
-function compressAvatarDataUrl(file, size = 160) {
+function compressAvatarDataUrl(file, size = 300) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -1427,7 +1429,7 @@ function compressAvatarDataUrl(file, size = 160) {
         const sx = Math.floor((img.width - minSide) / 2);
         const sy = Math.floor((img.height - minSide) / 2);
         ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
-        resolve(canvas.toDataURL('image/jpeg', 0.78));
+        resolve(canvas.toDataURL('image/jpeg', 0.8));
       };
       img.onerror = err => reject(err);
     };
@@ -1449,11 +1451,17 @@ function renderProfileAvatarPreview() {
 
   if (photoUrl) {
     previewEl.style.background = '#eee';
+    previewEl.style.cursor = 'pointer';
+    previewEl.title = 'Toca para ver tu foto en grande';
+    previewEl.onclick = () => openPhotoPreviewModal(currentUserPublisherId);
     previewEl.innerHTML = `<img src="${photoUrl}" alt="${getInitials(fullName)}" style="width:100%; height:100%; object-fit:cover; display:block;">`;
-    if (statusEl) statusEl.innerHTML = '<span style="color:#28a745; font-weight:600;">✓ Foto activa visible para tus compañeros de turno</span>';
+    if (statusEl) statusEl.innerHTML = '<span style="color:#28a745; font-weight:600;">✓ Foto activa (toca la foto para verla en grande)</span>';
     if (removeBtn) removeBtn.style.display = 'inline-flex';
   } else {
     previewEl.style.background = getAvatarColor(currentUserPublisherId || fullName);
+    previewEl.style.cursor = 'default';
+    previewEl.title = '';
+    previewEl.onclick = null;
     previewEl.innerHTML = `<span>${getInitials(fullName)}</span>`;
     if (statusEl) statusEl.innerText = 'Sin foto personalizada (se muestran tus iniciales)';
     if (removeBtn) removeBtn.style.display = 'none';
@@ -1465,7 +1473,7 @@ async function handleProfilePhotoUpload(event) {
   if (!file || !currentUserPublisherId) return;
   try {
     showToast("Procesando tu foto de perfil...", "info");
-    const dataUrl = await compressAvatarDataUrl(file, 160);
+    const dataUrl = await compressAvatarDataUrl(file, 300);
     await db.collection('publishers').doc(currentUserPublisherId).update({
       photoUrl: dataUrl,
       lastProfileChange: new Date().toISOString()

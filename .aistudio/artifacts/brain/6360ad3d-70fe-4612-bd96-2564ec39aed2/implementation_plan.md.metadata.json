@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan to update Firestore Security Rules and add automatic fallback persistence for publisher reports/photos, plus add 'Mi compañero(a) lo hará por mí' and 'El turno fue cancelado' options to the Informe de Turno modal.",
-  "updatedAt":  "2026-10-22T11:23:58.966415085Z",
+  "summary":  "Plan de implementación para cuentas inactivas (pausa indefinida de asignaciones para usuarios y admin), edición/eliminación y filtro por ubicación en Informes de Turno del Admin, y mejoras de acceso (eliminación de cambio obligatorio de contraseña inicial, botón de mostrar/ocultar contraseña y guardado automático en celulares).",
+  "updatedAt":  "2026-10-22T14:37:46.148897477Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

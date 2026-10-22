@@ -1,169 +1,96 @@
-# PPAM | Encarnación — Reglas de Firebase y Nuevas Opciones en Informe de Turno
+# Cuentas Inactivas, Gestión de Informes en Admin y Mejoras de Contraseña
 
-Este plan resuelve de forma definitiva el error `Missing or insufficient permissions` al guardar el **Informe de Turno** o subir una **Foto de Perfil**, e incorpora las dos nuevas opciones solicitadas dentro del **Informe de Turno**: indicar que **el turno fue cancelado** (sin exigir motivo) o que **el compañero(a) de turno enviará el informe**.
+Este plan incorpora tres mejoras clave para la administración y el uso diario de PPAM Encarnación: la posibilidad de pausar o marcar cuentas como **Inactivas** sin perder las preferencias de horario, herramientas completas para el administrador en **Informes de Turno** (filtro por ubicación, edición y eliminación), y un inicio de sesión simplificado para evitar el olvido frecuente de contraseñas.
 
----
-
-## User Review & Critical Decisions
+## Revisión del Usuario y Decisiones Confirmadas
 
 > [!IMPORTANT]
-> **¿Por qué seguía apareciendo `Missing or insufficient permissions`?**
-> Las reglas de seguridad activas en la consola de Firebase (`ppam-beta`) tienen una lista cerrada (`hasOnly([...])`) de los campos que un publicador puede editar en su propio documento `publishers/{id}` (como `phone`, `availability`, `absences`, `lastProfileChange`, etc.). Cuando la app intenta guardar un campo nuevo como `shiftReports` o `photoUrl`, Firebase lo bloquea hasta que se actualicen las reglas en la Consola de Firebase.
->
-> **Solución Doble (Reglas + Respaldo Automático Inmediato):**
-> 1. **Reglas de Firestore listas para pegar:** Incluimos abajo las reglas de seguridad actualizadas (`firestore.rules`) para que puedas pegarlas en **Firebase Console → Firestore Database → Rules → Publish**.
-> 2. **Respaldo automático en campos ya permitidos:** Incluso antes de que actualices las reglas en la consola de Firebase (o si algún dispositivo tarda en actualizar), si Firebase rechaza la escritura de `shiftReports` o `photoUrl`, la aplicación guardará automáticamente el informe y la foto dentro del arreglo ya autorizado del perfil del publicador. Así ningún hermano volverá a ver el error de permisos.
-
-- **Decisión Confirmada 1 (Permisos de Firebase)**: Actualizar las reglas de Firestore para autorizar `shiftReports`, `photoUrl`, `cancelledCount` y `cancellationHistory`, acompañado de un respaldo automático transparente en los campos ya permitidos del perfil.
-- **Decisión Confirmada 2 (Turno Cancelado en el Informe)**: Agregar la opción **"❌ El turno fue cancelado"** en el Informe de Turno sin exigir motivo obligatorio (dejando el campo de comentarios como opcional).
-- **Decisión Confirmada 3 (Informe enviado por el compañero)**: Agregar la opción **"🤝 Mi compañero(a) enviará el informe"** para que un publicador pueda marcar su informe como cubierto por su compañero sin duplicar el conteo de interacciones.
+> **Decisiones confirmadas por el usuario:**
+> - **Acceso y Reactivación de Cuenta Inactiva**: Cuando un publicador marca su cuenta como inactiva en **Mi Perfil**, conserva acceso completo a la aplicación para consultar el programa y puede volver a activar su cuenta por sí mismo en cualquier momento (además de que el administrador también puede activarla o desactivarla desde el Directorio).
+> - **Simplificación de Contraseñas**:
+>   1. **Eliminar la obligación de cambiar contraseña en el primer inicio de sesión**, permitiendo que los publicadores utilicen directamente la clave asignada por el administrador.
+>   2. **Botón para ver/ocultar contraseña (icono de ojo) y guardado automático en el celular** (`autocomplete="username"` y `autocomplete="current-password"`) en las pantallas de ingreso.
 
 ---
 
-## Reglas de Firestore Listas para Copiar y Pegar en Firebase Console
+## 1. Resumen y Concepto Principal
 
-Para actualizar las reglas directamente en tu proyecto de Firebase:
-1. Abre [Firebase Console](https://console.firebase.google.com/) y entra a **`ppam-beta`**.
-2. En el menú izquierdo, ve a **Firestore Database → Pestaña "Reglas" (Rules)**.
-3. Reemplaza las reglas por las siguientes y haz clic en **Publicar (Publish)**:
-
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-    }
-
-    function isAdmin() {
-      return isSignedIn() && (
-        !request.auth.token.email.matches('.*@ppam\\.app$') ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-         getUserData().role == 'admin')
-      );
-    }
-
-    function isOwnPublisherDoc(pubId) {
-      return isSignedIn() &&
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        getUserData().publisherId == pubId;
-    }
-
-    match /users/{userId} {
-      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow create, delete: if isAdmin();
-    }
-
-    match /publishers/{pubId} {
-      allow read: if isSignedIn();
-      allow create, delete: if isAdmin();
-      // Permite al propio publicador actualizar su perfil, foto, informes, ausencias y cancelaciones
-      allow update: if isAdmin() || isOwnPublisherDoc(pubId);
-    }
-
-    match /shifts/{shiftId} {
-      allow read: if isSignedIn();
-      allow create, delete: if isAdmin();
-      // Permite a los publicadores tomar/cancelar turnos y adjuntar informes
-      allow update: if isAdmin() || (
-        isSignedIn() &&
-        request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['participants', 'reports', 'cancelledParticipants'])
-      );
-    }
-
-    match /locations/{locId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
-
-    match /settings/{docId} {
-      allow read: if isSignedIn();
-      allow write: if isAdmin();
-    }
-
-    match /draft_shifts/{draftId} {
-      allow read, write: if isAdmin();
-    }
-  }
-}
-```
+- **Qué hace**:
+  1. **Modo Inactivo (Pausa Indefinida)**: Permite que tanto el publicador (desde *Mi Perfil*) como el administrador (desde el *Directorio*) marquen una cuenta como **Inactiva**. Mientras esté inactiva, el generador automático ignora al publicador sin borrar sus casillas de disponibilidad semanal.
+  2. **Gestión Avanzada de Informes (Admin)**: Añade un filtro por **Ubicación** en la pestaña *Informes* (que recalcula también los totales de interacciones y reportes) y botones en cada informe para **Editar** o **Eliminar** el registro.
+  3. **Inicio de Sesión Sin Fricción**: Desactiva el bloqueo de cambio forzoso de contraseña al entrar por primera vez, añade el botón de mostrar/ocultar contraseña y habilita el autocompletado nativo de Android/iOS.
+- **Valor Principal**: Ahorra tiempo administrativo al evitar restablecimientos constantes de contraseñas, facilita pausar temporalmente a publicadores sin que pierdan su configuración horaria y permite corregir informes duplicados o erróneos.
 
 ---
 
-## 1. Overview & Core Concept
+## 2. Experiencia de Usuario y Diseño Visual
 
-- **What It Does**:
-  1. Elimina por completo el error `Missing or insufficient permissions` al guardar informes de turno, subir fotos de perfil y cancelar turnos.
-  2. Añade un selector claro de **Estado del Turno** en la ventana de **Informe de Turno** con tres opciones:
-     - **✅ Turno realizado** (permite ingresar el número de interacciones y comentarios).
-     - **🤝 Mi compañero(a) lo envía por mí** (oculta el campo de interacciones para no duplicar números y marca el informe como completado).
-     - **❌ El turno fue cancelado** (oculta el campo de interacciones sin pedir motivo obligatorio y registra que el turno no se llevó a cabo).
-- **Target Audience / Persona**: Publicadores y administradores de PPAM Encarnación.
-- **Key Value**: Cero errores de permisos para los hermanos desde el celular y reportes mucho más exactos cuando solo uno de los dos compañeros carga los datos o cuando un turno se suspende.
+### Flujos de Usuario Clave
 
----
+1. **Pausar / Reactivar Cuenta (Vista del Publicador y Admin)**:
+   - **En la App del Publicador (*Mi Perfil* y *Mis Turnos*)**:
+     - En *Mi Perfil*, una tarjeta destacada **"Estado de mi Cuenta"** muestra si la cuenta está **Activa (Recibiendo turnos)** o **Inactiva (En pausa indefinida)** con un botón claro para pausar o reactivar en un toque.
+     - Si la cuenta está inactiva, aparece un aviso informativo en *Mis Turnos* recordándole al publicador que no recibirá nuevas asignaciones automáticas hasta que reactive su cuenta, con un botón directo de **"Reactivar mi cuenta"**.
+   - **En el Panel de Admin (*Directorio*, *Generador* y *Disponibilidad*)**:
+     - En el formulario de creación/edición del publicador y en la ficha de detalles, el administrador puede cambiar el estado a **Inactivo (En pausa)**.
+     - Las tarjetas del directorio muestran una etiqueta clara `Inactivo` para identificarlos rápidamente.
+     - El **Generador Automático**, el **Calculador de Estadísticas del Borrador** y la pestaña **Consultar Disponibilidad** excluyen automáticamente a los publicadores inactivos (en la adición manual de un turno aparecen identificados al final bajo *No Disponibles / Ausentes / Inactivos*).
 
-## 2. User Experience & Visual Design
+2. **Filtrar, Editar y Eliminar Informes de Turno (Panel de Admin)**:
+   - **Filtro por Ubicación**: En la barra de filtros de la pestaña *Informes*, junto al selector de mes y de estado, se añade un selector desplegable **Todas las ubicaciones**. Al elegir una ubicación, tanto la lista de informes (enviados o pendientes) como los 3 contadores superiores (*Informes Recibidos*, *Total de Interacciones*, *Experiencias / Comentarios*) se actualizan al instante para esa ubicación.
+   - **Editar Informe**: Cada tarjeta de informe recibido incluye un botón **Editar** que abre un modal donde el administrador puede modificar el estado (*Turno realizado*, *Compañero(a) lo reporta*, *Turno cancelado*), la cantidad de interacciones y el comentario/experiencia.
+   - **Eliminar Informe**: Cada tarjeta incluye un botón **Eliminar** con confirmación que borra el informe del registro del publicador y actualiza los totales inmediatamente.
 
-- **Key User Flows**:
-  1. **Selector de Estado en Informe de Turno (`Mis Turnos`)**:
-     - Al abrir **Informe de Turno**, el publicador ve tres botones de selección rápida (`>= 44px` de alto para uso cómodo con el pulgar):
-       - **✅ Turno realizado** (seleccionado por defecto): Muestra el campo numérico `¿Cuántas interacciones tuvieron?` y el cuadro de `Comentarios o experiencias positivas (Opcional)`.
-       - **🤝 Mi compañero(a) envía el informe**: Oculta el contador de interacciones, muestra un breve aviso confirmando que no se duplicarán las interacciones y permite guardar con un toque.
-       - **❌ El turno fue cancelado**: Oculta el contador de interacciones (lo fija en `0`) sin exigir motivo obligatorio, manteniendo disponible el campo opcional de comentarios por si desea anotar algo.
-  2. **Visualización en Tarjetas de `Mis Turnos`, `Mi Historial` y Panel `Admin`**:
-     - Si el informe fue marcado como **Turno realizado**: Muestra `✓ Informe enviado · Interacciones: X`.
-     - Si fue marcado como **Mi compañero(a) envía el informe**: Muestra `🤝 Informe enviado por mi compañero(a)`.
-     - Si fue marcado como **El turno fue cancelado**: Muestra `❌ Turno reportado como cancelado`.
-     - En cualquiera de los tres casos, el turno ya no aparece como "Informe pendiente" para el publicador.
-- **Visual Identity & Theme**:
-  - Conserva la paleta institucional de PPAM (`#5d7aa9` azul principal, `#28a745` verde confirmación, `#dc3545` rojo alerta/cancelación) con controles táctiles claros y legibles en celulares.
+3. **Inicio de Sesión Simplificado y Visibilidad de Contraseña**:
+   - En la pantalla de login de publicadores, en la sección *Seguridad* de *Mi Perfil* y en el login de *Admin*, cada campo de contraseña cuenta con un botón de **ojo (`visibility` / `visibility_off`)** para verificar lo escrito antes de presionar Ingresar.
+   - Los formularios de login utilizan etiquetas semánticas `<form>` y atributos `autocomplete` estándar para que Chrome (Android) y Safari (iPhone) ofrezcan guardar la contraseña automáticamente.
+   - Las cuentas nuevas o existentes ya no muestran el modal bloqueante de *Cambio Obligatorio* al iniciar sesión.
 
 ---
 
-## 3. Key Product Decisions & Trade-Offs
+## 3. Decisiones de Producto y Arquitectura
 
-- **Decisión 1: Persistencia con Respaldo Automático (Zero-Failure Save)**
-  - *Chosen Approach*: Intentar guardar `shiftReports` y `photoUrl` directamente en `publishers/{id}`; si las reglas de Firebase en vivo aún restringen las llaves nuevas (`permission-denied`), guardar automáticamente el registro codificado dentro del arreglo `absences` (el cual ya está permitido por las reglas actuales para todos los publicadores) filtrándolo de la vista de vacaciones.
-  - *Why*: Garantiza que tanto el **Informe de Turno** como la **Foto de Perfil** funcionen al 100% de inmediato, incluso antes de que el administrador copie las nuevas reglas en Firebase Console.
-- **Decisión 2: Prevención de Duplicados en Estadísticas de Admin**
-  - *Chosen Approach*: Cuando un publicador elige **"Mi compañero(a) envía el informe"**, su registro guarda `reportStatus: 'partner'` e `interactions: 0`. En la pestaña **Informes** del Admin, se muestra con una etiqueta clara (`🤝 Reportado por compañero`) y no suma un informe vacío ni duplica las interacciones.
+- **Decisión 1: Campo `isInactive` independiente del horario (`availability`)**
+  - *Enfoque elegido*: Guardar un indicador booleano `isInactive` (sincronizado también con soporte cuando `status === 'Inactivo'`) manteniendo intacto el arreglo `availability` del publicador.
+  - *Por qué*: Cuando el publicador vuelve a estar activo semanas o meses después, todos sus turnos habituales siguen marcados tal como los dejó. Además, incluimos respaldo automático en `absences` (`_metaType: 'inactive'`) y actualizamos `firestore.rules` añadiendo `'isInactive'`.
+
+- **Decisión 2: Sincronización limpia al editar o eliminar informes desde Admin**
+  - *Enfoque elegido*: Al editar o borrar un informe como administrador, se actualiza tanto el mapa `shiftReports` del documento del publicador como cualquier entrada de respaldo en `_metaAbsences` (y `shift.reports` si existiera).
+  - *Por qué*: Garantiza que un informe editado o eliminado no reaparezca por datos residuales y que el publicador vea el cambio reflejado también en su propio historial.
 
 ---
 
-## 4. Technical Architecture & Data Strategy
+## 4. Arquitectura Técnica y Flujo de Datos
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│                     MODAL: INFORME DE TURNO (PPAM)                       │
-├──────────────────────────────────────────────────────────────────────────┤
-│  ¿Qué ocurrió con el turno?                                              │
-│  ┌─────────────────────────┐ ┌─────────────────────────┐ ┌─────────────┐ │
-│  │ ✅ Turno realizado       │ │ 🤝 Mi compañero lo hace │ │ ❌ Cancelado │ │
-│  └───────────┬─────────────┘ └────────────┬────────────┘ └──────┬──────┘ │
-│              │                            │                     │        │
-│              ▼                            ▼                     ▼        │
-│  Muestra: Interacciones +     Oculta Interacciones   Oculta Interacciones│
-│  Comentarios opcionales       (interactions = 0)     (interactions = 0)  │
-└──────────────┬────────────────────────────┴─────────────────────┴────────┘
-               │
-               ▼
-┌──────────────────────────────────────────────────────────────────────────┐
-│                 GUARDADO SEGURO CON RESPALDO AUTOMÁTICO                  │
-│  1. Intenta actualizar publishers/{id} (shiftReports / photoUrl)         │
-│  2. Si recibe permission-denied (reglas antiguas en consola):            │
-│     Guarda dentro del campo autorizado `absences` como metadato oculto   │
-│     (_metaType: 'report' | 'photo') ignorado por el generador de turnos  │
-└──────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                        FIRESTORE: publishers/{pubId}                    │
+│  • availability: [...] (se conserva intacto al pausar la cuenta)        │
+│  • isInactive: boolean (true = en pausa indefinida, false = activo)     │
+│  • shiftReports: { [shiftId]: { reportStatus, interactions, comments } }│
+└───────────────────┬─────────────────────────────────┬───────────────────┘
+                    │                                 │
+                    ▼                                 ▼
+┌───────────────────────────────────────┐ ┌───────────────────────────────┐
+│        APP PUBLICADOR (index/app)     │ │    PANEL ADMIN (admin/admin)  │
+│ • Login con <form>, autocomplete y 👁️ │ │ • Directorio: Badge y selector│
+│ • Sin bloqueo de cambio obligatorio   │ │   de estado Activo / Inactivo │
+│ • Mi Perfil / Mis Turnos: Interruptor │ │ • Generador y Disponibilidad: │
+│   para pausar o reactivar su cuenta   │ │   excluye cuentas inactivas   │
+│                                       │ │ • Pestaña Informes:           │
+│                                       │ │   - Filtro por Ubicación      │
+│                                       │ │   - Modal Editar Informe      │
+│                                       │ │   - Botón Eliminar Informe    │
+└───────────────────────────────────────┘ └───────────────────────────────┘
 ```
 
-- **Data Model & State**:
-  - Cada objeto de informe incluye: `shiftId`, `date`, `time`, `location`, `partnerText`, `publisherId`, `publisherName`, `reportStatus` (`'completed'` | `'partner'` | `'cancelled'`), `interactions` (entero `>= 0`), `comments` (texto opcional), y `updatedAt`.
-  - Un lector unificado (`getNormalizedPublisherData(pub)`) tanto en la app de publicadores como en el panel de administración lee automáticamente `pub.shiftReports` y `pub.photoUrl` tanto de los campos directos como del respaldo en `pub.absences`, asegurando compatibilidad total.
+### Mapa de Componentes e Interacciones
+- **Autenticación y Contraseñas**:
+  - `togglePasswordVisibility(inputId, btnEl)`: Alterna el atributo `type` entre `password` y `text` y actualiza el icono Material Symbols (`visibility` / `visibility_off`).
+  - `savePublisher()` y `onAuthStateChanged`: Establecen `requirePasswordChange: false` por defecto e ingresan directamente al panel principal sin mostrar `#force-password-modal`.
+- **Estado Inactivo de Cuenta**:
+  - `toggleMyAccountActiveStatus()` en la vista del publicador: Permite pausar o reactivar la cuenta con confirmación clara y actualiza la interfaz al instante.
+  - Filtros en `generateDraft()`, `openDraftStatsModal()` y `checkAvailability()`: Verifican `!isPublisherInactive(pub)` antes de incluir al publicador en el sorteo o conteo de disponibilidad.
+- **Gestión de Informes en Admin**:
+  - `rep-location-filter`: Se puebla dinámicamente con las ubicaciones presentes en los turnos y filtra tanto las tarjetas como los KPIs.
+  - `openAdminEditReportModal(shiftId, pubId)`, `saveAdminEditedReport()` y `deleteAdminShiftReport(shiftId, pubId)`: Permiten editar cualquier campo del informe o eliminarlo por completo con actualización inmediata en pantalla.

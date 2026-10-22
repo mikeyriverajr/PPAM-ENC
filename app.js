@@ -66,12 +66,15 @@ function normalizePublisherData(rawPub) {
     const mergedReports = { ...(pub.shiftReports && typeof pub.shiftReports === 'object' ? pub.shiftReports : {}) };
     const mergedCancels = Array.isArray(pub.cancellationHistory) ? [...pub.cancellationHistory] : [];
     let fallbackPhotoUrl = '';
+    let fallbackIsInactive = undefined;
 
     rawAbs.forEach(item => {
         if (item && typeof item === 'object' && item._metaType) {
             metaAbsences.push(item);
             if (item._metaType === 'photo' && typeof item.photoUrl === 'string') {
                 fallbackPhotoUrl = item.photoUrl;
+            } else if (item._metaType === 'inactive' && typeof item.isInactive === 'boolean') {
+                fallbackIsInactive = item.isInactive;
             } else if (item._metaType === 'report' && item.shiftId && item.report) {
                 const existing = mergedReports[item.shiftId];
                 if (!existing || (item.report.updatedAt || '') >= (existing.updatedAt || '')) {
@@ -89,6 +92,15 @@ function normalizePublisherData(rawPub) {
 
     if (!pub.photoUrl && fallbackPhotoUrl) {
         pub.photoUrl = fallbackPhotoUrl;
+    }
+    if (typeof fallbackIsInactive === 'boolean') {
+        pub.isInactive = fallbackIsInactive;
+    } else if (typeof pub.isInactive === 'boolean') {
+        pub.isInactive = pub.isInactive;
+    } else if (pub.status === 'Inactivo') {
+        pub.isInactive = true;
+    } else {
+        pub.isInactive = false;
     }
     pub.shiftReports = mergedReports;
     pub.cancellationHistory = mergedCancels;
@@ -143,28 +155,28 @@ auth.onAuthStateChanged(async user => {
         }
 
         if (userData.requirePasswordChange) {
-            document.getElementById('force-password-modal').style.display = 'flex';
-            document.getElementById('app-content').style.display = 'none';
-        } else {
-            document.getElementById('force-password-modal').style.display = 'none';
-            document.getElementById('app-content').style.display = 'block';
-
-            const pubSnap = await db.collection('publishers').get();
-            pubSnap.forEach(d => {
-                const norm = normalizePublisherData(d.data());
-                publisherCache[d.id] = {
-                    name: `${norm.firstName || ''} ${norm.lastName || ''}`.trim(),
-                    phone: norm.phone || '',
-                    isShiftManager: norm.isShiftManager || false,
-                    photoUrl: norm.photoUrl || ''
-                };
-            });
-
-            document.getElementById('header-user-name').innerText = `| ${publisherCache[currentUserPublisherId]?.name || ""}`;
-
-            fetchEncarnacionWeather();
-            loadShifts(); loadMyShifts(); loadAvailableShifts(); loadAvailabilityForm(); loadProfileForm();
+            db.collection('users').doc(user.uid).update({ requirePasswordChange: false }).catch(e => console.warn(e));
         }
+
+        document.getElementById('force-password-modal').style.display = 'none';
+        document.getElementById('app-content').style.display = 'block';
+
+        const pubSnap = await db.collection('publishers').get();
+        pubSnap.forEach(d => {
+            const norm = normalizePublisherData(d.data());
+            publisherCache[d.id] = {
+                name: `${norm.firstName || ''} ${norm.lastName || ''}`.trim(),
+                phone: norm.phone || '',
+                isShiftManager: norm.isShiftManager || false,
+                photoUrl: norm.photoUrl || '',
+                isInactive: norm.isInactive || false
+            };
+        });
+
+        document.getElementById('header-user-name').innerText = `| ${publisherCache[currentUserPublisherId]?.name || ""}`;
+
+        fetchEncarnacionWeather();
+        loadShifts(); loadMyShifts(); loadAvailableShifts(); loadAvailabilityForm(); loadProfileForm();
       } else {
         console.warn("Cuenta eliminada.");
         auth.signOut();
@@ -184,6 +196,15 @@ auth.onAuthStateChanged(async user => {
     currentPubData = null;
   }
 });
+
+function togglePasswordVisibility(inputId, btnEl) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const isPass = input.type === 'password';
+  input.type = isPass ? 'text' : 'password';
+  const icon = btnEl ? btnEl.querySelector('.material-symbols-outlined') : null;
+  if (icon) icon.innerText = isPass ? 'visibility_off' : 'visibility';
+}
 
 function handleGatekeeperLogin() {
   const usernameInput = document.getElementById('gate-username').value.trim();
@@ -887,6 +908,25 @@ async function loadMyShifts() {
     myCurrentShifts.sort((a, b) => a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || ''));
     recentFinishedShifts.sort((a, b) => b.date.localeCompare(a.date) || (b.time || '').localeCompare(a.time || ''));
     allFinishedShifts.sort((a, b) => b.date.localeCompare(a.date) || (b.time || '').localeCompare(a.time || ''));
+
+    // If the user's account is currently marked as Inactive, show a helpful banner with a 1-click Reactivate button
+    if (currentPubData && currentPubData.isInactive) {
+      const inactiveBanner = document.createElement('div');
+      inactiveBanner.style.cssText = 'background: #f8fafd; border: 1px solid #cbd5e0; border-left: 5px solid #6c757d; padding: 15px 18px; border-radius: 10px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap;';
+      inactiveBanner.innerHTML = `
+        <div style="display: flex; align-items: flex-start; gap: 10px; flex: 1; min-width: 220px;">
+          <span class="material-symbols-outlined" style="color: #6c757d; font-size: 26px; margin-top: 2px;">pause_circle</span>
+          <div>
+            <strong style="color: #2d3748; display: block; margin-bottom: 3px;">Tu cuenta está en modo Inactivo (Pausa de asignaciones)</strong>
+            <span style="font-size: 0.9em; color: #4a5568;">No recibirás nuevas asignaciones automáticas mientras tu cuenta esté en pausa. Tus preferencias de horario siguen guardadas.</span>
+          </div>
+        </div>
+        <button type="button" onclick="toggleMyAccountActiveStatus()" class="btn-action btn-success" style="white-space: nowrap;">
+          <span class="material-symbols-outlined" style="font-size: 18px;">play_circle</span> Reactivar mi cuenta
+        </button>
+      `;
+      container.appendChild(inactiveBanner);
+    }
 
     // Check if there are finished shifts without a submitted report from this publisher
     const pendingReportShifts = recentFinishedShifts.filter(s => !getMyReportForShift(s));
@@ -1725,11 +1765,95 @@ async function removeProfilePhoto() {
   }
 }
 
+function renderProfileAccountStatus() {
+  const card = document.getElementById('prof-account-status-card');
+  const icon = document.getElementById('prof-account-status-icon');
+  const title = document.getElementById('prof-account-status-title');
+  const desc = document.getElementById('prof-account-status-desc');
+  const btn = document.getElementById('btn-toggle-account-active');
+  if (!card || !btn) return;
+
+  const isInactive = Boolean(currentPubData && currentPubData.isInactive);
+  if (isInactive) {
+    card.style.background = '#f8f9fa';
+    card.style.borderColor = '#cbd5e0';
+    if (icon) { icon.innerText = 'pause_circle'; icon.style.color = '#6c757d'; }
+    if (title) { title.innerText = 'Cuenta Inactiva (En pausa indefinida)'; title.style.color = '#2d3748'; }
+    if (desc) { desc.innerText = 'No recibirás turnos en el generador automático hasta que reactives tu cuenta. Tus horarios preferidos siguen guardados.'; desc.style.color = '#4a5568'; }
+    btn.className = 'btn-action btn-success';
+    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">play_circle</span> Reactivar mi cuenta';
+  } else {
+    card.style.background = '#f0f9f2';
+    card.style.borderColor = '#c3e6cb';
+    if (icon) { icon.innerText = 'check_circle'; icon.style.color = '#28a745'; }
+    if (title) { title.innerText = 'Cuenta Activa'; title.style.color = '#155724'; }
+    if (desc) { desc.innerText = 'Estás incluido(a) normalmente en la programación mensual de turnos.'; desc.style.color = '#2d5738'; }
+    btn.className = 'btn-action btn-danger';
+    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:18px;">pause_circle</span> Pausar mi cuenta';
+  }
+}
+
+async function toggleMyAccountActiveStatus() {
+  if (!currentUserPublisherId || !currentPubData) return;
+  const currentlyInactive = Boolean(currentPubData.isInactive);
+  const nextInactive = !currentlyInactive;
+
+  const confirmMsg = nextInactive
+    ? "¿Deseas marcar tu cuenta como Inactiva? Dejarás de recibir asignaciones automáticas de turnos por tiempo indefinido sin perder tus horarios marcados, y podrás reactivarla cuando quieras."
+    : "¿Deseas volver a activar tu cuenta para recibir asignaciones de turnos nuevamente?";
+  const okText = nextInactive ? "Pausar Cuenta" : "Reactivar Cuenta";
+  const okColor = nextInactive ? "#dc3545" : "#28a745";
+
+  const confirmed = await showConfirm(confirmMsg, okText, okColor);
+  if (!confirmed) return;
+
+  try {
+    try {
+      const cleanedMeta = Array.isArray(currentPubData._metaAbsences)
+        ? currentPubData._metaAbsences.filter(m => m && m._metaType !== 'inactive')
+        : [];
+      const realAbs = Array.isArray(myAbsences)
+        ? myAbsences.filter(item => item && !item._metaType && item.start && item.end)
+        : [];
+      await db.collection('publishers').doc(currentUserPublisherId).update({
+        isInactive: nextInactive,
+        absences: [...realAbs, ...cleanedMeta],
+        lastProfileChange: new Date().toISOString()
+      });
+      currentPubData._metaAbsences = cleanedMeta;
+    } catch (permErr) {
+      console.warn("Direct isInactive update rejected by rules; using absences fallback:", permErr);
+      await updatePublisherMetaViaAbsencesFallback(currentUserPublisherId, (metaList) => {
+        const filtered = metaList.filter(m => m._metaType !== 'inactive');
+        filtered.push({
+          _metaType: 'inactive',
+          isInactive: nextInactive,
+          updatedAt: new Date().toISOString()
+        });
+        return filtered;
+      });
+    }
+
+    currentPubData.isInactive = nextInactive;
+    if (publisherCache[currentUserPublisherId]) {
+      publisherCache[currentUserPublisherId].isInactive = nextInactive;
+    }
+
+    renderProfileAccountStatus();
+    loadMyShifts();
+    showToast(nextInactive ? "Tu cuenta ahora está en modo Inactivo (en pausa)." : "¡Tu cuenta ha sido reactivada con éxito!");
+  } catch (err) {
+    console.error("Error updating account active status:", err);
+    showToast("Error al cambiar el estado de la cuenta: " + err.message, "error");
+  }
+}
+
 async function loadProfileForm() {
   if (!currentUserPublisherId || !currentPubData) return;
   try {
     const pub = currentPubData;
     renderProfileAvatarPreview();
+    renderProfileAccountStatus();
 
     // Check Notification Permission on load
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && pub.fcmToken) {

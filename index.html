@@ -14,8 +14,12 @@
       #login-overlay { background: white; padding: 40px 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); max-width: 400px; margin: 10vh auto; text-align: center; }
       #login-overlay input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 16px; transition: border-color 0.3s; }
       #login-overlay input:focus { outline: none; border-color: #5d7aa9; }
-      #login-overlay button { width: 100%; padding: 12px; margin-top: 10px; background-color: #5d7aa9; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 16px; transition: background-color 0.3s; }
-      #login-overlay button:hover { background-color: #4a638b; }
+      #login-overlay button.btn-login-submit { width: 100%; padding: 12px; margin-top: 10px; background-color: #5d7aa9; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 16px; transition: background-color 0.3s; }
+      #login-overlay button.btn-login-submit:hover { background-color: #4a638b; }
+      .pw-field-wrapper { position: relative; width: 100%; display: flex; align-items: center; }
+      .pw-field-wrapper input { padding-right: 44px !important; }
+      .btn-pw-toggle { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: transparent !important; border: none !important; color: #777 !important; width: 34px !important; height: 34px !important; padding: 0 !important; margin: 0 !important; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 50%; }
+      .btn-pw-toggle:hover { background: rgba(0,0,0,0.05) !important; color: #333 !important; }
 
       #force-password-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 9999; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
       .force-pass-box { background: white; padding: 40px 30px; border-radius: 12px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
@@ -174,9 +178,16 @@
   <div id="login-overlay">
     <h2 style="color: #333; margin-bottom: 5px;">Bienvenido</h2>
     <p style="color: #666; font-size: 0.95em; margin-bottom: 25px;">Ingresa para ver tu programa de PPAM.</p>
-    <input type="text" id="gate-username" placeholder="Usuario (ej. juanperez)">
-    <input type="password" id="gate-password" placeholder="Contraseña">
-    <button onclick="handleGatekeeperLogin()">Ingresar</button>
+    <form onsubmit="event.preventDefault(); handleGatekeeperLogin();" style="margin: 0;">
+      <input type="text" id="gate-username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Usuario (ej. juanperez)">
+      <div class="pw-field-wrapper">
+        <input type="password" id="gate-password" name="password" autocomplete="current-password" placeholder="Contraseña">
+        <button type="button" class="btn-pw-toggle" onclick="togglePasswordVisibility('gate-password', this)" title="Mostrar u ocultar contraseña" aria-label="Mostrar u ocultar contraseña">
+          <span class="material-symbols-outlined" style="font-size: 20px;">visibility</span>
+        </button>
+      </div>
+      <button type="submit" class="btn-login-submit">Ingresar</button>
+    </form>
     <p id="gate-error" style="color: #dc3545; font-size: 0.9em; margin-top: 15px;"></p>
     <p style="margin-top:20px; font-size:0.85em; color:#777;">
         ¿Olvidaste tu contraseña?<br>
@@ -282,6 +293,22 @@
         </div>
 
         <hr class="profile-divider">
+        <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#5d7aa9;">pause_circle</span> Estado de mi Cuenta (Asignación de Turnos)</h3>
+        <p style="font-size:0.9em; color:#666; margin-top:0;">Si necesitas dejar de recibir turnos por tiempo indefinido, puedes marcar tu cuenta como <strong>Inactiva</strong> sin perder tus horarios marcados en <em>Mi Horario</em>. Podrás volver a activarla cuando quieras.</p>
+        <div id="prof-account-status-card" style="background:#f0f9f2; padding:16px; border-radius:10px; border:1px solid #c3e6cb; display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span id="prof-account-status-icon" class="material-symbols-outlined" style="font-size:28px; color:#28a745;">check_circle</span>
+                <div>
+                    <div id="prof-account-status-title" style="font-weight:700; color:#155724; font-size:1em;">Cuenta Activa</div>
+                    <div id="prof-account-status-desc" style="font-size:0.84em; color:#2d5738; margin-top:2px;">Estás incluido(a) normalmente en la programación mensual de turnos.</div>
+                </div>
+            </div>
+            <button type="button" id="btn-toggle-account-active" onclick="toggleMyAccountActiveStatus()" class="btn-action btn-danger" style="padding:9px 15px; font-size:0.88em;">
+                <span class="material-symbols-outlined" style="font-size:18px;">pause_circle</span> Pausar mi cuenta
+            </button>
+        </div>
+
+        <hr class="profile-divider">
         <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#28a745;">notifications_active</span> Notificaciones Push</h3>
         <p style="font-size:0.9em; color:#666; margin-top:0;">Recibe alertas instantáneas en tu celular cuando se liberen turnos o haya cambios en tu programa.</p>
         <div style="background:#f9f9f9; padding:15px; border-radius:8px; border:1px solid #eee; display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
@@ -344,7 +371,15 @@
 
         <hr class="profile-divider">
         <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#333;">lock</span> Seguridad</h3>
-        <div class="form-group"><label>Nueva Contraseña (Mín. 6 caracteres)</label><input type="password" id="prof-new-pass" oninput="checkPasswordChange()" placeholder="Escribe para cambiar..."></div>
+        <div class="form-group">
+          <label>Nueva Contraseña (Mín. 6 caracteres)</label>
+          <div class="pw-field-wrapper">
+            <input type="password" id="prof-new-pass" name="new-password" autocomplete="new-password" oninput="checkPasswordChange()" placeholder="Escribe para cambiar...">
+            <button type="button" class="btn-pw-toggle" onclick="togglePasswordVisibility('prof-new-pass', this)" title="Mostrar u ocultar contraseña" aria-label="Mostrar u ocultar contraseña">
+              <span class="material-symbols-outlined" style="font-size: 20px;">visibility</span>
+            </button>
+          </div>
+        </div>
         <div style="text-align: right; margin-top: 10px;">
           <button type="button" id="btn-update-pass" onclick="changeProfilePassword()" disabled class="btn-primary">Actualizar Contraseña</button>
         </div>
@@ -460,6 +495,6 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
 <script src="firebase-config.js"></script>
-<script src="app.js?v=15"></script>
+<script src="app.js?v=16"></script>
 </body>
 </html>

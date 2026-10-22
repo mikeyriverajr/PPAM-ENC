@@ -64,7 +64,7 @@ service cloud.firestore {
           'phone', 'notificationEmail', 'emailNotificationsEnabled', 'emergencyName', 'emergencyPhone', 
           'partner', 'partnerName', 'hardPair', 'availability', 'absences', 'fcmToken', 'maxShifts',
           'lastProfileChange', 'lastLogin', 'lastCancelledShift',
-          'cancelledCount', 'cancellationHistory', 'shiftReports', 'photoUrl'
+          'cancelledCount', 'cancellationHistory', 'shiftReports', 'photoUrl', 'isInactive'
         ])
       );
     }

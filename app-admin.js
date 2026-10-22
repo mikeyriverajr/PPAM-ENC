@@ -85,6 +85,15 @@ auth.onAuthStateChanged(async user => {
   }
 });
 
+function toggleAdminPasswordVisibility(inputId, btnEl) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const isPass = input.type === 'password';
+  input.type = isPass ? 'text' : 'password';
+  const icon = btnEl ? btnEl.querySelector('.material-symbols-outlined') : null;
+  if (icon) icon.innerText = isPass ? 'visibility_off' : 'visibility';
+}
+
 function adminLogin() {
   let input = document.getElementById('admin-user').value.trim();
   const pass = document.getElementById('admin-pass').value;
@@ -253,6 +262,10 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 });
 
+function isPublisherInactive(pub) {
+  return Boolean(pub && (pub.isInactive === true || pub.status === 'Inactivo'));
+}
+
 function normalizeAdminPublisherData(rawPub) {
   if (!rawPub) return {};
   const pub = { ...rawPub };
@@ -262,12 +275,15 @@ function normalizeAdminPublisherData(rawPub) {
   const mergedReports = { ...(pub.shiftReports && typeof pub.shiftReports === 'object' ? pub.shiftReports : {}) };
   const mergedCancels = Array.isArray(pub.cancellationHistory) ? [...pub.cancellationHistory] : [];
   let fallbackPhotoUrl = '';
+  let fallbackIsInactive = undefined;
 
   rawAbs.forEach(item => {
     if (item && typeof item === 'object' && item._metaType) {
       metaAbsences.push(item);
       if (item._metaType === 'photo' && typeof item.photoUrl === 'string') {
         fallbackPhotoUrl = item.photoUrl;
+      } else if (item._metaType === 'inactive' && typeof item.isInactive === 'boolean') {
+        fallbackIsInactive = item.isInactive;
       } else if (item._metaType === 'report' && item.shiftId && item.report) {
         const existing = mergedReports[item.shiftId];
         if (!existing || (item.report.updatedAt || '') >= (existing.updatedAt || '')) {
@@ -285,6 +301,15 @@ function normalizeAdminPublisherData(rawPub) {
 
   if (!pub.photoUrl && fallbackPhotoUrl) {
     pub.photoUrl = fallbackPhotoUrl;
+  }
+  if (typeof fallbackIsInactive === 'boolean') {
+    pub.isInactive = fallbackIsInactive;
+  } else if (typeof pub.isInactive === 'boolean') {
+    pub.isInactive = pub.isInactive;
+  } else if (pub.status === 'Inactivo') {
+    pub.isInactive = true;
+  } else {
+    pub.isInactive = false;
   }
   pub.shiftReports = mergedReports;
   pub.cancellationHistory = mergedCancels;
@@ -307,9 +332,16 @@ async function loadPublishers() {
       const pub = normalizeAdminPublisherData(doc.data()); pub.id = doc.id; allPublishers.push(pub);
       const card = document.createElement('div');
       card.className = 'pub-card';
+      const inactive = isPublisherInactive(pub);
+      card.dataset.pubStatus = inactive ? 'inactive' : (pub.status === 'Entrenamiento' ? 'trainee' : 'active');
+      if (inactive) {
+        card.style.opacity = '0.78';
+        card.style.background = '#fafbfc';
+      }
       card.onclick = () => viewPublisher(pub.id);
       
       const avatarHtml = getAdminAvatarHtml(pub, 38);
+      const inactiveBadge = inactive ? `<span class="badge-gray" style="background:#e2e8f0; color:#4a5568;">⏸️ Inactivo</span>` : '';
       const statusBadge = pub.status === 'Entrenamiento' ? `<span class="badge-warning">Entrenamiento</span>` : '';
       const hardPairBadge = pub.hardPair ? `<span class="badge-red">Pareja Estricta</span>` : '';
       const cancelCount = getPublisherCancelCount(pub);
@@ -318,7 +350,7 @@ async function loadPublishers() {
         <div style="display:flex; align-items:center; gap:12px;">
           ${avatarHtml}
           <div>
-            <h4 class="pub-name" style="margin:0 0 4px 0; display:flex; align-items:center; gap:5px; flex-wrap:wrap;">${pub.firstName} ${pub.lastName || ''} ${statusBadge} ${hardPairBadge} ${cancelBadge}</h4>
+            <h4 class="pub-name" style="margin:0 0 4px 0; display:flex; align-items:center; gap:5px; flex-wrap:wrap;">${pub.firstName} ${pub.lastName || ''} ${inactiveBadge} ${statusBadge} ${hardPairBadge} ${cancelBadge}</h4>
             <p style="margin:0; font-size:0.85em; color:#666;">Turnos al mes: ${pub.maxShifts || '5'} | Compañero: ${pub.partnerName || 'Ninguno'}</p>
           </div>
         </div>
@@ -327,6 +359,7 @@ async function loadPublishers() {
       listDiv.appendChild(card);
       partnerSelect.innerHTML += `<option value="${pub.id}">${pub.firstName} ${pub.lastName || ''}</option>`;
     });
+    filterPublishers();
     if (typeof draftSchedule !== 'undefined' && draftSchedule.length > 0) {
       draftSchedule.forEach(shift => {
         if (Array.isArray(shift.participantIds)) {
@@ -366,9 +399,28 @@ async function viewPublisher(id) {
     const pub = allPublishers.find(p => p.id === id);
     if(!pub) return;
     currentViewId = id;
+    const inactive = isPublisherInactive(pub);
     
     document.getElementById('view-pub-name').innerHTML = `${getAdminAvatarHtml(pub, 44)} <span>${pub.firstName} ${pub.lastName || ''}</span>`;
-    document.getElementById('view-pub-status').innerHTML = pub.status === 'Entrenamiento' ? '<span style="color:#856404; font-weight:bold;">⚠️ Entrenamiento</span>' : '✅ Aprobado';
+    if (inactive) {
+        document.getElementById('view-pub-status').innerHTML = `<span style="color:#4a5568; font-weight:bold;">⏸️ Inactivo (En pausa)</span>${pub.status === 'Entrenamiento' ? ' • <span style="color:#856404;">Entrenamiento</span>' : ''}`;
+    } else if (pub.status === 'Entrenamiento') {
+        document.getElementById('view-pub-status').innerHTML = '<span style="color:#856404; font-weight:bold;">⚠️ Entrenamiento</span>';
+    } else {
+        document.getElementById('view-pub-status').innerHTML = '✅ Aprobado';
+    }
+
+    const btnToggleInactive = document.getElementById('btn-view-toggle-inactive');
+    if (btnToggleInactive) {
+        if (inactive) {
+            btnToggleInactive.className = 'btn-action btn-success';
+            btnToggleInactive.innerHTML = '<span class="material-symbols-outlined">play_circle</span> Reactivar Cuenta';
+        } else {
+            btnToggleInactive.className = 'btn-action btn-secondary';
+            btnToggleInactive.innerHTML = '<span class="material-symbols-outlined">pause_circle</span> Hacer Inactivo';
+        }
+    }
+
     document.getElementById('view-pub-max').innerText = `${pub.maxShifts || 5} turnos`;
     document.getElementById('view-pub-partner').innerText = pub.partnerName ? `${pub.partnerName} ${pub.hardPair ? '(Estricto)' : ''}` : 'Ninguno';
     
@@ -388,6 +440,50 @@ async function viewPublisher(id) {
     
     document.getElementById('pub-view-modal').style.display = 'flex';
     await loadPublisherShiftHistory(pub);
+}
+
+async function toggleAdminPubInactiveFromView() {
+    if (!currentViewId) return;
+    const pub = allPublishers.find(p => p.id === currentViewId);
+    if (!pub) return;
+    const currentlyInactive = isPublisherInactive(pub);
+    const nextInactive = !currentlyInactive;
+
+    const confirmMsg = nextInactive
+        ? `¿Deseas marcar a ${pub.firstName} ${pub.lastName || ''} como Inactivo(a)? No se le asignarán turnos en el generador automático, pero conservará sus horarios disponibles.`
+        : `¿Deseas reactivar la cuenta de ${pub.firstName} ${pub.lastName || ''} para que vuelva a recibir turnos?`;
+    const okText = nextInactive ? "Hacer Inactivo" : "Reactivar Cuenta";
+    const okColor = nextInactive ? "#6c757d" : "#28a745";
+
+    const ok = await showConfirm(confirmMsg, okText, okColor);
+    if (!ok) return;
+
+    try {
+        const preservedMetaAbs = Array.isArray(pub._metaAbsences)
+            ? pub._metaAbsences.filter(m => m && m._metaType !== 'inactive')
+            : [];
+        const realAbs = Array.isArray(pub.absences)
+            ? pub.absences.filter(item => item && !item._metaType && item.start && item.end)
+            : [];
+        const newStatus = (!nextInactive && pub.status === 'Inactivo') ? 'Aprobado' : (pub.status || 'Aprobado');
+
+        await db.collection('publishers').doc(pub.id).update({
+            isInactive: nextInactive,
+            status: newStatus,
+            absences: [...realAbs, ...preservedMetaAbs]
+        });
+
+        pub.isInactive = nextInactive;
+        pub.status = newStatus;
+        pub._metaAbsences = preservedMetaAbs;
+
+        showToast(nextInactive ? "Publicador marcado como Inactivo." : "Cuenta de publicador reactivada.");
+        await loadPublishers();
+        await viewPublisher(pub.id);
+    } catch (err) {
+        console.error("Error toggling inactive status:", err);
+        showToast("Error al actualizar estado: " + err.message, "error");
+    }
 }
 
 function closePubViewModal() { document.getElementById('pub-view-modal').style.display = 'none'; }
@@ -532,7 +628,7 @@ async function editPublisher(id) {
   document.getElementById('pub-firstname').value = pub.firstName || '';
   document.getElementById('pub-lastname').value = pub.lastName || '';
   document.getElementById('pub-gender').value = pub.gender || 'H';
-  document.getElementById('pub-status').value = pub.status || 'Aprobado';
+  document.getElementById('pub-status').value = isPublisherInactive(pub) ? 'Inactivo' : (pub.status || 'Aprobado');
   document.getElementById('pub-istrainer').checked = pub.isTrainer || false;
   document.getElementById('pub-ismanager').checked = pub.isShiftManager || false;
   document.getElementById('pub-max').value = pub.maxShifts || '5';
@@ -592,7 +688,7 @@ async function savePublisher() {
   const gender = document.getElementById('pub-gender').value;
   const partnerId = document.getElementById('pub-partner').value;
   const hardPair = document.getElementById('pub-hardpair').checked;
-  const status = document.getElementById('pub-status').value;
+  const rawStatusSelect = document.getElementById('pub-status').value;
   const isTrainer = document.getElementById('pub-istrainer').checked;
   const isShiftManager = document.getElementById('pub-ismanager').checked;
   const maxShifts = parseInt(document.getElementById('pub-max').value) || 5;
@@ -624,11 +720,16 @@ async function savePublisher() {
 
   const existingPub = id ? allPublishers.find(p => p.id === id) : null;
   const preservedMetaAbs = existingPub && Array.isArray(existingPub._metaAbsences)
-    ? existingPub._metaAbsences.filter(m => m && m._metaType !== 'photo')
+    ? existingPub._metaAbsences.filter(m => m && m._metaType !== 'photo' && m._metaType !== 'inactive')
     : [];
   const absencesToSave = [...currentAbsences, ...preservedMetaAbs];
+
+  const isInactive = rawStatusSelect === 'Inactivo';
+  const status = isInactive
+    ? ((existingPub && existingPub.status && existingPub.status !== 'Inactivo') ? existingPub.status : 'Aprobado')
+    : rawStatusSelect;
   
-  const pubData = { firstName, lastName, gender, status, isTrainer, isShiftManager, partner: partnerId, partnerName, hardPair, maxShifts, phone, notificationEmail, emailNotificationsEnabled, emergencyName, emergencyPhone, availability, absences: absencesToSave, photoUrl: currentEditPhotoUrl || '' };
+  const pubData = { firstName, lastName, gender, status, isInactive, isTrainer, isShiftManager, partner: partnerId, partnerName, hardPair, maxShifts, phone, notificationEmail, emailNotificationsEnabled, emergencyName, emergencyPhone, availability, absences: absencesToSave, photoUrl: currentEditPhotoUrl || '' };
 
   try {
     if (id) {
@@ -636,7 +737,7 @@ async function savePublisher() {
       if (email && password && !usernameIsDisabled) {
         if (password.length < 6) { showToast('Contraseña requiere 6+ caracteres.', 'error'); return; }
         const userCred = await secondaryAuth.createUserWithEmailAndPassword(email, password);
-        await db.collection('users').doc(userCred.user.uid).set({ publisherId: id, role: role, username: username, requirePasswordChange: true });
+        await db.collection('users').doc(userCred.user.uid).set({ publisherId: id, role: role, username: username, requirePasswordChange: false });
         await secondaryAuth.signOut();
       } else if (currentLinkedUserDocId) {
         await db.collection('users').doc(currentLinkedUserDocId).update({ role: role });
@@ -647,7 +748,7 @@ async function savePublisher() {
       if (email && password) {
         if (password.length < 6) { showToast('Contraseña requiere 6+ caracteres.', 'error'); return; }
         const userCred = await secondaryAuth.createUserWithEmailAndPassword(email, password);
-        await db.collection('users').doc(userCred.user.uid).set({ publisherId: newPubRef.id, role: role, username: username, requirePasswordChange: true });
+        await db.collection('users').doc(userCred.user.uid).set({ publisherId: newPubRef.id, role: role, username: username, requirePasswordChange: false });
         await secondaryAuth.signOut();
       }
       showToast('Publicador creado exitosamente.');
@@ -749,9 +850,16 @@ function clearPublisherForm() {
 }
 
 function filterPublishers() {
-  const input = document.getElementById('pub-search').value.toLowerCase();
-  const cards = document.querySelectorAll('.pub-card');
-  cards.forEach(c => { c.style.display = c.querySelector('.pub-name').innerText.toLowerCase().includes(input) ? 'flex' : 'none'; });
+  const input = (document.getElementById('pub-search')?.value || '').toLowerCase();
+  const statusFilter = document.getElementById('pub-status-filter')?.value || 'all';
+  const cards = document.querySelectorAll('#publishers-list .pub-card');
+  cards.forEach(c => {
+    const nameEl = c.querySelector('.pub-name');
+    const matchesName = !nameEl || nameEl.innerText.toLowerCase().includes(input);
+    const pubStatus = c.dataset.pubStatus || 'active';
+    const matchesStatus = statusFilter === 'all' || pubStatus === statusFilter;
+    c.style.display = (matchesName && matchesStatus) ? 'flex' : 'none';
+  });
 }
 
 // ==========================================
@@ -1153,16 +1261,16 @@ async function generateDraft() {
         return;
     }
 
-    // Populate each shift task's pool ONLY with publishers who are approved and actually available on that specific date (including sibling locations)
+    // Populate each shift task's pool ONLY with publishers who are approved, active, and actually available on that specific date (including sibling locations)
     allPublishers.forEach(pub => {
-      if (pub.status === 'Entrenamiento') return;
+      if (pub.status === 'Entrenamiento' || isPublisherInactive(pub)) return;
       shiftTasks.forEach(task => {
         if (!isPubAvailableForSlot(pub, task.availKey, equivAvailMap)) return;
         if (isAbsent(pub, task.dateString)) return;
-        // If publisher has a strict hardPair, verify their partner is also approved, available for this slot, and not absent on this date
+        // If publisher has a strict hardPair, verify their partner is also approved, active, available for this slot, and not absent on this date
         if (pub.hardPair && pub.partner) {
           const strictPartner = allPublishers.find(p => p.id === pub.partner);
-          if (!strictPartner || strictPartner.status === 'Entrenamiento') return;
+          if (!strictPartner || strictPartner.status === 'Entrenamiento' || isPublisherInactive(strictPartner)) return;
           if (!isPubAvailableForSlot(strictPartner, task.availKey, equivAvailMap)) return;
           if (isAbsent(strictPartner, task.dateString)) return;
         }
@@ -1184,7 +1292,7 @@ async function generateDraft() {
     function canAssign(pubId, dateObj, dateString) {
       let pub = allPublishers.find(p => p.id === pubId);
       if (!pub) return false;
-      if (pub.status === 'Entrenamiento') return false;
+      if (pub.status === 'Entrenamiento' || isPublisherInactive(pub)) return false;
       if (isAbsent(pub, dateString)) return false;
       
       let limit = pub.maxShifts ? parseInt(pub.maxShifts) : 5;
@@ -1609,7 +1717,9 @@ function openShiftEditModal(shiftIndex) {
 
     const isAvailableInProfile = isPubAvailableForSlot(pub, availKey);
 
-    if (isAway) {
+    if (isPublisherInactive(pub)) {
+        unavailableHtml += `<option value="${pub.id}">⏸️ ${pub.firstName} ${pub.lastName || ''} (Inactivo)</option>`;
+    } else if (isAway) {
         unavailableHtml += `<option value="${pub.id}">✈️ ${pub.firstName} ${pub.lastName || ''} (Vacaciones)</option>`;
     } else if (pub.status === 'Entrenamiento') {
         traineeHtml += `<option value="${pub.id}">⚠️ ${pub.firstName} ${pub.lastName}</option>`;
@@ -1637,6 +1747,7 @@ async function manualAdd(shiftIndex) {
   
   let trackers = recalculateTrackers(); let warnings = [];
   
+  if (isPublisherInactive(pub)) warnings.push("⏸️ Está marcado como INACTIVO (En pausa de asignaciones).");
   if (pub.status === 'Entrenamiento') warnings.push("Está En Entrenamiento. Asegúrate de asignarlo con un capacitador.");
   if (pub.absences && pub.absences.some(abs => shift.dateString >= abs.start && shift.dateString <= abs.end)) warnings.push("✈️ Está marcado como AUSENTE (Vacaciones) en esta fecha.");
 
@@ -2095,7 +2206,7 @@ function openDraftStatsModal() {
   // Initialize counts for active publishers who are actually available for the drafted shifts (including sibling locations)
   const equivMap = buildEquivalentAvailKeysMap(allActiveLocationsCache);
   allPublishers.forEach(pub => {
-      if (pub.status !== 'Entrenamiento') { // Exclude trainees from stats as they are manually handled
+      if (pub.status !== 'Entrenamiento' && !isPublisherInactive(pub)) { // Exclude trainees and inactive publishers from stats
           const isAvailableForDraft = Array.from(draftAvailKeys).some(availKey => isPubAvailableForSlot(pub, availKey, equivMap));
           if (isAvailableForDraft) {
               pubCounts[pub.id] = 0;
@@ -2256,6 +2367,7 @@ function checkAvailability() {
     const equivMap = buildEquivalentAvailKeysMap(availLocationsCache);
     const availablePubs = allPublishers.filter(pub =>
         pub.status !== 'Entrenamiento' &&
+        !isPublisherInactive(pub) &&
         isPubAvailableForSlot(pub, availKey, equivMap)
     );
 
@@ -2460,9 +2572,19 @@ async function loadPublisherShiftHistory(pub) {
                             ? `<span style="color:#2c5282; font-weight:600;">🤝 Informe enviado por su compañero(a)</span>`
                             : `<strong>📋 Informe:</strong> ${item.report.interactions ?? 0} interacciones`);
                     reportHtml = `
-                        <div style="margin-top: 6px; padding-top: 6px; border-top: 1px dashed #dce4ee; font-size: 0.85em; color: #155724;">
-                            ${repSummary}
-                            ${item.report.comments ? `<div style="font-style: italic; color: #333; margin-top: 3px;">"${item.report.comments}"</div>` : ''}
+                        <div style="margin-top: 6px; padding-top: 6px; border-top: 1px dashed #dce4ee; font-size: 0.85em; color: #155724; display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; flex-wrap: wrap;">
+                            <div>
+                                ${repSummary}
+                                ${item.report.comments ? `<div style="font-style: italic; color: #333; margin-top: 3px;">"${item.report.comments}"</div>` : ''}
+                            </div>
+                            <div style="display: flex; gap: 6px;">
+                                <button type="button" onclick="openAdminEditReportModal('${s.id}', '${pub.id}')" class="btn-action" style="background: #eef2f7; color: #2c5282; padding: 3px 8px; font-size: 0.82em;" title="Editar informe">
+                                    <span class="material-symbols-outlined" style="font-size: 14px;">edit</span>
+                                </button>
+                                <button type="button" onclick="deleteAdminShiftReport('${s.id}', '${pub.id}')" class="btn-action" style="background: #fff5f5; color: #dc3545; border: 1px solid #f5c6cb; padding: 3px 8px; font-size: 0.82em;" title="Eliminar informe">
+                                    <span class="material-symbols-outlined" style="font-size: 14px;">delete</span>
+                                </button>
+                            </div>
                         </div>
                     `;
                 }
@@ -2492,9 +2614,10 @@ async function loadShiftReports() {
     container.innerHTML = '<p style="color: #666; text-align: center;">Cargando informes de turno...</p>';
 
     try {
-        const [pubSnap, shiftsSnap] = await Promise.all([
+        const [pubSnap, shiftsSnap, locsSnap] = await Promise.all([
             db.collection('publishers').orderBy('firstName').get(),
-            db.collection('shifts').orderBy('date', 'desc').get()
+            db.collection('shifts').orderBy('date', 'desc').get(),
+            db.collection('locations').get()
         ]);
 
         allPublishers = [];
@@ -2506,6 +2629,12 @@ async function loadShiftReports() {
 
         adminShiftsCache = [];
         const monthsSet = new Set();
+        const locationsSet = new Set();
+
+        locsSnap.forEach(doc => {
+            const l = doc.data();
+            if (l && l.name) locationsSet.add(l.name.trim());
+        });
 
         shiftsSnap.forEach(doc => {
             const d = doc.data();
@@ -2513,6 +2642,9 @@ async function loadShiftReports() {
             adminShiftsCache.push(d);
             if (d.date && d.date.length >= 7) {
                 monthsSet.add(d.date.substring(0, 7));
+            }
+            if (d.location) {
+                locationsSet.add(d.location.trim());
             }
         });
 
@@ -2529,6 +2661,16 @@ async function loadShiftReports() {
             });
         }
 
+        const locSelect = document.getElementById('rep-location-filter');
+        const currentSelectedLoc = locSelect ? locSelect.value : '';
+        if (locSelect) {
+            locSelect.innerHTML = '<option value="">Todas las ubicaciones</option>';
+            Array.from(locationsSet).sort((a, b) => a.localeCompare(b)).forEach(locName => {
+                const sel = locName === currentSelectedLoc ? 'selected' : '';
+                locSelect.innerHTML += `<option value="${locName.replace(/"/g, '&quot;')}" ${sel}>${locName}</option>`;
+            });
+        }
+
         renderShiftReports();
     } catch (e) {
         console.error("Error loading shift reports:", e);
@@ -2541,6 +2683,7 @@ function renderShiftReports() {
     if (!container) return;
 
     const monthFilter = (document.getElementById('rep-month-filter')?.value || '').trim();
+    const locationFilter = (document.getElementById('rep-location-filter')?.value || '').trim();
     const statusFilter = document.getElementById('rep-status-filter')?.value || 'all';
     const searchQuery = (document.getElementById('rep-search-input')?.value || '').toLowerCase().trim();
 
@@ -2562,6 +2705,9 @@ function renderShiftReports() {
         if (monthFilter && (!shift.date || !shift.date.startsWith(monthFilter))) {
             return;
         }
+        if (locationFilter && (shift.location || '').trim() !== locationFilter) {
+            return;
+        }
 
         const combinedReportsMap = {
             ...(shift.reports || {}),
@@ -2573,6 +2719,7 @@ function renderShiftReports() {
         if (reportKeys.length > 0) {
             reportKeys.forEach(pubId => {
                 const rep = combinedReportsMap[pubId];
+                if (!rep) return;
                 const pubName = rep.publisherName || getPublisherNameById(pubId);
                 const partners = realParticipants.filter(id => id !== pubId).map(id => getPublisherNameById(id));
                 const partnerText = partners.length > 0 ? partners.join(', ') : (rep.partnerText || 'Solo/a');
@@ -2597,7 +2744,7 @@ function renderShiftReports() {
         }
     });
 
-    // Update KPIs based on submitted reports matching month & search query
+    // Update KPIs based on submitted reports matching month, location & search query
     const filteredSubmittedForKpi = submittedEntries.filter(entry => {
         if (!searchQuery) return true;
         const haystack = `${entry.publisherName} ${entry.partnerText} ${entry.shift.location} ${entry.shift.date} ${formatSpanishDate(entry.shift.date)} ${entry.comments}`.toLowerCase();
@@ -2665,10 +2812,10 @@ function renderShiftReports() {
             : `<div style="margin-top: 8px; font-size: 0.85em; color: #999; font-style: italic;">Sin comentarios adicionales.</div>`;
 
         const statusBadgeHtml = entry.reportStatus === 'cancelled'
-            ? `<span class="badge-red" style="font-size: 0.9em; padding: 6px 12px;">❌ Turno Cancelado</span>`
+            ? `<span class="badge-red" style="font-size: 0.9em; padding: 6px 12px; margin: 0;">❌ Turno Cancelado</span>`
             : (entry.reportStatus === 'partner'
-                ? `<span class="badge-blue" style="font-size: 0.9em; padding: 6px 12px;">🤝 Reportado por compañero(a)</span>`
-                : `<span class="badge-green" style="font-size: 0.9em; padding: 6px 12px;">🤝 ${entry.interactions} ${entry.interactions === 1 ? 'Interacción' : 'Interacciones'}</span>`);
+                ? `<span class="badge-blue" style="font-size: 0.9em; padding: 6px 12px; margin: 0;">🤝 Reportado por compañero(a)</span>`
+                : `<span class="badge-green" style="font-size: 0.9em; padding: 6px 12px; margin: 0;">🤝 ${entry.interactions} ${entry.interactions === 1 ? 'Interacción' : 'Interacciones'}</span>`);
 
         card.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; border-bottom: 1px solid #f0f0f0; padding-bottom: 10px;">
@@ -2681,14 +2828,179 @@ function renderShiftReports() {
                         📍 <strong>${s.location}</strong> &nbsp;•&nbsp; 👤 Reportado por: <strong>${entry.publisherName}</strong> (Con: ${entry.partnerText})
                     </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                     ${statusBadgeHtml}
+                    <button type="button" onclick="openAdminEditReportModal('${s.id}', '${entry.publisherId}')" class="btn-action" style="background: #eef2f7; color: #2c5282; border: 1px solid #cdd8e6; padding: 6px 11px; font-size: 0.85em;" title="Editar este informe">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">edit</span> Editar
+                    </button>
+                    <button type="button" onclick="deleteAdminShiftReport('${s.id}', '${entry.publisherId}')" class="btn-action" style="background: #fff5f5; color: #dc3545; border: 1px solid #f5c6cb; padding: 6px 11px; font-size: 0.85em;" title="Eliminar este informe">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">delete</span> Eliminar
+                    </button>
                 </div>
             </div>
             ${commentBlock}
         `;
         container.appendChild(card);
     });
+}
+
+function handleAdminRepStatusChange() {
+    const status = document.getElementById('admin-rep-status')?.value || 'completed';
+    const interactionsGroup = document.getElementById('admin-rep-interactions-group');
+    if (interactionsGroup) {
+        interactionsGroup.style.display = status === 'completed' ? 'block' : 'none';
+    }
+}
+
+function openAdminEditReportModal(shiftId, pubId) {
+    const shift = adminShiftsCache.find(s => s.id === shiftId);
+    const pub = allPublishers.find(p => p.id === pubId);
+    if (!shift) {
+        showToast("No se encontró el turno del informe.", "error");
+        return;
+    }
+
+    const rep = (pub && getReportForPublisherShift(pub, shift)) || (shift.reports && shift.reports[pubId]) || {};
+    const pubName = rep.publisherName || getPublisherNameById(pubId);
+    const realParticipants = (shift.participants || []).filter(id => id && id !== 'Disponible' && id !== pubId);
+    const partnerText = realParticipants.length > 0 ? realParticipants.map(id => getPublisherNameById(id)).join(', ') : (rep.partnerText || 'Solo/a');
+
+    document.getElementById('admin-rep-shift-id').value = shiftId;
+    document.getElementById('admin-rep-pub-id').value = pubId;
+    document.getElementById('admin-rep-summary').innerHTML = `
+        <div><strong>👤 Publicador:</strong> ${pubName} (Con: ${partnerText})</div>
+        <div><strong>📍 Ubicación:</strong> ${shift.location}</div>
+        <div><strong>📅 Turno:</strong> ${formatSpanishDate(shift.date)} (${shift.time})</div>
+    `;
+
+    const repStatus = rep.reportStatus || 'completed';
+    document.getElementById('admin-rep-status').value = repStatus;
+    document.getElementById('admin-rep-interactions').value = rep.interactions !== undefined ? rep.interactions : 0;
+    document.getElementById('admin-rep-comments').value = rep.comments || '';
+    handleAdminRepStatusChange();
+
+    document.getElementById('admin-edit-report-modal').style.display = 'flex';
+}
+
+function closeAdminEditReportModal() {
+    const modal = document.getElementById('admin-edit-report-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+async function saveAdminEditedReport() {
+    const shiftId = document.getElementById('admin-rep-shift-id').value;
+    const pubId = document.getElementById('admin-rep-pub-id').value;
+    if (!shiftId || !pubId) return;
+
+    const shift = adminShiftsCache.find(s => s.id === shiftId);
+    const pub = allPublishers.find(p => p.id === pubId);
+    const repStatus = document.getElementById('admin-rep-status').value || 'completed';
+    const interactionsRaw = document.getElementById('admin-rep-interactions').value;
+    const interactions = repStatus === 'completed' ? Math.max(0, parseInt(interactionsRaw, 10) || 0) : 0;
+    const comments = document.getElementById('admin-rep-comments').value.trim();
+
+    const btn = document.getElementById('btn-admin-save-rep');
+    if (btn) btn.disabled = true;
+
+    try {
+        const realParticipants = ((shift && shift.participants) || []).filter(id => id && id !== 'Disponible' && id !== pubId);
+        const partnerText = realParticipants.length > 0 ? realParticipants.map(id => getPublisherNameById(id)).join(', ') : 'Solo/a';
+        const pubName = getPublisherNameById(pubId);
+
+        const updatedReport = {
+            shiftId: shiftId,
+            date: shift ? shift.date : '',
+            time: shift ? shift.time : '',
+            location: shift ? shift.location : '',
+            partnerText: partnerText,
+            publisherId: pubId,
+            publisherName: pubName,
+            reportStatus: repStatus,
+            interactions: interactions,
+            comments: comments,
+            updatedAt: new Date().toISOString()
+        };
+
+        if (pub) {
+            const cleanedMeta = Array.isArray(pub._metaAbsences)
+                ? pub._metaAbsences.filter(m => !(m && m._metaType === 'report' && m.shiftId === shiftId))
+                : [];
+            const realAbs = Array.isArray(pub.absences)
+                ? pub.absences.filter(item => item && !item._metaType && item.start && item.end)
+                : [];
+            await db.collection('publishers').doc(pubId).update({
+                [`shiftReports.${shiftId}`]: updatedReport,
+                absences: [...realAbs, ...cleanedMeta]
+            });
+            if (!pub.shiftReports) pub.shiftReports = {};
+            pub.shiftReports[shiftId] = updatedReport;
+            pub._metaAbsences = cleanedMeta;
+        }
+
+        if (shift && shift.reports && shift.reports[pubId]) {
+            await db.collection('shifts').doc(shiftId).update({
+                [`reports.${pubId}`]: updatedReport
+            });
+            shift.reports[pubId] = updatedReport;
+        }
+
+        closeAdminEditReportModal();
+        showToast("Informe de turno actualizado con éxito.");
+        renderShiftReports();
+        if (currentViewId === pubId && document.getElementById('pub-view-modal')?.style.display === 'flex' && pub) {
+            await loadPublisherShiftHistory(pub);
+        }
+    } catch (e) {
+        console.error("Error updating report:", e);
+        showToast("Error al actualizar el informe: " + e.message, "error");
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function deleteAdminShiftReport(shiftId, pubId) {
+    if (!shiftId || !pubId) return;
+    const pubName = getPublisherNameById(pubId);
+    const confirmed = await showConfirm(`¿Estás seguro de eliminar el informe de turno enviado por ${pubName}?`, "Eliminar Informe", "#dc3545");
+    if (!confirmed) return;
+
+    try {
+        const pub = allPublishers.find(p => p.id === pubId);
+        const shift = adminShiftsCache.find(s => s.id === shiftId);
+
+        if (pub) {
+            const cleanedMeta = Array.isArray(pub._metaAbsences)
+                ? pub._metaAbsences.filter(m => !(m && m._metaType === 'report' && m.shiftId === shiftId))
+                : [];
+            const realAbs = Array.isArray(pub.absences)
+                ? pub.absences.filter(item => item && !item._metaType && item.start && item.end)
+                : [];
+            await db.collection('publishers').doc(pubId).update({
+                [`shiftReports.${shiftId}`]: firebase.firestore.FieldValue.delete(),
+                absences: [...realAbs, ...cleanedMeta]
+            });
+            if (pub.shiftReports) {
+                delete pub.shiftReports[shiftId];
+            }
+            pub._metaAbsences = cleanedMeta;
+        }
+
+        if (shift && shift.reports && shift.reports[pubId]) {
+            await db.collection('shifts').doc(shiftId).update({
+                [`reports.${pubId}`]: firebase.firestore.FieldValue.delete()
+            });
+            delete shift.reports[pubId];
+        }
+
+        showToast("Informe eliminado exitosamente.");
+        renderShiftReports();
+        if (currentViewId === pubId && document.getElementById('pub-view-modal')?.style.display === 'flex' && pub) {
+            await loadPublisherShiftHistory(pub);
+        }
+    } catch (e) {
+        console.error("Error deleting shift report:", e);
+        showToast("Error al eliminar el informe: " + e.message, "error");
+    }
 }
 
 // For Node.js testing

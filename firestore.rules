@@ -1,0 +1,106 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() { return request.auth != null; }
+
+    // Check if the user's document says role: 'admin'
+    function isDbAdmin() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    // Keep your master email admin active as a fallback
+    function isEmailAdmin() {
+      return isSignedIn() && !request.auth.token.email.matches('.*@ppam\\.app');
+    }
+
+    function isAdmin() { return isDbAdmin() || isEmailAdmin(); }
+    function isPublisher() { return isSignedIn(); }
+
+    // Helper: Get the current user's publisherId from their user document
+    function getMyPubId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.publisherId;
+    }
+
+    // Helper: Ensure the publisher is ONLY adding or removing their OWN ID from the participants array
+    function isOnlyModifyingSelfInParticipants() {
+      let myPubId = getMyPubId();
+      let oldList = resource.data.participants.toSet();
+      let newList = request.resource.data.participants.toSet();
+      
+      let added = newList.difference(oldList);
+      let removed = oldList.difference(newList);
+
+      // Allow if they are exactly adding themselves (and removing no one OR removing only "Disponible")
+      // OR exactly removing themselves (and adding no one).
+      return (added == [myPubId].toSet() && (removed == [].toSet() || removed == ['Disponible'].toSet())) ||
+             (removed == [myPubId].toSet() && added == [].toSet());
+    }
+
+    // 1. SHIFTS
+    match /shifts/{shiftId} {
+      allow read: if isSignedIn();
+      allow create, delete: if isAdmin(); 
+      allow update: if isAdmin() || (
+        isPublisher() && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participants']) &&
+        isOnlyModifyingSelfInParticipants()
+      );
+    }
+    
+    // 1B. DRAFT SHIFTS
+    match /draft_shifts/{draftId} {
+      allow read, write: if isAdmin();
+    }
+
+    // 2. DIRECTORY 
+    match /publishers/{pubId} {
+      allow read: if isSignedIn(); 
+      allow create, delete: if isAdmin();
+      // SECURITY CATCH: Allow if Admin. If Publisher, they can only edit their own doc AND only specific non-admin fields.
+      allow update: if isAdmin() || (
+        isSignedIn() && 
+        getMyPubId() == pubId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'phone', 'notificationEmail', 'emailNotificationsEnabled', 'emergencyName', 'emergencyPhone', 
+          'partner', 'partnerName', 'hardPair', 'availability', 'absences', 'fcmToken', 'maxShifts',
+          'lastProfileChange', 'lastLogin', 'lastCancelledShift',
+          'cancelledCount', 'cancellationHistory', 'shiftReports', 'photoUrl'
+        ])
+      );
+    }
+
+    // 3. LOCATIONS
+    match /locations/{locId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin(); 
+    }
+
+    // 4. USERS (Login Credentials)
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        request.auth.uid == userId && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['requirePasswordChange'])
+      );
+    }
+
+    // 5. NOTIFICATIONS
+    match /notifications/{notifId} {
+      allow read, update, delete: if isAdmin(); 
+      allow create: if isPublisher(); 
+    }
+
+    // 6. SETTINGS (Encargados del Día, etc.)
+    match /settings/{settingId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin(); 
+    }
+
+    // 7. SYSTEM / METADATA
+    match /system/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin(); 
+    }
+  }
+}

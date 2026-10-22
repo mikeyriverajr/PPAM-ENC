@@ -1,6 +1,6 @@
 {
-  "summary":  "Updated implementation plan detailing exactly where and how profile pictures are stored (compressed ~10 KB thumbnail in Firestore publishers/{id}.photoUrl with optional Firebase Storage support).",
-  "updatedAt":  "2026-10-22T00:41:45.486611608Z",
+  "summary":  "Implementation plan to update Firestore Security Rules and add automatic fallback persistence for publisher reports/photos, plus add 'Mi compañero(a) lo hará por mí' and 'El turno fue cancelado' options to the Informe de Turno modal.",
+  "updatedAt":  "2026-10-22T11:23:58.966415085Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

@@ -381,18 +381,39 @@
       <p style="margin: 0 0 18px 0; color: #666; font-size: 0.92em;">Comparte un breve resumen de tu turno finalizado.</p>
 
       <input type="hidden" id="report-shift-id">
-      <div id="report-shift-summary" style="background: #f4f7fb; border: 1px solid #dce4ee; border-radius: 8px; padding: 12px 15px; margin-bottom: 20px; font-size: 0.92em; color: #333; display: flex; flex-direction: column; gap: 5px;">
+      <div id="report-shift-summary" style="background: #f4f7fb; border: 1px solid #dce4ee; border-radius: 8px; padding: 12px 15px; margin-bottom: 18px; font-size: 0.92em; color: #333; display: flex; flex-direction: column; gap: 5px;">
       </div>
 
-      <div class="form-group">
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label style="margin-bottom: 8px; display: block;">¿Qué ocurrió con el turno?</label>
+        <div id="report-status-options" style="display: flex; flex-direction: column; gap: 8px;">
+          <button type="button" id="rep-opt-completed" onclick="selectReportStatus('completed')" style="display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 11px 14px; border-radius: 8px; border: 2px solid #28a745; background: #f0f9f2; color: #155724; font-weight: 600; font-size: 0.95em; cursor: pointer; transition: all 0.15s;">
+            <span class="material-symbols-outlined" style="font-size: 20px; color: #28a745;">check_circle</span>
+            <span>✅ Turno realizado (ingresar interacciones)</span>
+          </button>
+          <button type="button" id="rep-opt-partner" onclick="selectReportStatus('partner')" style="display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 11px 14px; border-radius: 8px; border: 1px solid #dce4ee; background: #fff; color: #333; font-weight: 600; font-size: 0.95em; cursor: pointer; transition: all 0.15s;">
+            <span class="material-symbols-outlined" style="font-size: 20px; color: #5d7aa9;">group</span>
+            <span>🤝 Mi compañero(a) enviará el informe por mí</span>
+          </button>
+          <button type="button" id="rep-opt-cancelled" onclick="selectReportStatus('cancelled')" style="display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 11px 14px; border-radius: 8px; border: 1px solid #dce4ee; background: #fff; color: #333; font-weight: 600; font-size: 0.95em; cursor: pointer; transition: all 0.15s;">
+            <span class="material-symbols-outlined" style="font-size: 20px; color: #dc3545;">cancel</span>
+            <span>❌ El turno fue cancelado</span>
+          </button>
+        </div>
+      </div>
+
+      <div id="report-status-note" style="display: none; background: #f8fafd; border: 1px solid #dce4ee; border-radius: 8px; padding: 10px 13px; margin-bottom: 16px; font-size: 0.88em; color: #2c5282;">
+      </div>
+
+      <div id="report-interactions-group" class="form-group">
         <label for="report-interactions">¿Cuántas interacciones tuvieron?</label>
         <input type="number" id="report-interactions" min="0" step="1" value="0" placeholder="Ej. 5">
         <span style="font-size: 0.8em; color: #777; display: block; margin-top: 4px;">Conversaciones o personas que se acercaron al exhibidor.</span>
       </div>
 
       <div class="form-group">
-        <label for="report-comments">Comentarios o experiencias positivas (Opcional)</label>
-        <textarea id="report-comments" rows="4" placeholder="Comparte alguna buena experiencia, conversación interesante o cualquier observación del turno..." style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 15px; font-family: inherit; resize: vertical;"></textarea>
+        <label for="report-comments" id="report-comments-label">Comentarios o experiencias positivas (Opcional)</label>
+        <textarea id="report-comments" rows="3" placeholder="Comparte alguna buena experiencia, conversación interesante o cualquier observación del turno..." style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 15px; font-family: inherit; resize: vertical;"></textarea>
       </div>
 
       <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
@@ -439,6 +460,6 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
 <script src="firebase-config.js"></script>
-<script src="app.js?v=14"></script>
+<script src="app.js?v=15"></script>
 </body>
 </html>

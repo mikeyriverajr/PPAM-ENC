@@ -253,6 +253,46 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 });
 
+function normalizeAdminPublisherData(rawPub) {
+  if (!rawPub) return {};
+  const pub = { ...rawPub };
+  const rawAbs = Array.isArray(pub.absences) ? pub.absences : [];
+  const realAbsences = [];
+  const metaAbsences = [];
+  const mergedReports = { ...(pub.shiftReports && typeof pub.shiftReports === 'object' ? pub.shiftReports : {}) };
+  const mergedCancels = Array.isArray(pub.cancellationHistory) ? [...pub.cancellationHistory] : [];
+  let fallbackPhotoUrl = '';
+
+  rawAbs.forEach(item => {
+    if (item && typeof item === 'object' && item._metaType) {
+      metaAbsences.push(item);
+      if (item._metaType === 'photo' && typeof item.photoUrl === 'string') {
+        fallbackPhotoUrl = item.photoUrl;
+      } else if (item._metaType === 'report' && item.shiftId && item.report) {
+        const existing = mergedReports[item.shiftId];
+        if (!existing || (item.report.updatedAt || '') >= (existing.updatedAt || '')) {
+          mergedReports[item.shiftId] = item.report;
+        }
+      } else if (item._metaType === 'cancel' && item.cancelEntry) {
+        const ce = item.cancelEntry;
+        const dup = mergedCancels.some(c => c.shiftId === ce.shiftId && c.cancelledAt === ce.cancelledAt);
+        if (!dup) mergedCancels.push(ce);
+      }
+    } else if (item && item.start && item.end) {
+      realAbsences.push(item);
+    }
+  });
+
+  if (!pub.photoUrl && fallbackPhotoUrl) {
+    pub.photoUrl = fallbackPhotoUrl;
+  }
+  pub.shiftReports = mergedReports;
+  pub.cancellationHistory = mergedCancels;
+  pub.absences = realAbsences;
+  pub._metaAbsences = metaAbsences;
+  return pub;
+}
+
 async function loadPublishers() {
   const listDiv = document.getElementById('publishers-list');
   const partnerSelect = document.getElementById('pub-partner');
@@ -264,7 +304,7 @@ async function loadPublishers() {
     if (snapshot.empty) { listDiv.innerHTML = '<p style="color:#666; text-align:center;">No hay publicadores registrados.</p>'; return; }
     listDiv.innerHTML = '';
     snapshot.forEach(doc => {
-      const pub = doc.data(); pub.id = doc.id; allPublishers.push(pub);
+      const pub = normalizeAdminPublisherData(doc.data()); pub.id = doc.id; allPublishers.push(pub);
       const card = document.createElement('div');
       card.className = 'pub-card';
       card.onclick = () => viewPublisher(pub.id);
@@ -508,7 +548,7 @@ async function editPublisher(id) {
   document.getElementById('pub-emerg-phone').value = pub.emergencyPhone || '';
 
   await buildAdminAvailabilityForm(pub.availability || []);
-  currentAbsences = pub.absences || [];
+  currentAbsences = (pub.absences || []).filter(item => item && !item._metaType && item.start && item.end);
   renderAbsences();
   currentEditPhotoUrl = pub.photoUrl || '';
   renderAdminPubPhotoPreview();
@@ -581,8 +621,14 @@ async function savePublisher() {
   const email = username ? username.toLowerCase().replace(/\s+/g, '') + '@ppam.app' : '';
   let partnerName = "";
   if (partnerId) { const pObj = allPublishers.find(p => p.id === partnerId); if (pObj) partnerName = `${pObj.firstName} ${pObj.lastName}`; }
+
+  const existingPub = id ? allPublishers.find(p => p.id === id) : null;
+  const preservedMetaAbs = existingPub && Array.isArray(existingPub._metaAbsences)
+    ? existingPub._metaAbsences.filter(m => m && m._metaType !== 'photo')
+    : [];
+  const absencesToSave = [...currentAbsences, ...preservedMetaAbs];
   
-  const pubData = { firstName, lastName, gender, status, isTrainer, isShiftManager, partner: partnerId, partnerName, hardPair, maxShifts, phone, notificationEmail, emailNotificationsEnabled, emergencyName, emergencyPhone, availability, absences: currentAbsences, photoUrl: currentEditPhotoUrl || '' };
+  const pubData = { firstName, lastName, gender, status, isTrainer, isShiftManager, partner: partnerId, partnerName, hardPair, maxShifts, phone, notificationEmail, emailNotificationsEnabled, emergencyName, emergencyPhone, availability, absences: absencesToSave, photoUrl: currentEditPhotoUrl || '' };
 
   try {
     if (id) {
@@ -2285,7 +2331,7 @@ async function loadPublisherShiftHistory(pub) {
 
         assignedShifts.forEach(s => {
             const rep = getReportForPublisherShift(pub, s);
-            if (rep && typeof rep.interactions === 'number') {
+            if (rep && (!rep.reportStatus || rep.reportStatus === 'completed') && typeof rep.interactions === 'number') {
                 totalInteractions += rep.interactions;
             }
         });
@@ -2400,14 +2446,22 @@ async function loadPublisherShiftHistory(pub) {
                 `;
             } else {
                 const s = item.shift;
-                const badgeHtml = item.finished
-                    ? `<span class="badge-green" style="margin: 0;">Completado</span>`
-                    : `<span class="badge-blue" style="margin: 0;">Próximo</span>`;
+                const repStatus = (item.report && item.report.reportStatus) || 'completed';
+                const badgeHtml = item.report && repStatus === 'cancelled'
+                    ? `<span class="badge-red" style="margin: 0;">Cancelado (Informe)</span>`
+                    : (item.finished
+                        ? `<span class="badge-green" style="margin: 0;">Completado</span>`
+                        : `<span class="badge-blue" style="margin: 0;">Próximo</span>`);
                 let reportHtml = '';
                 if (item.report) {
+                    const repSummary = repStatus === 'cancelled'
+                        ? `<span style="color:#dc3545; font-weight:600;">❌ Turno reportado como cancelado</span>`
+                        : (repStatus === 'partner'
+                            ? `<span style="color:#2c5282; font-weight:600;">🤝 Informe enviado por su compañero(a)</span>`
+                            : `<strong>📋 Informe:</strong> ${item.report.interactions ?? 0} interacciones`);
                     reportHtml = `
                         <div style="margin-top: 6px; padding-top: 6px; border-top: 1px dashed #dce4ee; font-size: 0.85em; color: #155724;">
-                            <strong>📋 Informe:</strong> ${item.report.interactions ?? 0} interacciones
+                            ${repSummary}
                             ${item.report.comments ? `<div style="font-style: italic; color: #333; margin-top: 3px;">"${item.report.comments}"</div>` : ''}
                         </div>
                     `;
@@ -2445,7 +2499,7 @@ async function loadShiftReports() {
 
         allPublishers = [];
         pubSnap.forEach(doc => {
-            const p = doc.data();
+            const p = normalizeAdminPublisherData(doc.data());
             p.id = doc.id;
             allPublishers.push(p);
         });
@@ -2522,12 +2576,14 @@ function renderShiftReports() {
                 const pubName = rep.publisherName || getPublisherNameById(pubId);
                 const partners = realParticipants.filter(id => id !== pubId).map(id => getPublisherNameById(id));
                 const partnerText = partners.length > 0 ? partners.join(', ') : (rep.partnerText || 'Solo/a');
+                const repStatus = rep.reportStatus || 'completed';
                 submittedEntries.push({
                     shift: shift,
                     publisherId: pubId,
                     publisherName: pubName,
                     partnerText: partnerText,
-                    interactions: Number(rep.interactions) || 0,
+                    reportStatus: repStatus,
+                    interactions: repStatus === 'completed' ? (Number(rep.interactions) || 0) : 0,
                     comments: (rep.comments || '').trim(),
                     updatedAt: rep.updatedAt || ''
                 });
@@ -2599,13 +2655,20 @@ function renderShiftReports() {
     displayList.forEach(entry => {
         const s = entry.shift;
         const card = document.createElement('div');
-        card.style.cssText = 'background: white; border: 1px solid #eaeaea; border-left: 5px solid #5d7aa9; border-radius: 10px; padding: 18px 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.02);';
+        const borderLeftColor = entry.reportStatus === 'cancelled' ? '#dc3545' : (entry.reportStatus === 'partner' ? '#5d7aa9' : '#28a745');
+        card.style.cssText = `background: white; border: 1px solid #eaeaea; border-left: 5px solid ${borderLeftColor}; border-radius: 10px; padding: 18px 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.02);`;
         const commentBlock = entry.comments
             ? `<div style="margin-top: 12px; background: #f8faff; border: 1px solid #e2eaf5; border-radius: 8px; padding: 12px 15px; color: #2d3748; font-size: 0.95em; line-height: 1.5;">
                  <strong style="color: #5d7aa9; display: block; font-size: 0.82em; text-transform: uppercase; margin-bottom: 4px;">Experiencia / Comentario:</strong>
                  ${entry.comments.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
                </div>`
             : `<div style="margin-top: 8px; font-size: 0.85em; color: #999; font-style: italic;">Sin comentarios adicionales.</div>`;
+
+        const statusBadgeHtml = entry.reportStatus === 'cancelled'
+            ? `<span class="badge-red" style="font-size: 0.9em; padding: 6px 12px;">❌ Turno Cancelado</span>`
+            : (entry.reportStatus === 'partner'
+                ? `<span class="badge-blue" style="font-size: 0.9em; padding: 6px 12px;">🤝 Reportado por compañero(a)</span>`
+                : `<span class="badge-green" style="font-size: 0.9em; padding: 6px 12px;">🤝 ${entry.interactions} ${entry.interactions === 1 ? 'Interacción' : 'Interacciones'}</span>`);
 
         card.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap; border-bottom: 1px solid #f0f0f0; padding-bottom: 10px;">
@@ -2619,7 +2682,7 @@ function renderShiftReports() {
                     </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <span class="badge-green" style="font-size: 0.9em; padding: 6px 12px;">🤝 ${entry.interactions} ${entry.interactions === 1 ? 'Interacción' : 'Interacciones'}</span>
+                    ${statusBadgeHtml}
                 </div>
             </div>
             ${commentBlock}

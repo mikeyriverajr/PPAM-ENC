@@ -258,6 +258,30 @@
     <div id="tab-profile" class="tab-content">
       <div class="profile-panel">
 
+        <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#5d7aa9;">photo_camera</span> Mi Foto de Perfil</h3>
+        <p style="font-size:0.9em; color:#666; margin-top:0;">Sube una foto para que tus compañeros de turno puedan reconocerte fácilmente en sus tarjetas de <strong>Mis Turnos</strong>.</p>
+        <div style="background:#f9f9f9; padding:16px; border-radius:10px; border:1px solid #eee; display:flex; align-items:center; justify-content:space-between; gap:15px; margin-bottom:20px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:14px;">
+            <div id="prof-avatar-preview" style="width:68px; height:68px; border-radius:50%; background:#5d7aa9; color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:1.4em; overflow:hidden; flex-shrink:0; border:3px solid #fff; box-shadow:0 2px 8px rgba(0,0,0,0.12);">
+              <span class="material-symbols-outlined" style="font-size:32px;">person</span>
+            </div>
+            <div>
+              <div id="prof-avatar-name" style="font-weight:700; color:#333; font-size:1.02em;">Mi Foto</div>
+              <div id="prof-avatar-status" style="font-size:0.82em; color:#777; margin-top:2px;">Sin foto personalizada (se muestran tus iniciales)</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <input type="file" id="prof-photo-input" accept="image/*" style="display:none;" onchange="handleProfilePhotoUpload(event)">
+            <button type="button" onclick="document.getElementById('prof-photo-input').click()" class="btn-action" style="background:#5d7aa9; color:white; padding:9px 14px; font-size:0.88em;">
+              <span class="material-symbols-outlined" style="font-size:18px;">upload</span> Subir / Cambiar Foto
+            </button>
+            <button type="button" id="btn-remove-prof-photo" onclick="removeProfilePhoto()" class="btn-action btn-danger" style="display:none; padding:9px 12px; font-size:0.88em;">
+              <span class="material-symbols-outlined" style="font-size:18px;">delete</span> Quitar
+            </button>
+          </div>
+        </div>
+
+        <hr class="profile-divider">
         <h3 class="profile-section-title"><span class="material-symbols-outlined" style="color:#28a745;">notifications_active</span> Notificaciones Push</h3>
         <p style="font-size:0.9em; color:#666; margin-top:0;">Recibe alertas instantáneas en tu celular cuando se liberen turnos o haya cambios en tu programa.</p>
         <div style="background:#f9f9f9; padding:15px; border-radius:8px; border:1px solid #eee; display:flex; justify-content:space-between; align-items:center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
@@ -380,11 +404,41 @@
     </div>
   </div>
 
+  <!-- Photo Preview Lightbox Modal -->
+  <div id="photo-preview-modal" class="modal" onclick="if(event.target===this) closePhotoPreviewModal()">
+    <div class="modal-content" style="max-width: 340px; padding: 22px; border-radius: 16px; text-align: center;">
+      <span class="close-modal" onclick="closePhotoPreviewModal()" style="font-size: 24px; background: rgba(0,0,0,0.05); border-radius: 50%; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center;"><span class="material-symbols-outlined">close</span></span>
+      <h4 id="photo-preview-title" style="margin: 0 0 15px 0; color: #2c5282; font-size: 1.15em; padding-right: 25px;">Compañero de Turno</h4>
+      <img id="photo-preview-img" src="" alt="Foto de perfil" style="width: 220px; height: 220px; border-radius: 50%; object-fit: cover; border: 4px solid #eef2f7; box-shadow: 0 6px 20px rgba(0,0,0,0.15); margin: 0 auto 15px auto; display: block;">
+      <button type="button" onclick="closePhotoPreviewModal()" class="btn-primary" style="width: 100%; padding: 10px; border-radius: 8px; background-color: #5d7aa9;">Cerrar</button>
+    </div>
+  </div>
+
+  <!-- Calendar Export Modal -->
+  <div id="calendar-export-modal" class="modal" onclick="if(event.target===this) closeCalendarModal()">
+    <div class="modal-content" style="max-width: 440px; padding: 24px; border-radius: 15px;">
+      <span class="close-modal" onclick="closeCalendarModal()" style="font-size: 24px; background: rgba(0,0,0,0.05); border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;"><span class="material-symbols-outlined">close</span></span>
+      <h3 style="margin-top: 0; color: #2c5282; font-size: 1.3em; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+        <span class="material-symbols-outlined" style="color: #5d7aa9;">event_upcoming</span> Agendar en mi Calendario
+      </h3>
+      <p style="margin: 0 0 15px 0; color: #666; font-size: 0.9em;">Guarda este turno en tu teléfono con un recordatorio automático 1 hora antes.</p>
+      <div id="calendar-shift-summary" style="background: #f4f7fb; border: 1px solid #dce4ee; border-radius: 8px; padding: 12px 14px; margin-bottom: 18px; font-size: 0.9em; color: #333; display: flex; flex-direction: column; gap: 4px;"></div>
+      <div style="display: flex; flex-direction: column; gap: 10px;">
+        <a id="btn-cal-google" href="#" target="_blank" rel="noopener" onclick="closeCalendarModal()" class="btn-action" style="background: #4285F4; color: white; padding: 12px 16px; border-radius: 8px; text-decoration: none; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px;">
+          <span class="material-symbols-outlined" style="font-size: 20px;">calendar_add_on</span> Abrir en Google Calendar
+        </a>
+        <button type="button" id="btn-cal-ics" class="btn-action" style="background: #eef2f7; color: #2c5282; border: 1px solid #cdd8e6; padding: 12px 16px; border-radius: 8px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px;">
+          <span class="material-symbols-outlined" style="font-size: 20px;">download</span> Descargar para iPhone / Calendario (.ics)
+        </button>
+      </div>
+    </div>
+  </div>
+
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
 <script src="firebase-config.js"></script>
-<script src="app.js?v=12"></script>
+<script src="app.js?v=13"></script>
 </body>
 </html>

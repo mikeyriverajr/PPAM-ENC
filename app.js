@@ -94,12 +94,14 @@ auth.onAuthStateChanged(async user => {
                 publisherCache[d.id] = {
                     name: `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(),
                     phone: d.data().phone || '',
-                    isShiftManager: d.data().isShiftManager || false
+                    isShiftManager: d.data().isShiftManager || false,
+                    photoUrl: d.data().photoUrl || ''
                 };
             });
 
             document.getElementById('header-user-name').innerText = `| ${publisherCache[currentUserPublisherId]?.name || ""}`;
 
+            fetchEncarnacionWeather();
             loadShifts(); loadMyShifts(); loadAvailableShifts(); loadAvailabilityForm(); loadProfileForm();
         }
       } else {
@@ -164,12 +166,14 @@ async function submitForcedPassword() {
           publisherCache[d.id] = {
               name: `${d.data().firstName || ''} ${d.data().lastName || ''}`.trim(),
               phone: d.data().phone || '',
-              isShiftManager: d.data().isShiftManager || false
+              isShiftManager: d.data().isShiftManager || false,
+              photoUrl: d.data().photoUrl || ''
           };
       });
       document.getElementById('header-user-name').innerText = `| ${publisherCache[currentUserPublisherId]?.name || ""}`;
 
       showToast("¡Contraseña creada exitosamente!");
+      fetchEncarnacionWeather();
       loadShifts(); loadMyShifts(); loadAvailableShifts(); loadAvailabilityForm(); loadProfileForm();
   } catch (error) {
       if(error.code === 'auth/requires-recent-login') { err.innerText = "Por favor cierra sesión y vuelve a ingresar para cambiar tu contraseña."; }
@@ -424,6 +428,293 @@ function filterAllShifts() {
 let myCurrentShifts = [];
 let myAllAssignedShifts = [];
 let demoReportShift = null;
+let myHistoryExpanded = false;
+let encarnacionWeatherCache = null;
+let encarnacionWeatherLoading = null;
+
+// ==========================================
+// AVATAR, WHATSAPP PARTNER, WEATHER & CALENDAR HELPERS
+// ==========================================
+function getInitials(fullName) {
+  if (!fullName) return '?';
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function getAvatarColor(str) {
+  const colors = ['#5d7aa9', '#2b6cb0', '#2f855a', '#b7791f', '#805ad5', '#c53030', '#0987a0'];
+  let hash = 0;
+  const s = str || 'ppam';
+  for (let i = 0; i < s.length; i++) {
+    hash = s.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return colors[Math.abs(hash) % colors.length];
+}
+
+function formatWhatsAppPhone(rawPhone) {
+  if (!rawPhone) return '';
+  let cleanPhone = rawPhone.replace(/\D/g, '');
+  if (!cleanPhone) return '';
+  if (cleanPhone.startsWith('09')) cleanPhone = '595' + cleanPhone.substring(1);
+  else if (cleanPhone.startsWith('9') && cleanPhone.length === 9) cleanPhone = '595' + cleanPhone;
+  return cleanPhone;
+}
+
+function getAvatarHtml(pubId, sizePx = 36) {
+  const pub = publisherCache[pubId] || {};
+  const name = pub.name || 'Publicador';
+  const photoUrl = pub.photoUrl || '';
+  const initials = getInitials(name);
+  const bg = getAvatarColor(pubId || name);
+
+  if (photoUrl) {
+    return `<button type="button" onclick="openPhotoPreviewModal('${pubId}')" title="Ver foto de ${name.replace(/"/g, '&quot;')}" style="width:${sizePx}px; height:${sizePx}px; border-radius:50%; padding:0; border:2px solid #dce4ee; overflow:hidden; cursor:pointer; background:#eee; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; box-shadow:0 1px 4px rgba(0,0,0,0.1);">
+      <img src="${photoUrl}" alt="${initials}" style="width:100%; height:100%; object-fit:cover; display:block;">
+    </button>`;
+  }
+
+  return `<span style="width:${sizePx}px; height:${sizePx}px; border-radius:50%; background:${bg}; color:white; font-weight:700; font-size:${Math.round(sizePx * 0.4)}px; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,0.1);">${initials}</span>`;
+}
+
+function openPhotoPreviewModal(pubId) {
+  const pub = publisherCache[pubId];
+  if (!pub || !pub.photoUrl) return;
+  document.getElementById('photo-preview-title').innerText = pub.name || 'Compañero de Turno';
+  document.getElementById('photo-preview-img').src = pub.photoUrl;
+  document.getElementById('photo-preview-modal').style.display = 'flex';
+}
+
+function closePhotoPreviewModal() {
+  const modal = document.getElementById('photo-preview-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function getPartnerRowsHtmlForMisTurnos(shift) {
+  const partnerIds = (shift.participants || []).filter(id => id && id !== "Disponible" && id !== currentUserPublisherId);
+  if (partnerIds.length === 0) {
+    return `<div style="display:flex; align-items:center; gap:8px; margin:8px 0; color:#666; font-size:0.95em;">
+      <span class="material-symbols-outlined" style="font-size:1.2em; color:#6c757d;">person</span>
+      <span>Compañero(a): <strong>Solo/a</strong></span>
+    </div>`;
+  }
+
+  const rows = partnerIds.map(pid => {
+    const p = publisherCache[pid] || { name: 'Desconocido', phone: '', photoUrl: '' };
+    const avatarHtml = getAvatarHtml(pid, 36);
+    const cleanPhone = formatWhatsAppPhone(p.phone);
+    let waBtnHtml = '';
+    if (cleanPhone) {
+      const msg = encodeURIComponent(`¡Hola ${p.name}! Te escribo por nuestro turno de PPAM en ${shift.location} el ${formatSpanishDate(shift.date)} (${shift.time}).`);
+      waBtnHtml = `
+        <a href="https://wa.me/${cleanPhone}?text=${msg}" target="_blank" rel="noopener" title="Enviar WhatsApp a ${p.name.replace(/"/g, '&quot;')}" style="display:inline-flex; align-items:center; gap:5px; background:#e8f8ee; border:1px solid #25D366; color:#128C7E; padding:5px 10px; border-radius:16px; font-size:0.82em; font-weight:700; text-decoration:none; margin-left:auto; flex-shrink:0; transition:all 0.2s;">
+          <svg style="width:14px; height:14px; fill:#25D366;" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+          WhatsApp
+        </a>
+      `;
+    }
+    return `
+      <div style="display:flex; align-items:center; gap:10px; background:#f8fafd; border:1px solid #e6edf5; padding:7px 10px; border-radius:10px;">
+        ${avatarHtml}
+        <div style="display:flex; flex-direction:column; min-width:0;">
+          <span style="font-size:0.75em; color:#6c757d; text-transform:uppercase; letter-spacing:0.3px; font-weight:600;">Compañero(a)</span>
+          <strong style="color:#2d3748; font-size:0.95em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${p.name}</strong>
+        </div>
+        ${waBtnHtml}
+      </div>
+    `;
+  }).join('');
+
+  return `<div style="display:flex; flex-direction:column; gap:6px; margin:8px 0;">${rows}</div>`;
+}
+
+// ==========================================
+// ENCARNACIÓN WEATHER FORECAST (OPEN-METEO)
+// ==========================================
+async function fetchEncarnacionWeather() {
+  if (encarnacionWeatherCache) return encarnacionWeatherCache;
+  if (encarnacionWeatherLoading) return encarnacionWeatherLoading;
+
+  encarnacionWeatherLoading = (async () => {
+    try {
+      const url = 'https://api.open-meteo.com/v1/forecast?latitude=-27.3306&longitude=-55.8667&hourly=temperature_2m,precipitation_probability,weathercode&timezone=America%2FAsuncion&forecast_days=7';
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data && data.hourly && Array.isArray(data.hourly.time)) {
+        const byTime = {};
+        data.hourly.time.forEach((isoTime, idx) => {
+          byTime[isoTime] = {
+            temp: Math.round(data.hourly.temperature_2m[idx]),
+            pop: data.hourly.precipitation_probability ? data.hourly.precipitation_probability[idx] : 0,
+            code: data.hourly.weathercode ? data.hourly.weathercode[idx] : 0
+          };
+        });
+        encarnacionWeatherCache = byTime;
+        // Refresh Mis Turnos weather badges if already rendered
+        document.querySelectorAll('[data-weather-shift-id]').forEach(el => {
+          const sId = el.getAttribute('data-weather-shift-id');
+          const shift = myCurrentShifts.find(s => s.id === sId);
+          if (shift) {
+            el.innerHTML = getShiftWeatherBadgeHtml(shift);
+          }
+        });
+        return encarnacionWeatherCache;
+      }
+    } catch (e) {
+      console.warn('Weather forecast unavailable:', e);
+    }
+    return null;
+  })();
+
+  return encarnacionWeatherLoading;
+}
+
+function getShiftWeatherBadgeHtml(shift) {
+  if (!encarnacionWeatherCache || !shift || !shift.date || !shift.time) return '';
+  const startRaw = (shift.time.split('-')[0] || '08:00').trim();
+  const hourStr = startRaw.split(':')[0].padStart(2, '0');
+  const lookupKey = `${shift.date}T${hourStr}:00`;
+  const w = encarnacionWeatherCache[lookupKey];
+  if (!w) return '';
+
+  let emoji = '☀️';
+  let label = 'Despejado';
+  if (w.code >= 95) { emoji = '⛈️'; label = 'Tormenta'; }
+  else if (w.code >= 61 || w.pop >= 60) { emoji = '🌧️'; label = 'Lluvia'; }
+  else if (w.code >= 51 || w.pop >= 35) { emoji = '🌦️'; label = 'Prob. lluvia'; }
+  else if (w.code >= 1 && w.code <= 3) { emoji = '⛅'; label = 'Parcial nublado'; }
+  else if (w.code >= 45 && w.code <= 48) { emoji = '🌫️'; label = 'Neblina'; }
+
+  const isRainy = w.pop >= 40 || w.code >= 51;
+  const bg = isRainy ? '#fff8e6' : '#eef6ff';
+  const border = isRainy ? '#ffd88a' : '#cde2f7';
+  const color = isRainy ? '#92400e' : '#1e4e8c';
+
+  return `<span title="Pronóstico en Encarnación (${label}) a las ${hourStr}:00" style="display:inline-flex; align-items:center; gap:5px; background:${bg}; border:1px solid ${border}; color:${color}; padding:3px 9px; border-radius:12px; font-size:0.78em; font-weight:600;">
+    <span>${emoji} ${w.temp}°C</span>
+    <span style="opacity:0.85;">• 💧${w.pop}%</span>
+  </span>`;
+}
+
+// ==========================================
+// CALENDAR EXPORT (GOOGLE CALENDAR & .ICS)
+// ==========================================
+function parseShiftStartEndDates(shift) {
+  const parts = (shift.time || '08:00-10:00').split('-');
+  const startStr = (parts[0] || '08:00').trim();
+  const endStr = (parts[1] || '10:00').trim();
+  const [y, m, d] = (shift.date || getTodayString()).split('-').map(Number);
+  const [sh, sm] = startStr.split(':').map(Number);
+  const [eh, em] = endStr.split(':').map(Number);
+  const start = new Date(y, (m || 1) - 1, d || 1, sh || 8, sm || 0, 0);
+  const end = new Date(y, (m || 1) - 1, d || 1, eh || (sh + 2), em || 0, 0);
+  return { start, end, startStr, endStr };
+}
+
+function toCalUtcStamp(dateObj) {
+  return dateObj.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+}
+
+function toCalLocalStamp(dateStr, timeStr) {
+  const cleanDate = (dateStr || '').replace(/-/g, '');
+  const [hh, mm] = (timeStr || '08:00').trim().split(':');
+  return `${cleanDate}T${String(hh || '08').padStart(2, '0')}${String(mm || '00').padStart(2, '0')}00`;
+}
+
+function openCalendarModal(shiftId) {
+  const shift = myCurrentShifts.find(s => s.id === shiftId) || myAllAssignedShifts.find(s => s.id === shiftId);
+  if (!shift) {
+    showToast("No se encontró el turno.", "error");
+    return;
+  }
+
+  const others = (shift.participants || [])
+    .filter(id => id && id !== "Disponible" && id !== currentUserPublisherId)
+    .map(id => publisherCache[id]?.name || 'Desconocido');
+  const partnerText = others.length > 0 ? others.join(', ') : 'Solo/a';
+
+  const { startStr, endStr } = parseShiftStartEndDates(shift);
+  const dtStartLocal = toCalLocalStamp(shift.date, startStr);
+  const dtEndLocal = toCalLocalStamp(shift.date, endStr);
+
+  const title = `Turno PPAM - ${shift.location}`;
+  const description = `Turno de Predicación Pública (PPAM Encarnación)\nUbicación: ${shift.location}\nHorario: ${shift.time}\nCompañero(a): ${partnerText}`;
+  const locationText = `${shift.location}, Encarnación, Paraguay`;
+
+  const gcalUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dtStartLocal}/${dtEndLocal}&details=${encodeURIComponent(description)}&location=${encodeURIComponent(locationText)}&ctz=America/Asuncion`;
+
+  document.getElementById('calendar-shift-summary').innerHTML = `
+    <div><strong>📍 Ubicación:</strong> ${shift.location}</div>
+    <div><strong>📅 Fecha:</strong> ${formatSpanishDate(shift.date)} (${shift.time})</div>
+    <div><strong>👥 Compañero(a):</strong> ${partnerText}</div>
+  `;
+
+  const gcalBtn = document.getElementById('btn-cal-google');
+  gcalBtn.href = gcalUrl;
+
+  const icsBtn = document.getElementById('btn-cal-ics');
+  icsBtn.onclick = () => {
+    downloadShiftIcs(shift, title, description, locationText, dtStartLocal, dtEndLocal);
+    closeCalendarModal();
+  };
+
+  document.getElementById('calendar-export-modal').style.display = 'flex';
+}
+
+function closeCalendarModal() {
+  const modal = document.getElementById('calendar-export-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function downloadShiftIcs(shift, title, description, locationText, dtStartLocal, dtEndLocal) {
+  const nowUtc = toCalUtcStamp(new Date());
+  const escapedDesc = (description || '').replace(/\n/g, '\\n');
+  const icsLines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//PPAM Encarnacion//Turnos//ES',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:ppam-shift-${shift.id}@ppam-encarnacion`,
+    `DTSTAMP:${nowUtc}`,
+    `DTSTART:${dtStartLocal}`,
+    `DTEND:${dtEndLocal}`,
+    `SUMMARY:${title}`,
+    `DESCRIPTION:${escapedDesc}`,
+    `LOCATION:${locationText}`,
+    'BEGIN:VALARM',
+    'TRIGGER:-PT60M',
+    'ACTION:DISPLAY',
+    'DESCRIPTION:Recordatorio: Turno PPAM en 1 hora',
+    'END:VALARM',
+    'END:VEVENT',
+    'END:VCALENDAR'
+  ];
+
+  const blob = new Blob([icsLines.join('\r\n')], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `turno-ppam-${shift.date}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 200);
+  showToast("Archivo de calendario (.ics) descargado.");
+}
+
+function toggleMyShiftHistory() {
+  myHistoryExpanded = !myHistoryExpanded;
+  const body = document.getElementById('my-history-collapsible-body');
+  const icon = document.getElementById('my-history-chevron');
+  if (body) body.style.display = myHistoryExpanded ? 'flex' : 'none';
+  if (icon) icon.innerText = myHistoryExpanded ? 'expand_less' : 'expand_more';
+}
 
 function isTestPreviewEnv() {
   const h = window.location.hostname || '';
@@ -485,17 +776,20 @@ async function loadMyShifts() {
   const container = document.getElementById('mine-container');
   container.innerHTML = '<p style="text-align:center; color:#666;">Buscando tus turnos...</p>';
   try {
+    fetchEncarnacionWeather();
     const todayStr = getTodayString();
     const cutoffStr = getDaysAgoString(14);
     const shiftsSnapshot = await db.collection('shifts').where('participants', 'array-contains', currentUserPublisherId).get();
     myCurrentShifts = [];
     myAllAssignedShifts = [];
     const recentFinishedShifts = [];
+    const allFinishedShifts = [];
 
     shiftsSnapshot.forEach(doc => {
         let s = doc.data(); s.id = doc.id;
         myAllAssignedShifts.push(s);
         if (isShiftFinished(s)) {
+            allFinishedShifts.push(s);
             if (s.date >= cutoffStr) {
                 recentFinishedShifts.push(s);
             }
@@ -507,6 +801,7 @@ async function loadMyShifts() {
     if (demoReportShift) {
       myAllAssignedShifts.unshift(demoReportShift);
       recentFinishedShifts.unshift(demoReportShift);
+      allFinishedShifts.unshift(demoReportShift);
     }
 
     container.innerHTML = '';
@@ -525,16 +820,9 @@ async function loadMyShifts() {
       container.appendChild(previewBar);
     }
 
-    if (myCurrentShifts.length === 0 && recentFinishedShifts.length === 0) {
-      const emptyDiv = document.createElement('div');
-      emptyDiv.style.cssText = 'text-align:center; padding: 30px 10px; background: white; border-radius: 10px; border: 1px dashed #ccc;';
-      emptyDiv.innerHTML = `<p style="color:#666; margin:0;">No tienes próximos turnos asignados.</p>`;
-      container.appendChild(emptyDiv);
-      return;
-    }
-
     myCurrentShifts.sort((a, b) => a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || ''));
     recentFinishedShifts.sort((a, b) => b.date.localeCompare(a.date) || (b.time || '').localeCompare(a.time || ''));
+    allFinishedShifts.sort((a, b) => b.date.localeCompare(a.date) || (b.time || '').localeCompare(a.time || ''));
 
     // Check if there are finished shifts without a submitted report from this publisher
     const pendingReportShifts = recentFinishedShifts.filter(s => !getMyReportForShift(s));
@@ -559,31 +847,39 @@ async function loadMyShifts() {
 
     if (myCurrentShifts.length > 0) {
       myCurrentShifts.forEach(shift => {
-        const others = (shift.participants || []).filter(id => id && id !== "Disponible" && id !== currentUserPublisherId).map(id => publisherCache[id]?.name || 'Desconocido');
-        const partnerText = others.length > 0 ? others.join(', ') : 'Solo/a';
+        const partnerRowsHtml = getPartnerRowsHtmlForMisTurnos(shift);
         const contactHtml = getShiftContactHtml(shift);
+        const weatherHtml = getShiftWeatherBadgeHtml(shift);
         const shiftCard = document.createElement('div');
         shiftCard.className = 'shift-card mine';
         shiftCard.innerHTML = `
-          <div class="shift-card-header">
+          <div class="shift-card-header" style="flex-wrap:wrap; gap:6px;">
             <h4 class="shift-card-title" style="color:#2c5282;"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">event</span>${formatSpanishDate(shift.date)}</h4>
-            <span class="shift-card-time"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">schedule</span>${shift.time}</span>
+            <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+              <span data-weather-shift-id="${shift.id}">${weatherHtml}</span>
+              <span class="shift-card-time"><span class="material-symbols-outlined" style="font-size: 1.1em; vertical-align: -3px; margin-right: 5px;">schedule</span>${shift.time}</span>
+            </div>
           </div>
           <p class="shift-card-detail" style="display:flex; justify-content:space-between; align-items:center;">
             <span><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545; vertical-align:-3px;">location_on</span> <strong>${shift.location}</strong></span>
             <button onclick="openLocationInfoModal('${shift.locationId}', '${shift.location}')" style="background:none; border:none; color:#2c5282; font-size:0.9em; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:3px;"><span class="material-symbols-outlined" style="font-size:1.1em;">info</span> Info</button>
           </p>
-          <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> Con: ${partnerText}</p>
+          ${partnerRowsHtml}
           ${contactHtml}
-          <div class="card-actions" style="margin-top: 15px; border-top: 1px solid #f0f0f0; padding-top: 10px;">
-             <button onclick="attemptCancel('${shift.id}', '${shift.date}', '${shift.time}', '${shift.location}')" class="btn-action btn-danger" style="width: 100%;">Cancelar Turno</button>
+          <div class="card-actions" style="margin-top: 15px; border-top: 1px solid #f0f0f0; padding-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
+             <button type="button" onclick="openCalendarModal('${shift.id}')" class="btn-action" style="flex: 1; min-width: 140px; background: #eef4ff; color: #2c5282; border: 1px solid #cdddf7;">
+               <span class="material-symbols-outlined" style="font-size: 18px;">calendar_add_on</span> Agendar
+             </button>
+             <button type="button" onclick="attemptCancel('${shift.id}', '${shift.date}', '${shift.time}', '${shift.location}')" class="btn-action btn-danger" style="flex: 1; min-width: 140px;">
+               Cancelar Turno
+             </button>
           </div>
         `;
         container.appendChild(shiftCard);
       });
     } else {
       const noUpcoming = document.createElement('div');
-      noUpcoming.style.cssText = 'text-align:center; padding: 20px 10px; background: white; border-radius: 10px; border: 1px dashed #ccc; margin-bottom: 20px;';
+      noUpcoming.style.cssText = 'text-align:center; padding: 25px 10px; background: white; border-radius: 10px; border: 1px dashed #ccc; margin-bottom: 20px;';
       noUpcoming.innerHTML = '<p style="color:#666; margin:0;">No tienes próximos turnos asignados.</p>';
       container.appendChild(noUpcoming);
     }
@@ -595,8 +891,7 @@ async function loadMyShifts() {
       container.appendChild(finishedHeader);
 
       recentFinishedShifts.forEach(shift => {
-        const others = (shift.participants || []).filter(id => id && id !== "Disponible" && id !== currentUserPublisherId).map(id => publisherCache[id]?.name || 'Desconocido');
-        const partnerText = others.length > 0 ? others.join(', ') : 'Solo/a';
+        const partnerRowsHtml = getPartnerRowsHtmlForMisTurnos(shift);
         const myReport = getMyReportForShift(shift);
         const shiftCard = document.createElement('div');
         shiftCard.className = 'shift-card';
@@ -627,7 +922,7 @@ async function loadMyShifts() {
           <p class="shift-card-detail">
             <span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545;">location_on</span> <strong>${shift.location}</strong>
           </p>
-          <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> Con: ${partnerText}</p>
+          ${partnerRowsHtml}
           ${reportSummaryHtml}
           <div class="card-actions" style="margin-top: 12px; border-top: 1px solid #f0f0f0; padding-top: 10px;">
             ${actionBtnHtml}
@@ -635,6 +930,58 @@ async function loadMyShifts() {
         `;
         container.appendChild(shiftCard);
       });
+    }
+
+    // Personal Shift History Section (Collapsible at bottom of Mis Turnos)
+    if (allFinishedShifts.length > 0) {
+      let totalInteractions = 0;
+      allFinishedShifts.forEach(s => {
+        const rep = getMyReportForShift(s);
+        if (rep && typeof rep.interactions === 'number') {
+          totalInteractions += rep.interactions;
+        }
+      });
+
+      const historySection = document.createElement('div');
+      historySection.style.cssText = 'margin-top: 28px; background: white; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.03);';
+
+      const historyItemsHtml = allFinishedShifts.map(s => {
+        const others = (s.participants || []).filter(id => id && id !== "Disponible" && id !== currentUserPublisherId).map(id => publisherCache[id]?.name || 'Desconocido');
+        const partnerText = others.length > 0 ? others.join(', ') : 'Solo/a';
+        const rep = getMyReportForShift(s);
+        const repBadge = rep
+          ? `<span style="background:#e6f4ea; color:#155724; padding:3px 9px; border-radius:12px; font-size:0.78em; font-weight:700;">🤝 ${rep.interactions ?? 0} ${rep.interactions === 1 ? 'interacción' : 'interacciones'}</span>`
+          : `<button type="button" onclick="openShiftReportModal('${s.id}')" style="background:#fff3cd; color:#856404; border:1px solid #ffeeba; padding:3px 9px; border-radius:12px; font-size:0.78em; font-weight:700; cursor:pointer;">Completar informe</button>`;
+
+        return `
+          <div style="background:#f8fafc; border:1px solid #e9eef5; border-left:4px solid ${rep ? '#28a745' : '#cbd5e0'}; border-radius:8px; padding:11px 14px; display:flex; flex-direction:column; gap:4px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+              <strong style="color:#2c5282; font-size:0.93em;">${formatSpanishDate(s.date)} • ${s.time}</strong>
+              ${repBadge}
+            </div>
+            <div style="font-size:0.86em; color:#4a5568;">
+              📍 <strong>${s.location}</strong> &nbsp;|&nbsp; 👥 Con: ${partnerText}
+            </div>
+            ${rep && rep.comments ? `<div style="font-size:0.84em; color:#2d5738; font-style:italic; margin-top:2px;">"${rep.comments}"</div>` : ''}
+          </div>
+        `;
+      }).join('');
+
+      historySection.innerHTML = `
+        <button type="button" onclick="toggleMyShiftHistory()" style="width:100%; background:#f8fafd; border:none; padding:15px 18px; display:flex; justify-content:space-between; align-items:center; cursor:pointer; text-align:left;">
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <span class="material-symbols-outlined" style="color:#5d7aa9; font-size:22px;">history</span>
+            <span style="font-weight:700; color:#2c5282; font-size:1.02em;">Mi Historial de Turnos</span>
+            <span style="background:#eef2f7; color:#2c5282; padding:3px 9px; border-radius:12px; font-size:0.8em; font-weight:700;">${allFinishedShifts.length} ${allFinishedShifts.length === 1 ? 'turno' : 'turnos'}</span>
+            <span style="background:#e6f4ea; color:#155724; padding:3px 9px; border-radius:12px; font-size:0.8em; font-weight:700;">🤝 ${totalInteractions} ${totalInteractions === 1 ? 'interacción' : 'interacciones'}</span>
+          </div>
+          <span id="my-history-chevron" class="material-symbols-outlined" style="color:#5d7aa9; font-size:24px;">${myHistoryExpanded ? 'expand_less' : 'expand_more'}</span>
+        </button>
+        <div id="my-history-collapsible-body" style="display:${myHistoryExpanded ? 'flex' : 'none'}; flex-direction:column; gap:10px; padding:15px 18px; border-top:1px solid #edf2f7;">
+          ${historyItemsHtml}
+        </div>
+      `;
+      container.appendChild(historySection);
     }
   } catch (error) {
     console.error("Error loading my shifts:", error);
@@ -1064,10 +1411,107 @@ function removeMyAbsence(index) {
     checkProfileChanges();
 }
 
+function compressAvatarDataUrl(file, size = 160) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = e => {
+      const img = new Image();
+      img.src = e.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const minSide = Math.min(img.width, img.height);
+        const sx = Math.floor((img.width - minSide) / 2);
+        const sy = Math.floor((img.height - minSide) / 2);
+        ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
+        resolve(canvas.toDataURL('image/jpeg', 0.78));
+      };
+      img.onerror = err => reject(err);
+    };
+    reader.onerror = err => reject(err);
+  });
+}
+
+function renderProfileAvatarPreview() {
+  const previewEl = document.getElementById('prof-avatar-preview');
+  const nameEl = document.getElementById('prof-avatar-name');
+  const statusEl = document.getElementById('prof-avatar-status');
+  const removeBtn = document.getElementById('btn-remove-prof-photo');
+  if (!previewEl) return;
+
+  const fullName = publisherCache[currentUserPublisherId]?.name || `${currentPubData?.firstName || ''} ${currentPubData?.lastName || ''}`.trim() || 'Mi Perfil';
+  const photoUrl = currentPubData?.photoUrl || publisherCache[currentUserPublisherId]?.photoUrl || '';
+
+  if (nameEl) nameEl.innerText = fullName;
+
+  if (photoUrl) {
+    previewEl.style.background = '#eee';
+    previewEl.innerHTML = `<img src="${photoUrl}" alt="${getInitials(fullName)}" style="width:100%; height:100%; object-fit:cover; display:block;">`;
+    if (statusEl) statusEl.innerHTML = '<span style="color:#28a745; font-weight:600;">✓ Foto activa visible para tus compañeros de turno</span>';
+    if (removeBtn) removeBtn.style.display = 'inline-flex';
+  } else {
+    previewEl.style.background = getAvatarColor(currentUserPublisherId || fullName);
+    previewEl.innerHTML = `<span>${getInitials(fullName)}</span>`;
+    if (statusEl) statusEl.innerText = 'Sin foto personalizada (se muestran tus iniciales)';
+    if (removeBtn) removeBtn.style.display = 'none';
+  }
+}
+
+async function handleProfilePhotoUpload(event) {
+  const file = event?.target?.files?.[0];
+  if (!file || !currentUserPublisherId) return;
+  try {
+    showToast("Procesando tu foto de perfil...", "info");
+    const dataUrl = await compressAvatarDataUrl(file, 160);
+    await db.collection('publishers').doc(currentUserPublisherId).update({
+      photoUrl: dataUrl,
+      lastProfileChange: new Date().toISOString()
+    });
+    if (!currentPubData) currentPubData = {};
+    currentPubData.photoUrl = dataUrl;
+    if (publisherCache[currentUserPublisherId]) {
+      publisherCache[currentUserPublisherId].photoUrl = dataUrl;
+    }
+    renderProfileAvatarPreview();
+    loadMyShifts();
+    showToast("¡Foto de perfil actualizada con éxito!");
+  } catch (err) {
+    console.error("Error uploading profile photo:", err);
+    showToast("Error al guardar la foto: " + err.message, "error");
+  } finally {
+    event.target.value = '';
+  }
+}
+
+async function removeProfilePhoto() {
+  if (!currentUserPublisherId) return;
+  const ok = await showConfirm("¿Deseas quitar tu foto de perfil?", "Quitar Foto", "#dc3545");
+  if (!ok) return;
+  try {
+    await db.collection('publishers').doc(currentUserPublisherId).update({
+      photoUrl: '',
+      lastProfileChange: new Date().toISOString()
+    });
+    if (currentPubData) currentPubData.photoUrl = '';
+    if (publisherCache[currentUserPublisherId]) {
+      publisherCache[currentUserPublisherId].photoUrl = '';
+    }
+    renderProfileAvatarPreview();
+    loadMyShifts();
+    showToast("Foto de perfil eliminada.");
+  } catch (err) {
+    showToast("Error al quitar la foto: " + err.message, "error");
+  }
+}
+
 async function loadProfileForm() {
   if (!currentUserPublisherId || !currentPubData) return;
   try {
     const pub = currentPubData;
+    renderProfileAvatarPreview();
 
     // Check Notification Permission on load
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && pub.fcmToken) {

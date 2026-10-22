@@ -125,6 +125,88 @@ var allPublishers = [];
 let currentLinkedUserDocId = null; 
 let currentAbsences = [];
 let currentViewId = null;
+let currentEditPhotoUrl = '';
+
+function getAdminInitials(firstName, lastName) {
+  const f = (firstName || '').trim();
+  const l = (lastName || '').trim();
+  if (!f && !l) return '?';
+  return ((f[0] || '') + (l[0] || f[1] || '')).toUpperCase();
+}
+
+function getAdminAvatarHtml(pub, sizePx = 36) {
+  if (pub && pub.photoUrl) {
+    return `<span style="width:${sizePx}px; height:${sizePx}px; border-radius:50%; overflow:hidden; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; border:2px solid #dce4ee; background:#eee;">
+      <img src="${pub.photoUrl}" alt="" style="width:100%; height:100%; object-fit:cover; display:block;">
+    </span>`;
+  }
+  const genderIcon = pub && pub.gender === 'M' ? 'woman' : 'man';
+  return `<span style="width:${sizePx}px; height:${sizePx}px; border-radius:50%; background:#eef2f7; color:#5d7aa9; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; border:1px solid #dce4ee;">
+    <span class="material-symbols-outlined" style="font-size:${Math.round(sizePx * 0.6)}px;">${genderIcon}</span>
+  </span>`;
+}
+
+function compressAdminAvatarDataUrl(file, size = 160) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = e => {
+      const img = new Image();
+      img.src = e.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const minSide = Math.min(img.width, img.height);
+        const sx = Math.floor((img.width - minSide) / 2);
+        const sy = Math.floor((img.height - minSide) / 2);
+        ctx.drawImage(img, sx, sy, minSide, minSide, 0, 0, size, size);
+        resolve(canvas.toDataURL('image/jpeg', 0.78));
+      };
+      img.onerror = err => reject(err);
+    };
+    reader.onerror = err => reject(err);
+  });
+}
+
+function renderAdminPubPhotoPreview() {
+  const preview = document.getElementById('admin-pub-avatar-preview');
+  const status = document.getElementById('admin-pub-avatar-status');
+  const removeBtn = document.getElementById('btn-admin-remove-photo');
+  if (!preview) return;
+
+  if (currentEditPhotoUrl) {
+    preview.style.background = '#eee';
+    preview.innerHTML = `<img src="${currentEditPhotoUrl}" alt="Foto" style="width:100%; height:100%; object-fit:cover; display:block;">`;
+    if (status) status.innerHTML = '<span style="color:#28a745; font-weight:600;">✓ Foto cargada (haz clic en Guardar)</span>';
+    if (removeBtn) removeBtn.style.display = 'inline-flex';
+  } else {
+    preview.style.background = '#5d7aa9';
+    preview.innerHTML = `<span class="material-symbols-outlined">person</span>`;
+    if (status) status.innerText = 'Opcional • Visible para compañeros de turno';
+    if (removeBtn) removeBtn.style.display = 'none';
+  }
+}
+
+async function handleAdminPubPhotoUpload(event) {
+  const file = event?.target?.files?.[0];
+  if (!file) return;
+  try {
+    currentEditPhotoUrl = await compressAdminAvatarDataUrl(file, 160);
+    renderAdminPubPhotoPreview();
+    showToast("Foto procesada. Recuerda guardar el publicador.", "info");
+  } catch (e) {
+    showToast("Error al procesar la foto.", "error");
+  } finally {
+    event.target.value = '';
+  }
+}
+
+function removeAdminPubPhoto() {
+  currentEditPhotoUrl = '';
+  renderAdminPubPhotoPreview();
+}
 
 document.addEventListener("DOMContentLoaded", function() {
     const partnerSelect = document.getElementById('pub-partner');
@@ -159,14 +241,19 @@ async function loadPublishers() {
       card.className = 'pub-card';
       card.onclick = () => viewPublisher(pub.id);
       
-      const genderIcon = pub.gender === 'M' ? 'woman' : 'man';
+      const avatarHtml = getAdminAvatarHtml(pub, 38);
       const statusBadge = pub.status === 'Entrenamiento' ? `<span class="badge-warning">Entrenamiento</span>` : '';
       const hardPairBadge = pub.hardPair ? `<span class="badge-red">Pareja Estricta</span>` : '';
       const cancelCount = getPublisherCancelCount(pub);
       const cancelBadge = cancelCount > 0 ? `<span class="badge-red" title="Turnos cancelados">Cancelaciones: ${cancelCount}</span>` : '';
       card.innerHTML = `
-        <div><h4 class="pub-name" style="margin:0 0 5px 0; display:flex; align-items:center; gap:5px; flex-wrap:wrap;"><span class="material-symbols-outlined" style="color:#5d7aa9;">${genderIcon}</span> ${pub.firstName} ${pub.lastName || ''} ${statusBadge} ${hardPairBadge} ${cancelBadge}</h4>
-        <p style="margin:0; font-size:0.85em; color:#666; margin-left: 30px;">Turnos al mes: ${pub.maxShifts || '5'} | Compañero: ${pub.partnerName || 'Ninguno'}</p></div>
+        <div style="display:flex; align-items:center; gap:12px;">
+          ${avatarHtml}
+          <div>
+            <h4 class="pub-name" style="margin:0 0 4px 0; display:flex; align-items:center; gap:5px; flex-wrap:wrap;">${pub.firstName} ${pub.lastName || ''} ${statusBadge} ${hardPairBadge} ${cancelBadge}</h4>
+            <p style="margin:0; font-size:0.85em; color:#666;">Turnos al mes: ${pub.maxShifts || '5'} | Compañero: ${pub.partnerName || 'Ninguno'}</p>
+          </div>
+        </div>
         <span class="material-symbols-outlined" style="color:#ccc;">chevron_right</span>
       `;
       listDiv.appendChild(card);
@@ -212,7 +299,7 @@ async function viewPublisher(id) {
     if(!pub) return;
     currentViewId = id;
     
-    document.getElementById('view-pub-name').innerHTML = `<span class="material-symbols-outlined" style="color:#5d7aa9; font-size:32px;">${pub.gender === 'M' ? 'woman' : 'man'}</span> ${pub.firstName} ${pub.lastName || ''}`;
+    document.getElementById('view-pub-name').innerHTML = `${getAdminAvatarHtml(pub, 44)} <span>${pub.firstName} ${pub.lastName || ''}</span>`;
     document.getElementById('view-pub-status').innerHTML = pub.status === 'Entrenamiento' ? '<span style="color:#856404; font-weight:bold;">⚠️ Entrenamiento</span>' : '✅ Aprobado';
     document.getElementById('view-pub-max').innerText = `${pub.maxShifts || 5} turnos`;
     document.getElementById('view-pub-partner').innerText = pub.partnerName ? `${pub.partnerName} ${pub.hardPair ? '(Estricto)' : ''}` : 'Ninguno';
@@ -395,6 +482,8 @@ async function editPublisher(id) {
   await buildAdminAvailabilityForm(pub.availability || []);
   currentAbsences = pub.absences || [];
   renderAbsences();
+  currentEditPhotoUrl = pub.photoUrl || '';
+  renderAdminPubPhotoPreview();
 
   document.getElementById('btn-delete-pub').style.display = 'inline-flex';
   
@@ -465,7 +554,7 @@ async function savePublisher() {
   let partnerName = "";
   if (partnerId) { const pObj = allPublishers.find(p => p.id === partnerId); if (pObj) partnerName = `${pObj.firstName} ${pObj.lastName}`; }
   
-  const pubData = { firstName, lastName, gender, status, isTrainer, isShiftManager, partner: partnerId, partnerName, hardPair, maxShifts, phone, notificationEmail, emailNotificationsEnabled, emergencyName, emergencyPhone, availability, absences: currentAbsences };
+  const pubData = { firstName, lastName, gender, status, isTrainer, isShiftManager, partner: partnerId, partnerName, hardPair, maxShifts, phone, notificationEmail, emailNotificationsEnabled, emergencyName, emergencyPhone, availability, absences: currentAbsences, photoUrl: currentEditPhotoUrl || '' };
 
   try {
     if (id) {
@@ -580,6 +669,8 @@ function clearPublisherForm() {
   currentLinkedUserDocId = null;
   currentAbsences = [];
   renderAbsences();
+  currentEditPhotoUrl = '';
+  renderAdminPubPhotoPreview();
   document.getElementById('account-status-msg').innerText = "Opcional al crear un usuario nuevo.";
 }
 

@@ -1,6 +1,6 @@
 {
-  "summary":  "Implementation plan to fix the Firestore permissions error by storing shift reports (shiftReports) and cancellation logs on publishers/{publisherId} instead of shifts/{shiftId}.",
-  "updatedAt":  "2026-10-21T14:49:06.412049950Z",
+  "summary":  "Updated implementation plan detailing exactly where and how profile pictures are stored (compressed ~10 KB thumbnail in Firestore publishers/{id}.photoUrl with optional Firebase Storage support).",
+  "updatedAt":  "2026-10-22T00:41:45.486611608Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

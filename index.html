@@ -7,6 +7,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>PPAM | Encarnación</title>
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+  <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
   <style>
       body { background-color: #f4f6f8; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 15px 0; color: #333; }
       .app-container { max-width: 1000px; width: 95%; margin: 0 auto; }
@@ -139,6 +140,52 @@
       .btn-confirm-ok { background: #dc3545; color: white; }
       .btn-confirm-ok:hover { opacity: 0.9; }
       @keyframes popIn { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+      /* Unified Admin Panel Styles */
+      .admin-container { max-width: 1000px; width: 95%; margin: 0 auto; }
+      #admin-header-name { font-size: 0.75em; font-weight: normal; color: rgba(255,255,255,0.85); border-left: 1px solid rgba(255,255,255,0.3); padding-left: 10px; }
+      #dashboard-section .tabs { margin-bottom: 25px; overflow-x: auto; }
+      #dashboard-section .tab { padding: 15px 16px; display: flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+      #dashboard-section .tab-content { margin-top: 0; }
+      .panel { background: white; padding: 25px; border-radius: 12px; border: 1px solid #eaeaea; box-shadow: 0 2px 8px rgba(0,0,0,0.02); }
+      .pub-card { background: white; padding: 15px 20px; margin-bottom: 10px; border: 1px solid #eaeaea; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; transition: box-shadow 0.2s; cursor: pointer; }
+      .pub-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); border-color: #5d7aa9; }
+      table { width: 100%; border-collapse: collapse; margin-top: 15px; background: white; border-radius: 8px; overflow: hidden; border: 1px solid #eaeaea; }
+      th, td { padding: 14px 15px; text-align: left; border-bottom: 1px solid #f0f0f0; }
+      th { background-color: #f8f9fa; color: #555; font-weight: 600; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.5px; }
+      tr:last-child td { border-bottom: none; }
+      tr:hover td { background-color: #fafafa; }
+      .badge-green { background: #e6f4ea; color: #28a745; padding: 4px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 600; margin-left: 5px; display: inline-block; }
+      .badge-red { background: #fdeadd; color: #dc3545; padding: 4px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 600; margin-left: 5px; display: inline-block; }
+      .badge-gray { background: #f0f0f0; color: #666; padding: 4px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 600; margin-left: 5px; display: inline-block; }
+      .badge-warning { background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 600; margin-left: 5px; display: inline-block; }
+      .badge-blue { background: #e0f3ff; color: #007bff; padding: 4px 8px; border-radius: 12px; font-size: 0.8em; font-weight: 600; margin-left: 5px; display: inline-block; }
+      .btn-info { background-color: #17a2b8; color: white; }
+      .btn-secondary { background-color: #6c757d; color: white; }
+      #dashboard-section .btn-danger { background-color: #dc3545; color: white; border: none; }
+      #dashboard-section .btn-primary { background-color: #5d7aa9; color: white; }
+      .quick-build-box { background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 20px; }
+      .day-checkboxes { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; }
+      .day-checkboxes label { background: white; padding: 6px 12px; border: 1px solid #ccc; border-radius: 20px; font-size: 0.85em; cursor: pointer; user-select: none; font-weight: 500; }
+      .day-checkboxes input:checked + label { background: #5d7aa9; color: white; border-color: #5d7aa9; }
+      .day-checkboxes input { display: none; }
+      .qb-grid { display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; }
+      .qb-grid > div { flex: 1; min-width: 120px; }
+      .qb-grid button { flex: 1; min-width: 120px; height: 44px; }
+      .admin-avail-day { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
+      .admin-avail-day h5 { margin: 0 0 5px 0; color: #5d7aa9; font-size: 1.05em; }
+      .admin-avail-check { font-size: 0.9em; display: flex; align-items: center; gap: 8px; margin-bottom: 6px; color: #444; }
+      .data-list { display: flex; flex-direction: column; gap: 15px; }
+      .data-item { display: flex; flex-direction: column; gap: 3px; }
+      .data-label { font-size: 0.85em; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+      .data-value { font-size: 1.05em; color: #333; }
+      .btn-mode-switch { background: #fff !important; color: #2c5282 !important; border: 1px solid #fff !important; box-shadow: 0 2px 6px rgba(0,0,0,0.12); }
+      .btn-mode-switch:hover { background: #eef4ff !important; color: #1a365d !important; }
+      @media (max-width: 600px) {
+          .admin-container { width: 100%; }
+          .panel { padding: 15px; border-radius: 0; border-left: none; border-right: none; }
+          #dashboard-section .tab { padding: 12px 10px; font-size: 0.85em; }
+      }
   </style>
 </head>
 <body>
@@ -165,8 +212,11 @@
                   <span class="material-symbols-outlined search-icon">search</span>
                   <input type="text" id="search-all" class="search-box" placeholder="Buscar lugar, fecha o publicador..." onkeyup="filterAllShifts()">
               </div>
-              <div style="text-align: right; margin-bottom: 10px;">
-                  <button id="btn-toggle-past" type="button" onclick="togglePastShifts()" style="background: none; border: none; color: #5d7aa9; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font-size: 0.9em; padding: 5px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+                  <button id="btn-admin-new-live-shift" type="button" onclick="if(typeof openManualShiftModal==='function') openManualShiftModal('live')" style="display: none; background: #e6f4ea; border: 1px solid #c3e6cb; color: #155724; font-weight: 700; cursor: pointer; align-items: center; gap: 5px; font-size: 0.86em; padding: 6px 12px; border-radius: 8px;">
+                      <span class="material-symbols-outlined" style="font-size: 18px;">add_circle</span> Añadir Turno Especial
+                  </button>
+                  <button id="btn-toggle-past" type="button" onclick="togglePastShifts()" style="background: none; border: none; color: #5d7aa9; font-weight: bold; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; font-size: 0.9em; padding: 5px; margin-left: auto;">
                       <span class="material-symbols-outlined" style="font-size: 18px;">history</span> Mostrar turnos pasados
                   </button>
               </div>
@@ -217,6 +267,10 @@
     <div class="header">
       <h2>PPAM <span id="header-user-name"></span></h2>
       <div class="header-actions">
+          <button id="btn-switch-to-admin" type="button" class="btn-header-action btn-mode-switch" onclick="switchAppMode('admin')" style="display: none;" title="Abrir Panel de Administración">
+              <span class="material-symbols-outlined" style="font-size: 1.15em; color: #5d7aa9;">admin_panel_settings</span>
+              <span>Admin</span>
+          </button>
           <button class="btn-header-action" onclick="openFullSchedule()">
               <span class="material-symbols-outlined" style="font-size: 1.1em;">calendar_month</span>
               <span class="hide-mobile">Programa</span>
@@ -490,11 +544,741 @@
     </div>
   </div>
 
+  <!-- Quick Live Shift Edit Modal (Admin In-Context Tool for Programa General & Turnos Libres) -->
+  <div id="quick-live-shift-modal" class="modal" style="z-index: 10001;" onclick="if(event.target===this) closeQuickLiveShiftEditModal()">
+    <div class="modal-content" style="max-width: 540px; padding: 24px; border-radius: 16px;">
+      <span class="close-modal" onclick="closeQuickLiveShiftEditModal()" style="font-size: 24px; background: rgba(0,0,0,0.05); border-radius: 50%; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;"><span class="material-symbols-outlined">close</span></span>
+      <h3 style="margin-top: 0; color: #2c5282; font-size: 1.25em; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; padding-right: 32px;">
+        <span class="material-symbols-outlined" style="color: #5d7aa9;">edit_calendar</span> Editar Turno en Vivo
+      </h3>
+      <p style="margin: 0 0 14px 0; color: #666; font-size: 0.88em;">Agrega o quita publicadores directamente en el calendario oficial. La lista muestra quién está disponible en este horario y cuántos turnos lleva en el mes.</p>
+
+      <input type="hidden" id="quick-edit-shift-id">
+      <div id="quick-edit-shift-summary" style="background: #f4f7fb; border: 1px solid #dce4ee; border-radius: 10px; padding: 12px 15px; margin-bottom: 16px; font-size: 0.92em; color: #333; display: flex; flex-direction: column; gap: 4px;"></div>
+
+      <div style="margin-bottom: 18px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <strong style="color: #333; font-size: 0.92em;">Participantes asignados (<span id="quick-edit-shift-count">0/2</span>):</strong>
+        </div>
+        <div id="quick-edit-shift-assigned" style="display: flex; flex-direction: column; gap: 8px;"></div>
+      </div>
+
+      <hr style="border: 0; border-top: 1px solid #eee; margin: 18px 0;">
+
+      <div>
+        <strong style="color: #333; font-size: 0.92em; display: block; margin-bottom: 6px;">Asignar publicador al turno:</strong>
+        <div style="font-size: 0.8em; color: #555; margin-bottom: 8px; display: flex; gap: 10px; flex-wrap: wrap;">
+          <span>✅ Disponible en este horario</span>
+          <span>⚠️ Entrenamiento</span>
+          <span>✈️ Vacaciones / ❌ Otro horario</span>
+        </div>
+        <div class="search-wrapper" style="margin-bottom: 10px;">
+          <span class="material-symbols-outlined search-icon" style="font-size: 18px;">search</span>
+          <input type="text" id="quick-edit-pub-search" class="search-box" style="padding: 10px 12px 10px 38px; font-size: 14px;" placeholder="Filtrar publicador por nombre..." oninput="filterQuickLiveShiftPublisherOptions()">
+        </div>
+        <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+          <select id="quick-edit-pub-select" style="flex: 1; min-width: 200px; padding: 11px 12px; border-radius: 8px; border: 1px solid #ccc; font-size: 14px; background: #fff;"></select>
+          <button type="button" id="btn-quick-add-pub" onclick="quickAddPublisherToLiveShift()" class="btn-action btn-success" style="min-height: 44px; padding: 10px 16px; white-space: nowrap;">
+            <span class="material-symbols-outlined" style="font-size: 18px;">person_add</span> Añadir
+          </button>
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 22px; border-top: 1px solid #f0f0f0; padding-top: 14px; flex-wrap: wrap;">
+        <button type="button" onclick="quickDeleteLiveShift()" class="btn-action btn-danger" style="background: #fff5f5; color: #dc3545; border: 1px solid #f5c6cb; padding: 10px 14px; font-size: 0.86em;" title="Eliminar este turno completo del calendario en vivo">
+          <span class="material-symbols-outlined" style="font-size: 18px;">delete</span> Eliminar Turno
+        </button>
+        <button type="button" onclick="closeQuickLiveShiftEditModal()" class="btn-primary" style="flex: 1; min-width: 140px; max-width: 200px; min-height: 42px; border-radius: 8px; margin-left: auto;">Listo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- UNIFIED ADMIN DASHBOARD SECTION -->
+  <div class="admin-container" id="dashboard-section" style="display: none;">
+    <div class="header">
+      <h2>PPAM Admin <span id="admin-header-name"></span></h2>
+      <div class="header-actions">
+        <button id="btn-switch-to-publisher" type="button" class="btn-header-action btn-mode-switch" onclick="switchAppMode('publisher')" title="Cambiar a mi vista de Publicador">
+          <span class="material-symbols-outlined" style="font-size: 1.15em; color: #5d7aa9;">person</span>
+          <span>Mi Vista</span>
+        </button>
+        <button type="button" class="btn-header-action" onclick="openFullSchedule()" title="Abrir Programa General">
+          <span class="material-symbols-outlined" style="font-size: 1.1em;">calendar_month</span>
+          <span class="hide-mobile">Programa</span>
+        </button>
+        <button class="btn-logout" onclick="logout()">Salir</button>
+      </div>
+    </div>
+
+    <div class="tabs">
+        <div class="tab active" onclick="switchAdminTab('users')" id="tab-btn-users"><span class="material-symbols-outlined">group</span> Directorio</div>
+        <div class="tab" onclick="switchAdminTab('locations')" id="tab-btn-locations"><span class="material-symbols-outlined">location_on</span> Ubicaciones</div>
+        <div class="tab" onclick="switchAdminTab('schedule')" id="tab-btn-schedule"><span class="material-symbols-outlined">calendar_month</span> Generador</div>
+        <div class="tab" onclick="switchAdminTab('availability')" id="tab-btn-availability"><span class="material-symbols-outlined">event_available</span> Disponibilidad</div>
+        <div class="tab" onclick="switchAdminTab('reports')" id="tab-btn-reports"><span class="material-symbols-outlined">assignment</span> Informes</div>
+    </div>
+
+    <div id="tab-users" class="tab-content active">
+      <div class="panel">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
+              <div class="search-wrapper" style="min-width: 220px; margin-bottom: 0; flex: 1;">
+                  <span class="material-symbols-outlined search-icon">search</span>
+                  <input type="text" id="pub-search" class="search-box" style="margin-bottom: 0;" placeholder="Buscar por nombre..." onkeyup="filterPublishers()">
+              </div>
+              <select id="pub-status-filter" onchange="filterPublishers()" style="padding: 13px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white; min-width: 190px;">
+                  <option value="all">Todos los estados</option>
+                  <option value="active">✅ Solo Activos</option>
+                  <option value="trainee">⚠️ En Entrenamiento</option>
+                  <option value="inactive">⏸️ Inactivos (En pausa)</option>
+              </select>
+              <button onclick="openNewPublisherModal()" class="btn-action btn-success"><span class="material-symbols-outlined">person_add</span> Nuevo Publicador</button>
+          </div>
+          <div id="publishers-list"><p style="color: #666; text-align: center;">Cargando directorio...</p></div>
+      </div>
+    </div>
+
+    <div id="pub-view-modal" class="modal">
+      <div class="modal-content" style="max-width: 650px;">
+          <span class="close-modal" onclick="closePubViewModal()"><span class="material-symbols-outlined">close</span></span>
+          <h3 id="view-pub-name" style="margin-top: 0; color: #333; font-size: 1.4em; border-bottom: 1px solid #f0f0f0; padding-bottom: 15px; display:flex; align-items:center; gap:10px;">Nombre</h3>
+
+          <div style="display: flex; gap: 10px; margin-top: 15px; margin-bottom: 15px; flex-wrap: wrap;">
+              <div style="flex: 1; min-width: 120px; background: #eef2f7; padding: 12px; border-radius: 8px; text-align: center; border: 1px solid #dce4ee;">
+                  <div id="view-pub-shifts-count" style="font-size: 1.4em; font-weight: bold; color: #2c5282;">-</div>
+                  <div style="font-size: 0.78em; color: #555; font-weight: 600; text-transform: uppercase;">Turnos Asignados</div>
+              </div>
+              <div style="flex: 1; min-width: 120px; background: #fff5f5; padding: 12px; border-radius: 8px; text-align: center; border: 1px solid #f5c6cb;">
+                  <div id="view-pub-cancels-count" style="font-size: 1.4em; font-weight: bold; color: #dc3545;">-</div>
+                  <div style="font-size: 0.78em; color: #721c24; font-weight: 600; text-transform: uppercase;">Cancelaciones</div>
+              </div>
+              <div style="flex: 1; min-width: 120px; background: #e6f4ea; padding: 12px; border-radius: 8px; text-align: center; border: 1px solid #c3e6cb;">
+                  <div id="view-pub-interactions-count" style="font-size: 1.4em; font-weight: bold; color: #28a745;">-</div>
+                  <div style="font-size: 0.78em; color: #155724; font-weight: 600; text-transform: uppercase;">Interacciones</div>
+              </div>
+          </div>
+
+          <div class="data-list" style="margin-top: 15px;">
+              <div style="display:flex; gap: 20px;">
+                  <div class="data-item" style="flex:1;"><span class="data-label">Estado</span><span class="data-value" id="view-pub-status">Aprobado</span></div>
+                  <div class="data-item" style="flex:1;"><span class="data-label">Límite Mensual</span><span class="data-value" id="view-pub-max">5 turnos</span></div>
+              </div>
+              <div class="data-item"><span class="data-label">Compañero Preferido</span><span class="data-value" id="view-pub-partner">Ninguno</span></div>
+
+              <hr style="border:0; border-top:1px solid #eee; width:100%; margin: 5px 0;">
+
+              <div style="display:flex; gap: 20px;">
+                  <div class="data-item" style="flex:1;"><span class="data-label">Teléfono</span><span class="data-value" id="view-pub-phone">-</span></div>
+                  <div class="data-item" style="flex:1;"><span class="data-label">Email</span><span class="data-value" id="view-pub-email">-</span></div>
+              </div>
+              <div style="display:flex; gap: 20px;">
+                  <div class="data-item" style="flex:1;"><span class="data-label">Emergencia (Nombre)</span><span class="data-value" id="view-pub-ename">-</span></div>
+                  <div class="data-item" style="flex:1;"><span class="data-label">Emergencia (Tel)</span><span class="data-value" id="view-pub-ephone">-</span></div>
+              </div>
+
+              <hr style="border:0; border-top:1px solid #eee; width:100%; margin: 5px 0;">
+
+              <div style="display:flex; gap: 20px; flex-wrap: wrap;">
+                  <div class="data-item" style="flex:1;"><span class="data-label">Último Inicio de Sesión</span><span class="data-value" id="view-pub-lastlogin" style="font-size: 0.9em;">-</span></div>
+                  <div class="data-item" style="flex:1;"><span class="data-label">Último Cambio de Perfil</span><span class="data-value" id="view-pub-lastprofile" style="font-size: 0.9em;">-</span></div>
+                  <div class="data-item" style="flex:1;"><span class="data-label">Último Turno Cancelado</span><span class="data-value" id="view-pub-lastcancel" style="font-size: 0.9em;">-</span></div>
+              </div>
+
+              <hr style="border:0; border-top:1px solid #eee; width:100%; margin: 5px 0;">
+
+              <div>
+                  <h4 style="margin: 0 0 10px 0; color: #5d7aa9; display: flex; align-items: center; gap: 6px; font-size: 1em;">
+                      <span class="material-symbols-outlined" style="font-size: 20px;">history</span> Historial de Turnos y Cancelaciones
+                  </h4>
+                  <div id="view-pub-history-container" style="max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background: #f8f9fa; padding: 12px; border-radius: 8px; border: 1px solid #eaeaea;">
+                      <p style="margin: 0; color: #666; font-size: 0.9em; text-align: center;">Cargando historial...</p>
+                  </div>
+              </div>
+          </div>
+
+          <div style="margin-top: 25px; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <button type="button" id="btn-view-toggle-inactive" onclick="toggleAdminPubInactiveFromView()" class="btn-action btn-secondary">
+                  <span class="material-symbols-outlined">pause_circle</span> Hacer Inactivo
+              </button>
+              <button onclick="switchToEditPub()" class="btn-action btn-info"><span class="material-symbols-outlined">edit</span> Editar Publicador</button>
+          </div>
+      </div>
+    </div>
+
+    <div id="pub-edit-modal" class="modal">
+      <div class="modal-content">
+          <span class="close-modal" onclick="closePubEditModal()"><span class="material-symbols-outlined">close</span></span>
+          <h3 id="pub-form-title" style="margin-top:0; color:#333; border-bottom:1px solid #ddd; padding-bottom:15px; margin-bottom: 20px;">Nuevo Publicador</h3>
+          <input type="hidden" id="pub-id">
+
+          <div style="background:#f8fafd; border:1px solid #e2e8f0; border-radius:10px; padding:12px 15px; margin-bottom:18px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div id="admin-pub-avatar-preview" style="width:54px; height:54px; border-radius:50%; background:#5d7aa9; color:white; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:1.15em; overflow:hidden; flex-shrink:0; border:2px solid #fff; box-shadow:0 2px 6px rgba(0,0,0,0.12);">
+                <span class="material-symbols-outlined">person</span>
+              </div>
+              <div>
+                <div style="font-weight:700; color:#333; font-size:0.95em;">Foto de Perfil</div>
+                <div id="admin-pub-avatar-status" style="font-size:0.8em; color:#666;">Opcional • Visible para compañeros de turno</div>
+              </div>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center;">
+              <input type="file" id="admin-pub-photo-input" accept="image/*" style="display:none;" onchange="handleAdminPubPhotoUpload(event)">
+              <button type="button" onclick="document.getElementById('admin-pub-photo-input').click()" class="btn-action btn-primary" style="padding:7px 12px; font-size:0.82em;">
+                <span class="material-symbols-outlined" style="font-size:16px;">photo_camera</span> Subir Foto
+              </button>
+              <button type="button" id="btn-admin-remove-photo" onclick="removeAdminPubPhoto()" class="btn-action btn-danger" style="display:none; padding:7px 10px; font-size:0.82em;">
+                <span class="material-symbols-outlined" style="font-size:16px;">delete</span>
+              </button>
+            </div>
+          </div>
+
+          <h4 style="color:#5d7aa9; margin-top:0; margin-bottom:10px;">Información Básica</h4>
+          <div style="display:flex; gap:10px; flex-wrap: wrap;">
+            <div class="form-group" style="flex:1; min-width:140px; margin-bottom: 10px;"><label>Nombre</label><input type="text" id="pub-firstname" placeholder="ej. Juan"></div>
+            <div class="form-group" style="flex:1; min-width:140px; margin-bottom: 10px;"><label>Apellido</label><input type="text" id="pub-lastname" placeholder="ej. Pérez"></div>
+          </div>
+          <div class="form-group" style="margin-bottom: 10px;">
+            <label>Sexo</label><select id="pub-gender"><option value="H">Hombre (H)</option><option value="M">Mujer (M)</option></select>
+          </div>
+
+          <h4 style="color:#5d7aa9; margin-top:25px; margin-bottom:10px;">Estado en el Programa</h4>
+          <div class="form-group" style="margin-bottom: 10px;">
+            <label>Estado de Aprobación / Participación</label>
+            <select id="pub-status" style="background-color: #f8f9fa;">
+              <option value="Aprobado">✅ Aprobado (Turnos Normales)</option>
+              <option value="Entrenamiento">⚠️ En Entrenamiento</option>
+              <option value="Inactivo">⏸️ Inactivo (En pausa - No asignar turnos)</option>
+            </select>
+          </div>
+
+          <div id="pub-trainer-container" style="margin-bottom: 15px; align-items:flex-start; gap:10px; display:flex; flex-direction:column;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                  <input type="checkbox" id="pub-istrainer" style="width:18px; height:18px; margin:0; cursor:pointer; accent-color: #5d7aa9;">
+                  <label for="pub-istrainer" style="margin:0; font-weight:600; cursor:pointer; font-size: 0.9em; color: #5d7aa9;">Es Capacitador (Trainer)</label>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                  <input type="checkbox" id="pub-ismanager" style="width:18px; height:18px; margin:0; cursor:pointer; accent-color: #dc3545;">
+                  <label for="pub-ismanager" style="margin:0; font-weight:600; cursor:pointer; font-size: 0.9em; color: #dc3545;">Es Encargado de Turno</label>
+              </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 10px;">
+            <label>Límite de Turnos al Mes</label>
+            <select id="pub-max"><option value="5">5 turnos</option><option value="4">4 turnos</option><option value="3">3 turnos</option><option value="2">2 turnos</option><option value="1">1 turno</option></select>
+          </div>
+          <div class="form-group" style="margin-bottom: 10px;">
+            <label>Compañero Preferido</label><select id="pub-partner"><option value="">Ninguno</option></select>
+          </div>
+          <div id="pub-hardpair-container" style="display:none; margin-bottom: 15px; align-items:center; gap:8px;">
+              <input type="checkbox" id="pub-hardpair" style="width:18px; height:18px; margin:0; cursor:pointer; accent-color: #dc3545;">
+              <label for="pub-hardpair" style="margin:0; font-weight:600; cursor:pointer; font-size: 0.9em; color: #dc3545;">Asignar estrictamente juntos</label>
+          </div>
+
+          <h4 style="color:#5d7aa9; margin-top:25px; margin-bottom:10px;">Contacto (Opcional)</h4>
+          <div class="form-group" style="margin-bottom: 10px;"><label>Teléfono (Incluye cód. país)</label><input type="text" id="pub-phone" placeholder="ej. +595981123456"></div>
+          <div class="form-group" style="margin-bottom: 10px;"><label>Email Notificaciones</label><input type="email" id="pub-email" placeholder="ej. juan@gmail.com"></div>
+          <div id="pub-email-notif-container" style="display:none; margin-bottom: 15px; align-items:center; gap:8px;">
+              <input type="checkbox" id="pub-email-notif" style="width:18px; height:18px; margin:0; cursor:pointer; accent-color: #5d7aa9;">
+              <label for="pub-email-notif" style="margin:0; font-weight:600; cursor:pointer; font-size: 0.9em; color: #5d7aa9;">Habilitar Notificaciones por Correo</label>
+          </div>
+          <div class="form-group" style="margin-bottom: 10px;"><label>Contacto de Emergencia</label><input type="text" id="pub-emerg-name" placeholder="Nombre de familiar"></div>
+          <div class="form-group" style="margin-bottom: 10px;"><label>Tel. de Emergencia</label><input type="text" id="pub-emerg-phone" placeholder="Número"></div>
+
+          <h4 style="color:#5d7aa9; margin-top:25px; margin-bottom:10px;">Disponibilidad Horaria</h4>
+          <p style="font-size:0.85em; color:#666; margin-top:0;">Fuerza o edita los horarios disponibles del publicador.</p>
+          <div id="admin-avail-container" style="background:#f8f9fa; padding:15px; border-radius:8px; border:1px solid #ddd; max-height:250px; overflow-y:auto; margin-bottom:15px;">
+              <p style="text-align:center; font-size:0.9em; color:#666;">Cargando disponibilidad...</p>
+          </div>
+
+          <h4 style="color:#dc3545; margin-top:25px; margin-bottom:10px;">Ausencias / Vacaciones</h4>
+          <p style="font-size:0.85em; color:#666; margin-top:0;">El generador ignorará al publicador en estas fechas.</p>
+          <div style="display:flex; gap:10px; margin-bottom:10px;">
+              <input type="date" id="abs-start" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:6px;">
+              <input type="date" id="abs-end" style="flex:1; padding:10px; border:1px solid #ddd; border-radius:6px;">
+              <button type="button" onclick="addAbsence()" class="btn-action btn-info"><span class="material-symbols-outlined">add</span></button>
+          </div>
+          <div id="absences-list" style="margin-bottom:20px; display:flex; flex-direction:column; gap:8px;"></div>
+
+          <h4 style="color:#5d7aa9; margin-top:30px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+              Cuenta de Acceso
+              <button type="button" id="btn-unlink" onclick="unlinkAccount()" class="btn-action btn-danger" style="padding:4px 10px; font-size:0.75em; display:none;">Desvincular</button>
+          </h4>
+          <p id="account-status-msg" style="font-size:0.85em; color:#666; margin-top:0; margin-bottom:15px;">Opcional al crear un usuario nuevo.</p>
+          <div class="form-group" style="margin-bottom: 10px;"><label>Usuario (Sin espacios)</label><input type="text" id="pub-username" placeholder="ej. juanperez"></div>
+          <div class="form-group" style="margin-bottom: 10px;">
+              <label>Contraseña Temporal</label>
+              <div style="display:flex; gap:10px;">
+                  <input type="text" id="pub-password" placeholder="Mínimo 6 caracteres" style="flex:1;">
+                  <button type="button" id="btn-reset-pw" onclick="adminResetPassword()" class="btn-action btn-info" style="display:none; padding:12px; height:43px;">Restablecer</button>
+              </div>
+          </div>
+          <div class="form-group"><label>Rol</label><select id="pub-role"><option value="user">Publicador</option><option value="admin">Administrador</option></select></div>
+
+          <div style="display: flex; justify-content: space-between; margin-top: 30px; border-top:1px solid #eee; padding-top: 20px;">
+            <button type="button" id="btn-delete-pub" onclick="deletePublisher()" class="btn-action btn-danger" style="display: none;"><span class="material-symbols-outlined">delete</span> Eliminar</button>
+            <div style="display: flex; gap: 10px; margin-left: auto;">
+                <button type="button" onclick="closePubEditModal()" class="btn-action btn-secondary">Cancelar</button>
+                <button type="button" onclick="savePublisher()" class="btn-action btn-success"><span class="material-symbols-outlined">save</span> Guardar</button>
+            </div>
+          </div>
+      </div>
+    </div>
+
+    <div id="tab-locations" class="tab-content">
+        <div style="margin-bottom:20px; text-align:right;">
+            <button onclick="openLocationModal()" class="btn-action btn-success" style="padding: 10px 20px;"><span class="material-symbols-outlined">add</span> Nueva Ubicación</button>
+        </div>
+        <div id="locations-list"><p style="color: #666; text-align: center;">Cargando ubicaciones...</p></div>
+    </div>
+
+    <div id="location-modal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <span class="close-modal" onclick="closeLocationModal()"><span class="material-symbols-outlined">close</span></span>
+            <h3 id="loc-modal-title" style="margin-top: 0; border-bottom: 1px solid #f0f0f0; padding-bottom: 15px;">Nueva Ubicación</h3>
+            <input type="hidden" id="loc-id">
+
+            <div style="display:flex; gap:15px; flex-wrap: wrap;">
+                <div class="form-group" style="flex:2; min-width: 200px;"><label>Nombre</label><input type="text" id="loc-name" placeholder="Ej. Costanera"></div>
+                <div class="form-group" style="flex:1; min-width: 100px;"><label>Capacidad</label><input type="number" id="loc-capacity" value="2" min="1"></div>
+            </div>
+
+            <div class="form-group" style="margin-top: 10px;">
+                <label>Enlace de Google Maps (Opcional)</label>
+                <input type="url" id="loc-maps-url" placeholder="Ej. https://maps.app.goo.gl/..." style="width: 100%; box-sizing: border-box;">
+            </div>
+
+            <div class="form-group" style="margin-top: 15px; margin-bottom: 25px;">
+                <label style="display:flex; justify-content:space-between; align-items:center;">
+                    Información e Instrucciones (Opcional)
+                    <span style="font-size:0.8em; font-weight:normal; color:#888;">(Soporta imágenes)</span>
+                </label>
+                <div id="loc-editor-container" style="height: 150px; background: white;"></div>
+            </div>
+
+            <div style="display:flex; gap:15px; flex-wrap: wrap; margin-bottom: 25px;">
+                <div class="form-group" style="flex:1; min-width: 200px;">
+                    <label>Estado Operativo</label>
+                    <select id="loc-status" style="background:#f8f9fa; border-color: #bbb; font-weight: 600;">
+                        <option value="true">🟢 Activa (Incluir en el Generador)</option>
+                        <option value="false">⚪ Inactiva (Ubicación Temporal/Cerrada)</option>
+                    </select>
+                </div>
+                <div style="flex:1; display:flex; align-items:center; background:#fff3cd; padding:10px 15px; border-radius:8px; border:1px solid #ffeeba;">
+                    <input type="checkbox" id="loc-req-manager" style="width:18px; height:18px; margin-right:10px; cursor:pointer; accent-color:#856404;">
+                    <label for="loc-req-manager" style="margin:0; font-weight:600; color:#856404; cursor:pointer; font-size:0.9em;">Requiere Encargado Físico</label>
+                </div>
+            </div>
+
+            <div class="quick-build-box">
+                <h5 style="margin:0 0 10px 0; color:#5d7aa9; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="font-size:1.2em;">bolt</span> Generador Rápido de Turnos</h5>
+                <div class="day-checkboxes">
+                    <div><input type="checkbox" id="qb-Lunes" value="Lunes"><label for="qb-Lunes">Lun</label></div>
+                    <div><input type="checkbox" id="qb-Martes" value="Martes"><label for="qb-Martes">Mar</label></div>
+                    <div><input type="checkbox" id="qb-Miércoles" value="Miércoles"><label for="qb-Miércoles">Mié</label></div>
+                    <div><input type="checkbox" id="qb-Jueves" value="Jueves"><label for="qb-Jueves">Jue</label></div>
+                    <div><input type="checkbox" id="qb-Viernes" value="Viernes"><label for="qb-Viernes">Vie</label></div>
+                    <div><input type="checkbox" id="qb-Sábado" value="Sábado"><label for="qb-Sábado">Sáb</label></div>
+                    <div><input type="checkbox" id="qb-Domingo" value="Domingo"><label for="qb-Domingo">Dom</label></div>
+                </div>
+
+                <div class="qb-grid">
+                    <div><label style="font-size:0.85em; color:#555; font-weight: 600;">Hora Inicio</label><input type="time" id="qb-start" value="08:00" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:6px; box-sizing:border-box;"></div>
+                    <div><label style="font-size:0.85em; color:#555; font-weight: 600;">Hora Fin</label><input type="time" id="qb-end" value="14:00" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:6px; box-sizing:border-box;"></div>
+                    <div><label style="font-size:0.85em; color:#555; font-weight: 600;">Duración (Horas)</label><input type="number" id="qb-duration" value="2" step="0.5" min="0.5" max="12" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:6px; box-sizing:border-box;"></div>
+                    <button type="button" onclick="executeQuickBuild()" class="btn-action btn-primary"><span class="material-symbols-outlined">auto_awesome</span> Generar</button>
+                </div>
+            </div>
+
+            <h4 style="margin-top: 15px; margin-bottom: 10px; color: #5d7aa9; display:flex; justify-content:space-between; align-items:center;">
+                Plantillas Individuales
+                <button type="button" onclick="addShiftRow()" class="btn-action btn-info" style="padding:6px 12px; font-size:0.85em;"><span class="material-symbols-outlined" style="font-size:18px;">add</span> Fila Manual</button>
+            </h4>
+            <div id="shifts-container" style="background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee; max-height: 250px; overflow-y: auto;"></div>
+
+            <div style="margin-top:25px; display: flex; justify-content: space-between; border-top: 1px solid #eee; padding-top: 20px;">
+                <button type="button" id="btn-delete-loc" onclick="deleteLocation()" class="btn-action btn-danger" style="display:none;"><span class="material-symbols-outlined">delete</span> Eliminar</button>
+                <div style="display:flex; gap:10px; margin-left:auto;">
+                    <button type="button" onclick="closeLocationModal()" class="btn-action btn-secondary">Cancelar</button>
+                    <button type="button" onclick="saveLocation()" class="btn-action btn-success"><span class="material-symbols-outlined">save</span> Guardar Ubicación</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-schedule" class="tab-content">
+        <!-- Quick Live Actions Banner -->
+        <div class="panel" style="margin-bottom: 18px; background: linear-gradient(135deg, #eef4ff 0%, #f7faff 100%); border-color: #cdddf7; display: flex; justify-content: space-between; align-items: center; gap: 15px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 240px;">
+                <h4 style="margin: 0 0 4px 0; color: #2c5282; display: flex; align-items: center; gap: 6px;">
+                    <span class="material-symbols-outlined" style="font-size: 20px; color: #5d7aa9;">bolt</span> Ajustes Rápidos en el Calendario en Vivo
+                </h4>
+                <p style="margin: 0; font-size: 0.88em; color: #4a5568;">
+                    Para reemplazar hermanos, cubrir vacantes o eliminar un turno puntual ya publicado, hazlo en tiempo real desde el <strong>Programa General</strong>.
+                </p>
+            </div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button type="button" onclick="openManualShiftModal('live')" class="btn-action btn-success" style="white-space: nowrap; padding: 9px 14px; font-size: 0.9em;">
+                    <span class="material-symbols-outlined" style="font-size: 18px;">add_circle</span> + Turno Suelto en Vivo
+                </button>
+                <button type="button" onclick="openFullSchedule()" class="btn-action btn-primary" style="white-space: nowrap; padding: 9px 14px; font-size: 0.9em;">
+                    <span class="material-symbols-outlined" style="font-size: 18px;">calendar_month</span> Abrir Programa en Vivo
+                </button>
+            </div>
+        </div>
+
+        <!-- Collapsible Day Managers Section -->
+        <details class="panel" style="margin-bottom: 18px; padding: 16px 20px; cursor: pointer;">
+            <summary style="font-weight: 700; color: #2c5282; font-size: 1.02em; display: flex; align-items: center; justify-content: space-between; list-style: none; outline: none;">
+                <span style="display: inline-flex; align-items: center; gap: 8px;">
+                    <span class="material-symbols-outlined" style="color: #5d7aa9;">support_agent</span>
+                    Encargados del Día (Contacto General Lunes a Domingo)
+                </span>
+                <span style="font-size: 0.8em; font-weight: 600; color: #5d7aa9; background: #eef4ff; padding: 4px 10px; border-radius: 12px;">Configurar ▾</span>
+            </summary>
+            <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #eee; cursor: default;">
+                <p style="color: #666; font-size: 0.9em; margin-top: 0;">Asigna quién es el contacto principal de soporte para cada día de la semana (no necesita estar en el turno físico).</p>
+                <div id="day-managers-container" style="display:flex; gap:10px; flex-wrap:wrap;"></div>
+                <div style="text-align:right; margin-top:15px;">
+                    <button type="button" onclick="saveDayManagers()" class="btn-action btn-success"><span class="material-symbols-outlined" style="font-size:18px;">save</span> Guardar Encargados del Día</button>
+                </div>
+            </div>
+        </details>
+
+        <!-- Main Generator Card -->
+        <div class="panel" style="background:#fcfcfc;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <h3 style="margin: 0; color: #2c5282; display: flex; align-items: center; gap: 8px;">
+                        <span class="material-symbols-outlined" style="color: #5d7aa9;">auto_awesome</span> Generar Nuevo Programa (Borrador)
+                    </h3>
+                    <p style="color: #666; font-size: 0.92em; margin: 5px 0 0 0;">
+                        Elige el rango de fechas y ubicaciones para armar los turnos en la <strong>Mesa de Trabajo</strong>. Nada será público hasta que lo revises y publiques.
+                    </p>
+                </div>
+                <div style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;">
+                    <span style="font-size: 0.8em; color: #666; font-weight: 600;">Atajos:</span>
+                    <button type="button" onclick="setGeneratorDatePreset('next_month')" style="background: #eef4ff; color: #2c5282; border: 1px solid #cdddf7; padding: 5px 10px; border-radius: 6px; font-size: 0.82em; font-weight: 600; cursor: pointer;">📅 Próximo Mes</button>
+                    <button type="button" onclick="setGeneratorDatePreset('current_month')" style="background: #f4f7fb; color: #4a5568; border: 1px solid #dce4ee; padding: 5px 10px; border-radius: 6px; font-size: 0.82em; font-weight: 600; cursor: pointer;">Mes Actual</button>
+                    <button type="button" onclick="setGeneratorDatePreset('next_15_days')" style="background: #f4f7fb; color: #4a5568; border: 1px solid #dce4ee; padding: 5px 10px; border-radius: 6px; font-size: 0.82em; font-weight: 600; cursor: pointer;">Próximos 15 días</button>
+                </div>
+            </div>
+
+            <div style="display:flex; gap:15px; margin-top: 18px; flex-wrap: wrap;">
+                <div class="form-group" style="flex:1; min-width: 150px; margin-bottom: 0;">
+                    <label>Fecha de Inicio</label>
+                    <input type="date" id="gen-start-date" style="width:100%; box-sizing:border-box;">
+                </div>
+                <div class="form-group" style="flex:1; min-width: 150px; margin-bottom: 0;">
+                    <label>Fecha de Fin</label>
+                    <input type="date" id="gen-end-date" style="width:100%; box-sizing:border-box;">
+                </div>
+            </div>
+
+            <div class="form-group" style="margin-top: 16px; margin-bottom: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <label style="margin: 0;">Ubicaciones Activas a Generar</label>
+                    <button type="button" onclick="toggleAllGeneratorLocations()" style="background: none; border: none; color: #5d7aa9; font-size: 0.84em; font-weight: 700; cursor: pointer; padding: 2px 6px;">Seleccionar / Quitar todas</button>
+                </div>
+                <div id="generator-locations" style="display: flex; gap: 14px; flex-wrap: wrap; background: #fff; padding: 14px; border: 1px solid #ddd; border-radius: 8px;">
+                    <p style="color:#666; font-size:0.9em; margin:0;">Cargando ubicaciones activas...</p>
+                </div>
+            </div>
+
+            <div style="margin-top: 15px; background: #fff; padding: 12px 15px; border: 1px solid #ddd; border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;">
+                <input type="checkbox" id="gen-allow-solo" checked style="width: 18px; height: 18px; margin-top: 2px; cursor: pointer; accent-color: #5d7aa9;">
+                <label for="gen-allow-solo" style="margin: 0; font-weight: normal; cursor: pointer; font-size: 0.9em; color: #444;">
+                    <strong>Permitir turnos incompletos (1 Publicador + Disponible):</strong> Si no hay dos personas compatibles para formar pareja, asignar a 1 publicador solo y dejar el segundo espacio como "Disponible". <span style="color:#666; font-size:0.85em; display:block; margin-top:3px;">Desmarca esta opción si prefieres que el turno quede completamente vacío cuando no se pueda formar una pareja completa.</span>
+                </label>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <button id="btn-gen-draft" onclick="generateDraft()" class="btn-action btn-primary" style="width:100%; padding: 13px; font-size: 1.05em;"><span class="material-symbols-outlined">magic_button</span> Generar Turnos en la Mesa de Trabajo</button>
+            </div>
+        </div>
+
+        <!-- Draft Workbench (Mesa de Trabajo) -->
+        <div id="schedule-preview-container" class="panel" style="display:none; margin-top:22px; border: 2px dashed #5d7aa9; background: #f4f7fb;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <h3 style="margin:0; color:#2c5282; display: flex; align-items: center; gap: 8px;"><span class="material-symbols-outlined" style="color:#5d7aa9;">construction</span> Mesa de Trabajo (Borrador)</h3>
+                    <span style="font-size: 0.86em; color: #555;">Revisa estadísticas y ajusta antes de publicar. Estos turnos aún no son visibles para los publicadores.</span>
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button id="btn-stats-draft" type="button" onclick="openDraftStatsModal()" class="btn-action btn-info" style="padding: 9px 14px; font-size: 0.9em;"><span class="material-symbols-outlined" style="font-size: 18px;">query_stats</span> Ver Estadísticas</button>
+                    <button type="button" onclick="openManualShiftModal('draft')" class="btn-action btn-success" style="padding: 9px 14px; font-size: 0.9em;">
+                        <span class="material-symbols-outlined" style="font-size: 18px;">add_circle</span> + Turno Manual al Borrador
+                    </button>
+                </div>
+            </div>
+
+            <div style="overflow-x:auto; background: #fff; border-radius: 8px; border: 1px solid #dce4ee;">
+                <table id="preview-table"><thead id="preview-head"></thead><tbody id="preview-body"></tbody></table>
+            </div>
+            <div style="margin-top:20px; text-align:right; display:flex; justify-content:space-between; flex-wrap: wrap; gap: 10px;">
+               <button id="btn-clear-draft" onclick="clearDraft()" class="btn-action btn-danger" style="padding:11px 22px; font-size: 0.95em;"><span class="material-symbols-outlined">delete_sweep</span> Descartar Borrador</button>
+               <button id="btn-publish-bottom" onclick="publishSchedule()" class="btn-action btn-success" style="padding:12px 28px; font-size: 1em;"><span class="material-symbols-outlined">cloud_upload</span> Publicar en Calendario Oficial</button>
+            </div>
+        </div>
+
+        <!-- Collapsible Maintenance Section for Published Months -->
+        <details class="panel" style="margin-top: 22px; background: #fafbfc; border-color: #e2e8f0; padding: 15px 20px; cursor: pointer;">
+            <summary style="font-weight: 600; color: #4a5568; font-size: 0.94em; display: flex; align-items: center; justify-content: space-between; list-style: none; outline: none;">
+                <span style="display: inline-flex; align-items: center; gap: 8px;">
+                    <span class="material-symbols-outlined" style="color: #718096; font-size: 20px;">settings_backup_restore</span>
+                    Mantenimiento de Meses Publicados (Eliminar mes completo / Opciones avanzadas)
+                </span>
+                <span style="font-size: 0.8em; color: #718096;">Mostrar ▾</span>
+            </summary>
+            <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #e2e8f0; cursor: default;">
+                <p style="color: #666; font-size: 0.88em; margin-top: 0;">
+                    Usa esta sección si necesitas <strong>vaciar por completo un mes ya publicado</strong> (por ejemplo, un mes de prueba) o volver a cargarlo entero a la mesa de trabajo.
+                </p>
+                <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 10px;">
+                    <div class="form-group" style="flex: 1; min-width: 220px; max-width: 340px; margin-bottom: 0;">
+                        <label style="font-size: 0.85em;">Seleccionar Mes Publicado</label>
+                        <select id="gen-month">
+                            <option value="">Cargando...</option>
+                        </select>
+                    </div>
+                    <button type="button" onclick="deletePublishedMonth()" class="btn-action btn-danger" style="padding: 11px 18px;">
+                        <span class="material-symbols-outlined" style="font-size: 18px;">delete_forever</span> Eliminar Mes del Calendario
+                    </button>
+                    <button type="button" onclick="loadPublishedMonth()" class="btn-action btn-secondary" style="padding: 11px 16px;" title="Copia todos los turnos del mes al borrador">
+                        <span class="material-symbols-outlined" style="font-size: 18px;">download</span> Traer mes a borrador
+                    </button>
+                </div>
+            </div>
+        </details>
+    </div>
+
+    <div id="tab-availability" class="tab-content">
+        <div class="panel">
+            <h3 style="margin-top: 0; color: #5d7aa9; display: flex; align-items: center; gap: 8px;"><span class="material-symbols-outlined">event_available</span> Consultar Disponibilidad</h3>
+            <p style="color: #666; font-size: 0.95em;">Selecciona una ubicación y un turno para ver cuántos y cuáles publicadores están disponibles.</p>
+
+            <div style="display:flex; gap:15px; margin-top: 20px; flex-wrap: wrap;">
+                <div class="form-group" style="flex:1; min-width: 200px;">
+                    <label>Ubicación</label>
+                    <select id="avail-loc-select" onchange="loadAvailabilityShifts()">
+                        <option value="">Cargando...</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex:1; min-width: 200px;">
+                    <label>Turno</label>
+                    <select id="avail-shift-select" onchange="checkAvailability()">
+                        <option value="">Selecciona una ubicación primero</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="avail-results" style="margin-top: 25px; display: none;">
+                <h4 style="color: #333; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px;">
+                    Publicadores Disponibles: <span id="avail-count" style="color: #5d7aa9; font-size: 1.2em;">0</span>
+                </h4>
+                <div id="avail-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-reports" class="tab-content">
+        <div class="panel">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px;">
+                <div>
+                    <h3 style="margin: 0; color: #5d7aa9; display: flex; align-items: center; gap: 8px;"><span class="material-symbols-outlined">assignment</span> Informes de Turno</h3>
+                    <p style="color: #666; font-size: 0.95em; margin: 4px 0 0 0;">Revisa las interacciones y experiencias positivas compartidas por los publicadores al finalizar sus turnos.</p>
+                </div>
+                <button type="button" onclick="loadShiftReports()" class="btn-action btn-primary" style="padding: 8px 15px;">
+                    <span class="material-symbols-outlined" style="font-size: 18px;">refresh</span> Actualizar
+                </button>
+            </div>
+
+            <div style="display: flex; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 160px; background: #f4f7fb; padding: 15px; border-radius: 10px; border: 1px solid #dce4ee; text-align: center;">
+                    <div id="rep-kpi-total" style="font-size: 1.8em; font-weight: bold; color: #2c5282;">0</div>
+                    <div style="font-size: 0.85em; color: #555; font-weight: 600;">Informes Recibidos</div>
+                </div>
+                <div style="flex: 1; min-width: 160px; background: #e6f4ea; padding: 15px; border-radius: 10px; border: 1px solid #c3e6cb; text-align: center;">
+                    <div id="rep-kpi-interactions" style="font-size: 1.8em; font-weight: bold; color: #28a745;">0</div>
+                    <div style="font-size: 0.85em; color: #155724; font-weight: 600;">Total de Interacciones</div>
+                </div>
+                <div style="flex: 1; min-width: 160px; background: #fff8e6; padding: 15px; border-radius: 10px; border: 1px solid #ffeeba; text-align: center;">
+                    <div id="rep-kpi-comments" style="font-size: 1.8em; font-weight: bold; color: #d97706;">0</div>
+                    <div style="font-size: 0.85em; color: #856404; font-weight: 600;">Experiencias / Comentarios</div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center;">
+                <div style="min-width: 170px;">
+                    <select id="rep-month-filter" onchange="renderShiftReports()" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white;">
+                        <option value="">Todos los meses</option>
+                    </select>
+                </div>
+                <div style="min-width: 185px;">
+                    <select id="rep-location-filter" onchange="renderShiftReports()" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white;">
+                        <option value="">Todas las ubicaciones</option>
+                    </select>
+                </div>
+                <div style="min-width: 200px;">
+                    <select id="rep-status-filter" onchange="renderShiftReports()" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white;">
+                        <option value="all">Todos los informes enviados</option>
+                        <option value="comments">Solo con comentarios / experiencias</option>
+                        <option value="pending">Turnos finalizados sin informe</option>
+                    </select>
+                </div>
+                <div class="search-wrapper" style="min-width: 220px; margin-bottom: 0; flex: 1;">
+                    <span class="material-symbols-outlined search-icon">search</span>
+                    <input type="text" id="rep-search-input" class="search-box" placeholder="Buscar publicador, ubicación o experiencia..." oninput="renderShiftReports()">
+                </div>
+            </div>
+
+            <div id="reports-list-container" style="display: flex; flex-direction: column; gap: 12px;">
+                <p style="color: #666; text-align: center;">Cargando informes...</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="stats-modal" class="modal">
+      <div class="modal-content" style="max-width: 600px;">
+          <span class="close-modal" onclick="closeDraftStatsModal()"><span class="material-symbols-outlined">close</span></span>
+          <h3 style="margin-top: 0; color: #5d7aa9; border-bottom: 1px solid #f0f0f0; padding-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+              <span class="material-symbols-outlined">analytics</span> Estadísticas del Borrador
+          </h3>
+
+          <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+              <div style="flex: 1; background: #eef2f5; padding: 15px; border-radius: 8px; text-align: center;">
+                  <h2 id="stat-total-shifts" style="margin:0; color:#333; font-size: 2em;">0</h2>
+                  <p style="margin: 5px 0 0 0; color:#666; font-size: 0.9em;">Total de Turnos</p>
+              </div>
+              <div style="flex: 1; background: #eef2f5; padding: 15px; border-radius: 8px; text-align: center;">
+                  <h2 id="stat-empty-spots" style="margin:0; color:#dc3545; font-size: 2em;">0</h2>
+                  <p style="margin: 5px 0 0 0; color:#666; font-size: 0.9em;">Espacios Libres (Disponibles)</p>
+              </div>
+          </div>
+
+          <h4 style="color:#5d7aa9; margin-bottom: 10px;">Distribución de Turnos por Publicador</h4>
+          <div id="stat-distribution-bars" style="margin-bottom: 25px; padding: 15px; background: #f9f9f9; border-radius: 8px; border: 1px solid #eee;"></div>
+
+          <h4 style="color:#dc3545; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;">⚠️ Atención Requerida (0 - 1 Turnos)</h4>
+          <ul id="stat-attention-list" style="margin: 0; padding-left: 20px; color: #555; max-height: 150px; overflow-y: auto;"></ul>
+      </div>
+    </div>
+
+    <div id="shift-edit-modal" class="modal">
+      <div class="modal-content">
+          <span class="close-modal" onclick="closeShiftEditModal()"><span class="material-symbols-outlined">close</span></span>
+          <h3 id="shift-modal-title" style="margin-top: 0; color: #5d7aa9; border-bottom: 1px solid #f0f0f0; padding-bottom: 15px; text-transform: capitalize;">Editar Turno</h3>
+
+          <div style="margin-bottom: 20px;">
+              <strong style="color: #444;">Actualmente asignados (<span id="shift-modal-count">0</span>):</strong>
+              <div id="shift-modal-assigned" style="margin-top: 10px; display: flex; flex-direction: column; gap: 8px;"></div>
+          </div>
+
+          <hr style="border:0; border-top:1px solid #eee; margin: 20px 0;">
+
+          <div style="margin-bottom: 10px;">
+              <strong style="color: #444; display:block; margin-bottom: 8px;">Añadir Publicador Manualmente:</strong>
+              <div style="display:flex; gap: 10px; align-items: center;">
+                  <select id="shift-add-select" style="margin:0; flex:1; padding: 10px; border-radius: 6px; border: 1px solid #ddd;"></select>
+                  <button type="button" id="shift-add-btn" class="btn-action btn-info" style="margin:0; padding:10px 15px;"><span class="material-symbols-outlined">person_add</span> Añadir</button>
+              </div>
+          </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="manual-shift-modal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 10000;">
+    <div style="background: white; padding: 30px; border-radius: 12px; width: 90%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+      <h3 style="margin-top: 0; color: #2c5282; display: flex; align-items: center; gap: 8px;"><span class="material-symbols-outlined">add_task</span> Añadir Turno Especial</h3>
+
+      <div class="form-group">
+          <label>Fecha</label>
+          <input type="date" id="manual-shift-date">
+      </div>
+      <div class="form-group">
+          <label>Ubicación</label>
+          <select id="manual-shift-location"></select>
+      </div>
+      <div style="display: flex; gap: 10px;">
+          <div class="form-group" style="flex: 1;">
+              <label>Hora Inicio</label>
+              <input type="time" id="manual-shift-start" value="08:00">
+          </div>
+          <div class="form-group" style="flex: 1;">
+              <label>Hora Fin</label>
+              <input type="time" id="manual-shift-end" value="10:00">
+          </div>
+      </div>
+      <div class="form-group">
+          <label>Capacidad</label>
+          <input type="number" id="manual-shift-capacity" value="2" min="1" max="10">
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 25px;">
+          <button type="button" onclick="closeManualShiftModal()" class="btn-action btn-secondary">Cancelar</button>
+          <button type="button" onclick="saveManualShift()" class="btn-action btn-success">Guardar Turno</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="admin-photo-preview-modal" class="modal" onclick="if(event.target===this) closeAdminPhotoPreviewModal()">
+    <div class="modal-content" style="max-width: 360px; padding: 24px; border-radius: 16px; text-align: center;">
+      <span class="close-modal" onclick="closeAdminPhotoPreviewModal()"><span class="material-symbols-outlined">close</span></span>
+      <h4 id="admin-photo-preview-title" style="margin: 0 0 15px 0; color: #2c5282; font-size: 1.15em; padding-right: 25px;">Foto de Perfil</h4>
+      <img id="admin-photo-preview-img" src="" alt="Foto de perfil" style="width: 260px; height: 260px; border-radius: 50%; object-fit: cover; border: 4px solid #eef2f7; box-shadow: 0 6px 20px rgba(0,0,0,0.15); margin: 0 auto 15px auto; display: block;">
+      <button type="button" onclick="closeAdminPhotoPreviewModal()" class="btn-action btn-primary" style="width: 100%; padding: 10px;">Cerrar</button>
+    </div>
+  </div>
+
+  <div id="admin-edit-report-modal" class="modal" onclick="if(event.target===this) closeAdminEditReportModal()">
+    <div class="modal-content" style="max-width: 500px; padding: 25px; border-radius: 15px;">
+      <span class="close-modal" onclick="closeAdminEditReportModal()"><span class="material-symbols-outlined">close</span></span>
+      <h3 style="margin-top: 0; color: #2c5282; font-size: 1.3em; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+        <span class="material-symbols-outlined" style="color: #5d7aa9;">edit_note</span> Editar Informe de Turno
+      </h3>
+      <p style="margin: 0 0 16px 0; color: #666; font-size: 0.9em;">Modifica el estado, interacciones o comentario de este informe.</p>
+
+      <input type="hidden" id="admin-rep-shift-id">
+      <input type="hidden" id="admin-rep-pub-id">
+
+      <div id="admin-rep-summary" style="background: #f4f7fb; border: 1px solid #dce4ee; border-radius: 8px; padding: 12px 15px; margin-bottom: 16px; font-size: 0.9em; color: #333; display: flex; flex-direction: column; gap: 4px;"></div>
+
+      <div class="form-group" style="margin-bottom: 15px;">
+        <label>Estado del Informe</label>
+        <select id="admin-rep-status" onchange="handleAdminRepStatusChange()" style="background: #f8f9fa; font-weight: 600;">
+          <option value="completed">✅ Turno realizado (con interacciones)</option>
+          <option value="partner">🤝 Reportado por compañero(a)</option>
+          <option value="cancelled">❌ El turno fue cancelado</option>
+        </select>
+      </div>
+
+      <div id="admin-rep-interactions-group" class="form-group" style="margin-bottom: 15px;">
+        <label for="admin-rep-interactions">Cantidad de Interacciones</label>
+        <input type="number" id="admin-rep-interactions" min="0" step="1" value="0">
+      </div>
+
+      <div class="form-group" style="margin-bottom: 15px;">
+        <label for="admin-rep-comments">Comentarios / Experiencia (Opcional)</label>
+        <textarea id="admin-rep-comments" rows="3" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 15px; font-family: inherit; resize: vertical;" placeholder="Observaciones o experiencias del turno..."></textarea>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px;">
+        <button type="button" onclick="closeAdminEditReportModal()" class="btn-action btn-secondary">Cancelar</button>
+        <button type="button" id="btn-admin-save-rep" onclick="saveAdminEditedReport()" class="btn-action btn-success">
+          <span class="material-symbols-outlined" style="font-size: 18px;">save</span> Guardar Cambios
+        </button>
+      </div>
+    </div>
+  </div>
+
+<script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-functions-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js"></script>
 <script src="firebase-config.js"></script>
-<script src="app.js?v=16"></script>
+<script>window.PPAM_UNIFIED_APP = true;</script>
+<script src="app.js?v=19"></script>
+<script src="app-admin.js?v=19"></script>
 </body>
 </html>

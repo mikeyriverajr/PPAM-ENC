@@ -1,12 +1,14 @@
 // app-admin.js - Complete File
 // firebaseConfig is loaded from firebase-config.js
 
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
-const storage = firebase.storage();
-const secondaryApp = firebase.initializeApp(firebaseConfig, "Secondary");
-const secondaryAuth = secondaryApp.auth();
+if (!Array.isArray(firebase.apps) || firebase.apps.length === 0) {
+    firebase.initializeApp(firebaseConfig);
+}
+var auth = firebase.auth();
+var db = firebase.firestore();
+var storage = firebase.storage();
+var secondaryApp = (Array.isArray(firebase.apps) && firebase.apps.find(a => a.name === "Secondary")) || firebase.initializeApp(firebaseConfig, "Secondary");
+var secondaryAuth = secondaryApp.auth();
 
 // ==========================================
 // POPUPS & FORMATTERS
@@ -50,40 +52,62 @@ function formatSpanishDate(dateStr) {
 }
 
 // ==========================================
-// GATEKEEPER 
+// GATEKEEPER & UNIFIED MODE INITIALIZER
 // ==========================================
-auth.onAuthStateChanged(async user => {
-  if (user) {
-    try {
-      const userDoc = await db.collection('users').doc(user.uid).get();
-      const isDbAdmin = userDoc.exists && userDoc.data().role === 'admin';
-      const isOriginalAdmin = !user.email.endsWith('@ppam.app'); 
-
-      if (isDbAdmin || isOriginalAdmin) {
-        document.getElementById('login-section').style.display = 'none';
-        document.getElementById('dashboard-section').style.display = 'block';
-        if(isDbAdmin) {
-             const pubDoc = await db.collection('publishers').doc(userDoc.data().publisherId).get();
-             if(pubDoc.exists) document.getElementById('admin-header-name').innerText = `| Conectado: ${pubDoc.data().firstName}`;
-        } else {
-             document.getElementById('admin-header-name').innerText = `| Conectado: ${user.email}`;
-        }
-        await loadPublishers();
-        await initDraftListener();
-      } else {
-        auth.signOut();
-        document.getElementById('login-error').innerText = "Acceso Denegado: Esta cuenta no tiene permisos de Administrador.";
-      }
-    } catch (e) { console.error(e); auth.signOut(); }
-  } else {
-    if (typeof draftUnsubscribe === 'function' && draftUnsubscribe) {
-      draftUnsubscribe();
-      draftUnsubscribe = null;
+async function initAdminDashboardForUnifiedApp(user, userData, pubData) {
+  const headerNameEl = document.getElementById('admin-header-name');
+  if (headerNameEl) {
+    if (pubData && pubData.firstName) {
+      headerNameEl.innerText = `| ${pubData.firstName} ${pubData.lastName || ''}`.trim();
+    } else if (user && user.email) {
+      headerNameEl.innerText = `| ${user.email}`;
     }
-    document.getElementById('login-section').style.display = 'block';
-    document.getElementById('dashboard-section').style.display = 'none';
   }
-});
+  const btnSwitchToPub = document.getElementById('btn-switch-to-publisher');
+  if (btnSwitchToPub) {
+    btnSwitchToPub.style.display = (userData && userData.publisherId && pubData) ? 'inline-flex' : 'none';
+  }
+  await loadPublishers();
+  await initDraftListener();
+}
+
+if (typeof window === 'undefined' || !window.PPAM_UNIFIED_APP) {
+  auth.onAuthStateChanged(async user => {
+    if (user) {
+      try {
+        const userDoc = await db.collection('users').doc(user.uid).get();
+        const isDbAdmin = userDoc.exists && userDoc.data().role === 'admin';
+        const isOriginalAdmin = !user.email.endsWith('@ppam.app'); 
+
+        if (isDbAdmin || isOriginalAdmin) {
+          const loginSec = document.getElementById('login-section');
+          if (loginSec) loginSec.style.display = 'none';
+          document.getElementById('dashboard-section').style.display = 'block';
+          if(isDbAdmin) {
+               const pubDoc = await db.collection('publishers').doc(userDoc.data().publisherId).get();
+               if(pubDoc.exists) document.getElementById('admin-header-name').innerText = `| Conectado: ${pubDoc.data().firstName}`;
+          } else {
+               document.getElementById('admin-header-name').innerText = `| Conectado: ${user.email}`;
+          }
+          await loadPublishers();
+          await initDraftListener();
+        } else {
+          auth.signOut();
+          const errEl = document.getElementById('login-error');
+          if (errEl) errEl.innerText = "Acceso Denegado: Esta cuenta no tiene permisos de Administrador.";
+        }
+      } catch (e) { console.error(e); auth.signOut(); }
+    } else {
+      if (typeof draftUnsubscribe === 'function' && draftUnsubscribe) {
+        draftUnsubscribe();
+        draftUnsubscribe = null;
+      }
+      const loginSec = document.getElementById('login-section');
+      if (loginSec) loginSec.style.display = 'block';
+      document.getElementById('dashboard-section').style.display = 'none';
+    }
+  });
+}
 
 function toggleAdminPasswordVisibility(inputId, btnEl) {
   const input = document.getElementById(inputId);
@@ -109,8 +133,8 @@ function adminLogin() {
 function logout() { auth.signOut(); }
 
 function switchAdminTab(tabId) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('#dashboard-section .tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('#dashboard-section .tab-content').forEach(c => c.classList.remove('active'));
   document.getElementById('tab-btn-' + tabId).classList.add('active');
   document.getElementById('tab-' + tabId).classList.add('active');
   if (tabId === 'locations') loadLocations();
@@ -324,12 +348,15 @@ async function loadPublishers() {
   listDiv.innerHTML = '<p style="color:#666; text-align:center;">Cargando directorio...</p>';
   try {
     const snapshot = await db.collection('publishers').orderBy('firstName').get();
-    allPublishers = [];
+    const nextPublishers = [];
+    const seenPubIds = new Set();
     partnerSelect.innerHTML = '<option value="">Ninguno</option>';
-    if (snapshot.empty) { listDiv.innerHTML = '<p style="color:#666; text-align:center;">No hay publicadores registrados.</p>'; return; }
+    if (snapshot.empty) { allPublishers = []; listDiv.innerHTML = '<p style="color:#666; text-align:center;">No hay publicadores registrados.</p>'; return; }
     listDiv.innerHTML = '';
     snapshot.forEach(doc => {
-      const pub = normalizeAdminPublisherData(doc.data()); pub.id = doc.id; allPublishers.push(pub);
+      if (seenPubIds.has(doc.id)) return;
+      seenPubIds.add(doc.id);
+      const pub = normalizeAdminPublisherData(doc.data()); pub.id = doc.id; nextPublishers.push(pub);
       const card = document.createElement('div');
       card.className = 'pub-card';
       const inactive = isPublisherInactive(pub);
@@ -359,6 +386,7 @@ async function loadPublishers() {
       listDiv.appendChild(card);
       partnerSelect.innerHTML += `<option value="${pub.id}">${pub.firstName} ${pub.lastName || ''}</option>`;
     });
+    allPublishers = nextPublishers;
     filterPublishers();
     if (typeof draftSchedule !== 'undefined' && draftSchedule.length > 0) {
       draftSchedule.forEach(shift => {
@@ -373,6 +401,9 @@ async function loadPublishers() {
         }
       });
       renderPreviewTable();
+    }
+    if (typeof syncPublisherCacheFromAdmin === 'function') {
+      syncPublisherCacheFromAdmin();
     }
   } catch (error) { listDiv.innerHTML = '<p style="color:#dc3545; text-align:center;">Error al cargar.</p>'; }
 }
@@ -1026,9 +1057,53 @@ async function deleteLocation() {
 var draftSchedule = [];
 
 async function checkMonthStatus() {
-    await loadDayManagers();
+    const startInput = document.getElementById('gen-start-date');
+    const endInput = document.getElementById('gen-end-date');
+    if (startInput && endInput && !startInput.value && !endInput.value) {
+        setGeneratorDatePreset('next_month', true);
+    }
+    await loadAdminDayManagers();
     await loadPublishedMonthsList();
 }
+
+function setGeneratorDatePreset(preset, silent = false) {
+    const startInput = document.getElementById('gen-start-date');
+    const endInput = document.getElementById('gen-end-date');
+    if (!startInput || !endInput) return;
+
+    const now = new Date();
+    let startObj, endObj, label;
+
+    if (preset === 'current_month') {
+        startObj = new Date(now.getFullYear(), now.getMonth(), 1);
+        endObj = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        label = 'Mes actual seleccionado';
+    } else if (preset === 'next_15_days') {
+        startObj = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        endObj = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 15);
+        label = 'Próximos 15 días seleccionados';
+    } else {
+        // Default: next_month
+        startObj = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        endObj = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+        label = 'Próximo mes seleccionado';
+    }
+
+    startInput.value = formatDate(startObj);
+    endInput.value = formatDate(endObj);
+    if (!silent) {
+        showToast(`${label}: ${formatSpanishDate(startInput.value)} al ${formatSpanishDate(endInput.value)}`, 'info');
+    }
+}
+
+function toggleAllGeneratorLocations() {
+    const checkboxes = Array.from(document.querySelectorAll('#generator-locations input[type="checkbox"]'));
+    if (checkboxes.length === 0) return;
+    const allChecked = checkboxes.every(cb => cb.checked);
+    checkboxes.forEach(cb => { cb.checked = !allChecked; });
+}
+window.setGeneratorDatePreset = setGeneratorDatePreset;
+window.toggleAllGeneratorLocations = toggleAllGeneratorLocations;
 
 async function loadPublishedMonthsList() {
     const select = document.getElementById('gen-month');
@@ -1072,7 +1147,7 @@ async function loadPublishedMonthsList() {
     }
 }
 
-async function loadDayManagers() {
+async function loadAdminDayManagers() {
     const container = document.getElementById('day-managers-container');
     container.innerHTML = '<p style="color:#666; font-size:0.85em;">Cargando encargados del día...</p>';
     try {
@@ -1628,6 +1703,9 @@ async function deletePublishedMonth() {
 
       await Promise.all(chunks);
       showToast("Mes eliminado del calendario en vivo con éxito.");
+      if (typeof refreshPublisherLiveShiftsFromAdmin === 'function') {
+          refreshPublisherLiveShiftsFromAdmin();
+      }
   } catch(e) { showToast("Error al eliminar: " + e.message, "error"); }
 }
 
@@ -1707,8 +1785,17 @@ function openShiftEditModal(shiftIndex) {
   const shiftDateObj = new Date(shift.dateString + 'T00:00:00');
   const dayName = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][shiftDateObj.getDay()];
   const availKey = `${shift.locationId}_${dayName}_${shift.time.split('-')[0]}`;
+  const trackers = recalculateTrackers();
+  const seenIds = new Set();
 
-  const sortedPubs = [...allPublishers].sort((a,b) => (a.firstName || '').localeCompare(b.firstName || ''));
+  const sortedPubs = [...allPublishers]
+    .filter(p => {
+      if (!p || !p.id || seenIds.has(p.id)) return false;
+      seenIds.add(p.id);
+      return true;
+    })
+    .sort((a,b) => (a.firstName || '').localeCompare(b.firstName || ''));
+
   sortedPubs.forEach(pub => {
     if(shift.assigned.find(p => p.id === pub.id)) return;
     
@@ -1716,17 +1803,21 @@ function openShiftEditModal(shiftIndex) {
     if(pub.absences) { isAway = pub.absences.some(abs => shift.dateString >= abs.start && shift.dateString <= abs.end); }
 
     const isAvailableInProfile = isPubAvailableForSlot(pub, availKey);
+    const count = trackers.counts[pub.id] || 0;
+    const max = pub.maxShifts || 5;
+    const countLabel = `(${count}/${max}t)`;
+    const fullName = `${pub.firstName || ''} ${pub.lastName || ''}`.trim();
 
     if (isPublisherInactive(pub)) {
-        unavailableHtml += `<option value="${pub.id}">⏸️ ${pub.firstName} ${pub.lastName || ''} (Inactivo)</option>`;
+        unavailableHtml += `<option value="${pub.id}">⏸️ ${fullName} ${countLabel} (Inactivo)</option>`;
     } else if (isAway) {
-        unavailableHtml += `<option value="${pub.id}">✈️ ${pub.firstName} ${pub.lastName || ''} (Vacaciones)</option>`;
+        unavailableHtml += `<option value="${pub.id}">✈️ ${fullName} ${countLabel} (Vacaciones)</option>`;
     } else if (pub.status === 'Entrenamiento') {
-        traineeHtml += `<option value="${pub.id}">⚠️ ${pub.firstName} ${pub.lastName}</option>`;
+        traineeHtml += `<option value="${pub.id}">⚠️ ${fullName} ${countLabel}</option>`;
     } else if(isAvailableInProfile) { 
-        availableHtml += `<option value="${pub.id}">✅ ${pub.firstName} ${pub.lastName}</option>`; 
+        availableHtml += `<option value="${pub.id}">✅ ${fullName} ${countLabel}</option>`; 
     } else { 
-        unavailableHtml += `<option value="${pub.id}">❌ ${pub.firstName} ${pub.lastName || ''}</option>`;
+        unavailableHtml += `<option value="${pub.id}">❌ ${fullName} ${countLabel}</option>`;
     }
   });
   select.innerHTML = optionsHtml + availableHtml + `</optgroup>` + traineeHtml + `</optgroup>` + unavailableHtml + `</optgroup>`;
@@ -1873,7 +1964,10 @@ async function publishSchedule() {
     showToast('¡Borrador publicado exitosamente!'); 
     document.getElementById('schedule-preview-container').style.display = 'none';
     // The real-time listener will automatically empty the draft array and hide the UI
-    checkMonthStatus(); 
+    checkMonthStatus();
+    if (typeof refreshPublisherLiveShiftsFromAdmin === 'function') {
+        refreshPublisherLiveShiftsFromAdmin();
+    }
   } catch (error) { 
       showToast("Error publicando: " + error.message, "error"); 
   } finally { 
@@ -1917,15 +2011,20 @@ async function clearDraft() {
 window.clearDraft = clearDraft;
 
 // ==========================================
-// MANUAL SHIFT INJECTION
+// MANUAL SHIFT INJECTION (LIVE OR DRAFT)
 // ==========================================
-async function openManualShiftModal() {
+let manualShiftTargetMode = 'live'; // 'live' | 'draft'
+
+async function openManualShiftModal(mode = 'live') {
+    manualShiftTargetMode = mode === 'draft' ? 'draft' : 'live';
     const locSelect = document.getElementById('manual-shift-location');
     locSelect.innerHTML = '<option value="">Cargando ubicaciones...</option>';
     
-    // Auto-fill the date with the month currently being viewed
-    const monthVal = document.getElementById('gen-month').value;
-    if (monthVal) { document.getElementById('manual-shift-date').value = `${monthVal}-01`; }
+    const dateInput = document.getElementById('manual-shift-date');
+    if (dateInput && !dateInput.value) {
+        const genStart = document.getElementById('gen-start-date')?.value;
+        dateInput.value = (manualShiftTargetMode === 'draft' && genStart) ? genStart : formatDate(new Date());
+    }
     
     document.getElementById('manual-shift-modal').style.display = 'flex';
 
@@ -1948,7 +2047,6 @@ async function saveManualShift() {
     const dateVal = document.getElementById('manual-shift-date').value;
     const locSelect = document.getElementById('manual-shift-location');
     const locId = locSelect.value;
-    // Safely get text without optional chaining
     const locName = locSelect.options[locSelect.selectedIndex] ? locSelect.options[locSelect.selectedIndex].text : '';
     const startVal = document.getElementById('manual-shift-start').value;
     const endVal = document.getElementById('manual-shift-end').value;
@@ -1959,26 +2057,40 @@ async function saveManualShift() {
         return;
     }
 
-    try {
-        // Create the new shift directly in the database
-        await db.collection('shifts').add({
-            date: dateVal,
-            location: locName,
-            locationId: locId, 
-            time: `${startVal}-${endVal}`,
-            capacity: capacity,
-            participants: [] 
-        });
+    const paddedParticipants = Array(capacity).fill("Disponible");
+    const shiftPayload = {
+        date: dateVal,
+        location: locName,
+        locationId: locId,
+        time: `${startVal}-${endVal}`,
+        capacity: capacity,
+        participants: paddedParticipants
+    };
 
-        showToast("¡Turno especial añadido con éxito!");
-        closeManualShiftModal();
-        
-        // Refresh the table so the Admin immediately sees the new shift
-        loadPublishedMonth(); 
+    try {
+        if (manualShiftTargetMode === 'draft') {
+            await db.collection('draft_shifts').add(shiftPayload);
+            showToast("¡Turno manual añadido al borrador!");
+            closeManualShiftModal();
+        } else {
+            const newDocRef = await db.collection('shifts').add(shiftPayload);
+            showToast("¡Turno especial creado en el calendario en vivo!");
+            closeManualShiftModal();
+            checkMonthStatus();
+            if (typeof refreshPublisherLiveShiftsFromAdmin === 'function') {
+                refreshPublisherLiveShiftsFromAdmin();
+            }
+            if (typeof openQuickLiveShiftEditModal === 'function') {
+                setTimeout(() => openQuickLiveShiftEditModal(newDocRef.id), 250);
+            }
+        }
     } catch (error) {
         showToast("Error al añadir el turno: " + error.message, "error");
     }
 }
+window.openManualShiftModal = openManualShiftModal;
+window.closeManualShiftModal = closeManualShiftModal;
+window.saveManualShift = saveManualShift;
 
 // Initialize Quill Editor
 let quillEditor = null;

@@ -1,19 +1,126 @@
 // app-beta.js - Complete File
 // firebaseConfig is loaded from firebase-config.js
 
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
-const messaging = firebase.messaging(); // Initialize Messaging
+if (!Array.isArray(firebase.apps) || firebase.apps.length === 0) {
+    firebase.initializeApp(firebaseConfig);
+}
+var auth = firebase.auth();
+var db = firebase.firestore();
+var messaging = typeof firebase.messaging === 'function' ? firebase.messaging() : undefined; // Initialize Messaging
 
 let publisherCache = {};
 let currentUserPublisherId = null;
 let currentPubData = null;
+let currentUserDocData = null;
+let isCurrentUserAdmin = false;
+let currentAppMode = 'publisher'; // 'publisher' | 'admin'
+let adminDashboardInitialized = false;
 let originalProfileData = {};
 let myAbsences = [];
 
-function openFullSchedule() { document.getElementById('full-schedule-modal').style.display = 'flex'; }
+function openFullSchedule() {
+    const newShiftBtn = document.getElementById('btn-admin-new-live-shift');
+    if (newShiftBtn) {
+        newShiftBtn.style.display = isCurrentUserAdmin ? 'inline-flex' : 'none';
+    }
+    document.getElementById('full-schedule-modal').style.display = 'flex';
+    if (!allShiftsData || allShiftsData.length === 0) {
+        loadShifts();
+    }
+}
 function closeFullSchedule() { document.getElementById('full-schedule-modal').style.display = 'none'; }
+
+function buildPublisherCacheEntry(pubId, rawPub) {
+    const norm = normalizePublisherData(rawPub);
+    return {
+        id: pubId,
+        name: `${norm.firstName || ''} ${norm.lastName || ''}`.trim(),
+        firstName: norm.firstName || '',
+        lastName: norm.lastName || '',
+        phone: norm.phone || '',
+        isShiftManager: norm.isShiftManager === true,
+        isTrainer: norm.isTrainer === true,
+        photoUrl: norm.photoUrl || '',
+        isInactive: norm.isInactive === true || norm.status === 'Inactivo',
+        status: norm.status || 'Aprobado',
+        gender: norm.gender || '',
+        availability: Array.isArray(norm.availability) ? norm.availability : [],
+        absences: Array.isArray(norm.absences) ? norm.absences : [],
+        partner: norm.partner || '',
+        partnerName: norm.partnerName || '',
+        hardPair: norm.hardPair === true,
+        maxShifts: norm.maxShifts ? parseInt(norm.maxShifts, 10) || 5 : 5
+    };
+}
+
+async function switchAppMode(targetMode) {
+    if (targetMode === 'admin' && !isCurrentUserAdmin) {
+        showToast("Acceso denegado: Se requieren permisos de administrador.", "error");
+        return;
+    }
+    const appContent = document.getElementById('app-content');
+    const adminDashboard = document.getElementById('dashboard-section');
+    if (!appContent || !adminDashboard) return;
+
+    currentAppMode = targetMode === 'admin' ? 'admin' : 'publisher';
+    try {
+        sessionStorage.setItem('ppam_active_view', currentAppMode);
+    } catch (e) {}
+
+    if (currentAppMode === 'admin') {
+        appContent.style.display = 'none';
+        adminDashboard.style.display = 'block';
+        if (!adminDashboardInitialized && typeof initAdminDashboardForUnifiedApp === 'function') {
+            adminDashboardInitialized = true;
+            await initAdminDashboardForUnifiedApp(auth.currentUser, currentUserDocData, currentPubData);
+        } else if (typeof loadPublishers === 'function') {
+            await loadPublishers();
+        }
+    } else {
+        adminDashboard.style.display = 'none';
+        appContent.style.display = 'block';
+        syncPublisherCacheFromAdmin();
+        loadShifts();
+        if (currentUserPublisherId) {
+            loadMyShifts();
+        }
+        loadAvailableShifts();
+    }
+}
+
+function syncPublisherCacheFromAdmin() {
+    if (typeof allPublishers === 'undefined' || !allPublishers) return;
+    // Clean any accidental numeric keys that may have been added previously
+    Object.keys(publisherCache).forEach(k => {
+        if (/^\d+$/.test(k)) delete publisherCache[k];
+    });
+    if (Array.isArray(allPublishers)) {
+        const nextCache = {};
+        allPublishers.forEach(rawPub => {
+            if (!rawPub || !rawPub.id) return;
+            nextCache[rawPub.id] = buildPublisherCacheEntry(rawPub.id, rawPub);
+        });
+        if (Object.keys(nextCache).length > 0) {
+            publisherCache = nextCache;
+        }
+    } else if (typeof allPublishers === 'object') {
+        Object.entries(allPublishers).forEach(([key, rawPub]) => {
+            if (!rawPub) return;
+            const realId = rawPub.id || key;
+            if (/^\d+$/.test(realId)) return;
+            publisherCache[realId] = buildPublisherCacheEntry(realId, rawPub);
+        });
+    }
+}
+
+function refreshPublisherLiveShiftsFromAdmin() {
+    syncPublisherCacheFromAdmin();
+    loadShifts();
+    if (currentUserPublisherId) {
+        loadMyShifts();
+    }
+    loadAvailableShifts();
+}
 
 function showToast(message, type = 'success') {
     const container = document.getElementById('toast-container');
@@ -134,23 +241,35 @@ auth.onAuthStateChanged(async user => {
     document.getElementById('login-overlay').style.display = 'none';
     try {
       const userDoc = await db.collection('users').doc(user.uid).get();
+      const userData = userDoc.exists ? userDoc.data() : {};
+      currentUserDocData = userData;
 
-      if (userDoc.exists) {
-        const userData = userDoc.data();
-        currentUserPublisherId = userData.publisherId;
+      const isMasterEmailAdmin = user.email && !user.email.endsWith('@ppam.app');
+      isCurrentUserAdmin = (userData && userData.role === 'admin') || isMasterEmailAdmin;
+      adminDashboardInitialized = false;
 
-        const pubDoc = await db.collection('publishers').doc(currentUserPublisherId).get();
-        if(pubDoc.exists) {
-            currentPubData = normalizePublisherData(pubDoc.data());
-            const now = new Date();
-            const lastLogin = currentPubData.lastLogin ? new Date(currentPubData.lastLogin) : new Date(0);
-            if (now - lastLogin > 1000 * 60 * 5) { // Update lastLogin at most every 5 minutes
-                db.collection('publishers').doc(currentUserPublisherId).update({ lastLogin: now.toISOString() }).catch(e => console.error(e));
+      if (userDoc.exists || isCurrentUserAdmin) {
+        currentUserPublisherId = userData.publisherId || null;
+
+        if (currentUserPublisherId) {
+            const pubDoc = await db.collection('publishers').doc(currentUserPublisherId).get();
+            if (pubDoc.exists) {
+                currentPubData = normalizePublisherData(pubDoc.data());
+                const now = new Date();
+                const lastLogin = currentPubData.lastLogin ? new Date(currentPubData.lastLogin) : new Date(0);
+                if (now - lastLogin > 1000 * 60 * 5) { // Update lastLogin at most every 5 minutes
+                    db.collection('publishers').doc(currentUserPublisherId).update({ lastLogin: now.toISOString() }).catch(e => console.error(e));
+                }
+            } else if (!isCurrentUserAdmin) {
+                console.warn("Cuenta desvinculada.");
+                auth.signOut();
+                showToast("Tu cuenta fue desvinculada por el administrador. Por favor, vuelve a iniciar sesión.", "error");
+                return;
             }
-        } else {
-            console.warn("Cuenta desvinculada.");
+        } else if (!isCurrentUserAdmin) {
+            console.warn("Cuenta sin perfil de publicador.");
             auth.signOut();
-            showToast("Tu cuenta fue desvinculada por el administrador. Por favor, vuelve a iniciar sesión.", "error");
+            showToast("Tu cuenta fue desvinculada por el administrador.", "error");
             return;
         }
 
@@ -159,24 +278,48 @@ auth.onAuthStateChanged(async user => {
         }
 
         document.getElementById('force-password-modal').style.display = 'none';
-        document.getElementById('app-content').style.display = 'block';
+
+        const adminSwitchBtn = document.getElementById('btn-switch-to-admin');
+        if (adminSwitchBtn) {
+            adminSwitchBtn.style.display = isCurrentUserAdmin ? 'inline-flex' : 'none';
+        }
 
         const pubSnap = await db.collection('publishers').get();
+        publisherCache = {};
         pubSnap.forEach(d => {
-            const norm = normalizePublisherData(d.data());
-            publisherCache[d.id] = {
-                name: `${norm.firstName || ''} ${norm.lastName || ''}`.trim(),
-                phone: norm.phone || '',
-                isShiftManager: norm.isShiftManager || false,
-                photoUrl: norm.photoUrl || '',
-                isInactive: norm.isInactive || false
-            };
+            publisherCache[d.id] = buildPublisherCacheEntry(d.id, d.data());
         });
 
-        document.getElementById('header-user-name').innerText = `| ${publisherCache[currentUserPublisherId]?.name || ""}`;
+        const displayName = (currentUserPublisherId && publisherCache[currentUserPublisherId]?.name)
+            ? publisherCache[currentUserPublisherId].name
+            : (isCurrentUserAdmin ? 'Administrador' : '');
+        document.getElementById('header-user-name').innerText = displayName ? `| ${displayName}` : '';
 
         fetchEncarnacionWeather();
-        loadShifts(); loadMyShifts(); loadAvailableShifts(); loadAvailabilityForm(); loadProfileForm();
+        loadShifts();
+        if (currentUserPublisherId) {
+            loadMyShifts();
+            loadAvailabilityForm();
+            loadProfileForm();
+        }
+        loadAvailableShifts();
+
+        const urlParams = new URLSearchParams(window.location.search);
+        let savedView = null;
+        try { savedView = sessionStorage.getItem('ppam_active_view'); } catch (e) {}
+        const wantAdminView = isCurrentUserAdmin && (
+            urlParams.get('view') === 'admin' ||
+            savedView === 'admin' ||
+            !currentUserPublisherId
+        );
+
+        if (wantAdminView) {
+            await switchAppMode('admin');
+        } else {
+            document.getElementById('dashboard-section').style.display = 'none';
+            document.getElementById('app-content').style.display = 'block';
+            currentAppMode = 'publisher';
+        }
       } else {
         console.warn("Cuenta eliminada.");
         auth.signOut();
@@ -191,9 +334,17 @@ auth.onAuthStateChanged(async user => {
   } else {
     document.getElementById('login-overlay').style.display = 'block';
     document.getElementById('app-content').style.display = 'none';
+    const adminDashboard = document.getElementById('dashboard-section');
+    if (adminDashboard) adminDashboard.style.display = 'none';
+    const adminSwitchBtn = document.getElementById('btn-switch-to-admin');
+    if (adminSwitchBtn) adminSwitchBtn.style.display = 'none';
     document.getElementById('force-password-modal').style.display = 'none';
     currentUserPublisherId = null;
     currentPubData = null;
+    currentUserDocData = null;
+    isCurrentUserAdmin = false;
+    adminDashboardInitialized = false;
+    currentAppMode = 'publisher';
   }
 });
 
@@ -219,13 +370,20 @@ function handleGatekeeperLogin() {
   });
 }
 
-function logout() { auth.signOut(); }
+function logout() {
+  try { sessionStorage.removeItem('ppam_active_view'); } catch (e) {}
+  auth.signOut();
+}
 
 function switchTab(tabId) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-  document.getElementById('tab-btn-' + tabId).classList.add('active');
-  document.getElementById('tab-' + tabId).classList.add('active');
+  const pubContainer = document.getElementById('app-content');
+  const scope = pubContainer || document;
+  scope.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  scope.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  const btn = document.getElementById('tab-btn-' + tabId);
+  const tab = document.getElementById('tab-' + tabId);
+  if (btn) btn.classList.add('active');
+  if (tab) tab.classList.add('active');
 }
 
 async function submitForcedPassword() {
@@ -244,14 +402,9 @@ async function submitForcedPassword() {
       document.getElementById('force-password-modal').style.display = 'none';
       document.getElementById('app-content').style.display = 'block';
       const pubSnap = await db.collection('publishers').get();
+      publisherCache = {};
       pubSnap.forEach(d => {
-          const norm = normalizePublisherData(d.data());
-          publisherCache[d.id] = {
-              name: `${norm.firstName || ''} ${norm.lastName || ''}`.trim(),
-              phone: norm.phone || '',
-              isShiftManager: norm.isShiftManager || false,
-              photoUrl: norm.photoUrl || ''
-          };
+          publisherCache[d.id] = buildPublisherCacheEntry(d.id, d.data());
       });
       document.getElementById('header-user-name').innerText = `| ${publisherCache[currentUserPublisherId]?.name || ""}`;
 
@@ -474,8 +627,21 @@ function renderAllShifts(shifts) {
   container.innerHTML = '';
   if(shifts.length === 0) { container.innerHTML = '<p style="text-align:center; color:#666;">No hay turnos programados.</p>'; return; }
   shifts.forEach(shift => {
-    const participantNames = (shift.participants || []).map(id => publisherCache[id]?.name || 'Desconocido');
+    const realParticipants = (shift.participants || []).filter(id => id && id !== 'Disponible');
+    const participantNames = realParticipants.map(id => publisherCache[id]?.name || 'Desconocido');
+    const capacity = shift.capacity || 2;
+    const freeCount = Math.max(0, capacity - realParticipants.length);
+    const participantsDisplay = participantNames.length > 0
+      ? participantNames.join(', ') + (freeCount > 0 ? ` <span style="color:#28a745; font-weight:600; font-size:0.88em;">(${freeCount} libre${freeCount > 1 ? 's' : ''})</span>` : '')
+      : `<span style="color:#888; font-style:italic;">Vacío (${capacity} lugares libres)</span>`;
     const contactHtml = getShiftContactHtml(shift);
+    const adminEditHtml = isCurrentUserAdmin ? `
+      <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0; display: flex; justify-content: flex-end;">
+        <button type="button" onclick="openQuickLiveShiftEditModal('${shift.id}')" style="background: #eef4ff; color: #2c5282; border: 1px solid #cdddf7; padding: 5px 11px; border-radius: 6px; font-size: 0.84em; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+          <span class="material-symbols-outlined" style="font-size: 16px;">manage_accounts</span> Editar Participantes
+        </button>
+      </div>
+    ` : '';
     const shiftCard = document.createElement('div');
     shiftCard.className = 'shift-card';
     shiftCard.innerHTML = `
@@ -487,8 +653,9 @@ function renderAllShifts(shifts) {
           <span><span class="material-symbols-outlined" style="font-size: 1.2em; color: #dc3545; vertical-align:-3px;">location_on</span> <strong>${shift.location}</strong></span>
           <button onclick="openLocationInfoModal('${shift.locationId}', '${shift.location}')" style="background:none; border:none; color:#5d7aa9; font-size:0.9em; font-weight:bold; cursor:pointer; display:flex; align-items:center; gap:3px;"><span class="material-symbols-outlined" style="font-size:1.1em;">info</span> Info</button>
       </p>
-      <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> ${participantNames.join(', ')}</p>
+      <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> <span>${participantsDisplay}</span></p>
       ${contactHtml}
+      ${adminEditHtml}
     `;
     container.appendChild(shiftCard);
   });
@@ -971,10 +1138,15 @@ async function loadMyShifts() {
           ${partnerRowsHtml}
           ${contactHtml}
           <div class="card-actions" style="margin-top: 15px; border-top: 1px solid #f0f0f0; padding-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
-             <button type="button" onclick="openCalendarModal('${shift.id}')" class="btn-action" style="flex: 1; min-width: 140px; background: #eef4ff; color: #2c5282; border: 1px solid #cdddf7;">
+             <button type="button" onclick="openCalendarModal('${shift.id}')" class="btn-action" style="flex: 1; min-width: 130px; background: #eef4ff; color: #2c5282; border: 1px solid #cdddf7;">
                <span class="material-symbols-outlined" style="font-size: 18px;">calendar_add_on</span> Agendar
              </button>
-             <button type="button" onclick="attemptCancel('${shift.id}', '${shift.date}', '${shift.time}', '${shift.location}')" class="btn-action btn-danger" style="flex: 1; min-width: 140px;">
+             ${isCurrentUserAdmin ? `
+             <button type="button" onclick="openQuickLiveShiftEditModal('${shift.id}')" class="btn-action" style="flex: 1; min-width: 130px; background: #f8fafd; color: #2c5282; border: 1px solid #cbd5e0;">
+               <span class="material-symbols-outlined" style="font-size: 18px;">manage_accounts</span> Editar Turno
+             </button>
+             ` : ''}
+             <button type="button" onclick="attemptCancel('${shift.id}', '${shift.date}', '${shift.time}', '${shift.location}')" class="btn-action btn-danger" style="flex: 1; min-width: 130px;">
                Cancelar Turno
              </button>
           </div>
@@ -1375,11 +1547,11 @@ async function attemptCancel(shiftId, dateStr, timeStr, locationName) {
 }
 
 async function loadAvailableShifts() {
-  if (!currentUserPublisherId || !currentPubData) return;
+  if (!currentUserPublisherId && !isCurrentUserAdmin) return;
   const container = document.getElementById('open-shifts-container');
   const banner = document.getElementById('trainee-warning');
 
-  const isTrainee = currentPubData.status === 'Entrenamiento';
+  const isTrainee = currentPubData ? currentPubData.status === 'Entrenamiento' : false;
   banner.style.display = isTrainee ? 'flex' : 'none';
 
   container.innerHTML = '<p style="text-align:center; color:#666;">Buscando espacios libres...</p>';
@@ -1393,7 +1565,8 @@ async function loadAvailableShifts() {
       const participants = shift.participants || [];
       const realParticipants = participants.filter(id => id && id !== "Disponible");
 
-      if (realParticipants.length < capacity && !realParticipants.includes(currentUserPublisherId) && shift.date >= todayStr) {
+      const alreadyInShift = currentUserPublisherId ? realParticipants.includes(currentUserPublisherId) : false;
+      if (realParticipants.length < capacity && (!alreadyInShift || isCurrentUserAdmin) && shift.date >= todayStr) {
           openShifts.push(shift);
       }
     });
@@ -1407,13 +1580,21 @@ async function loadAvailableShifts() {
       const capacity = shift.capacity || 2;
       const availableSpots = capacity - realParticipants.length;
       const contactHtml = getShiftContactHtml(shift);
+      const alreadyInShift = currentUserPublisherId ? realParticipants.includes(currentUserPublisherId) : false;
 
       const card = document.createElement('div');
       card.className = 'shift-card open';
 
-      const actionButton = isTrainee
-        ? `<button disabled class="btn-action" style="background:#e9ecef; color:#888; cursor:not-allowed; border: 1px solid #ddd;">Requiere Aprobación</button>`
-        : `<button onclick="claimShift('${shift.id}', '${shift.date}', '${shift.time}', ${capacity})" class="btn-action btn-success"><span class="material-symbols-outlined" style="font-size:18px;">add</span> Tomar Turno</button>`;
+      let actionButton = '';
+      if (currentUserPublisherId && !alreadyInShift) {
+        actionButton = isTrainee
+          ? `<button disabled class="btn-action" style="flex:1; min-width:140px; background:#e9ecef; color:#888; cursor:not-allowed; border: 1px solid #ddd;">Requiere Aprobación</button>`
+          : `<button onclick="claimShift('${shift.id}', '${shift.date}', '${shift.time}', ${capacity})" class="btn-action btn-success" style="flex:1; min-width:140px;"><span class="material-symbols-outlined" style="font-size:18px;">add</span> Tomar Turno</button>`;
+      }
+
+      const adminQuickAssignBtn = isCurrentUserAdmin
+        ? `<button type="button" onclick="openQuickLiveShiftEditModal('${shift.id}')" class="btn-action" style="flex:1; min-width:140px; background:#eef4ff; color:#2c5282; border:1px solid #cdddf7;"><span class="material-symbols-outlined" style="font-size:18px;">person_add</span> Asignar / Editar</button>`
+        : '';
 
       card.innerHTML = `
         <div class="shift-card-header">
@@ -1427,8 +1608,9 @@ async function loadAvailableShifts() {
         <p class="shift-card-detail"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #6c757d;">group</span> Actuales: ${names}</p>
         <p style="margin: 5px 0 0 0; font-size:0.85em; color:#666; display:flex; align-items:center; gap:5px;"><span class="material-symbols-outlined" style="font-size: 1.2em; color: #28a745;">person_add</span> Lugares libres: <strong>${availableSpots}</strong></p>
         ${contactHtml}
-        <div class="card-actions" style="margin-top: 15px; border-top: 1px solid #f0f0f0; padding-top: 10px;">
+        <div class="card-actions" style="margin-top: 15px; border-top: 1px solid #f0f0f0; padding-top: 10px; display:flex; gap:8px; flex-wrap:wrap;">
            ${actionButton}
+           ${adminQuickAssignBtn}
         </div>
       `;
       container.appendChild(card);
@@ -2042,5 +2224,534 @@ function closeLocationInfoModal() {
     document.getElementById('location-info-modal').style.display = 'none';
 }
 
+// ==========================================
+// QUICK LIVE SHIFT PARTICIPANT EDITOR (ADMIN)
+// ==========================================
+let currentQuickEditShift = null;
+let liveEditLocationsCache = null;
+
+async function ensureLiveEditLocationsLoaded() {
+    if (Array.isArray(liveEditLocationsCache) && liveEditLocationsCache.length > 0) {
+        return liveEditLocationsCache;
+    }
+    if (typeof allActiveLocationsCache !== 'undefined' && Array.isArray(allActiveLocationsCache) && allActiveLocationsCache.length > 0) {
+        liveEditLocationsCache = allActiveLocationsCache;
+        return liveEditLocationsCache;
+    }
+    try {
+        const snap = await db.collection('locations').get();
+        const locs = [];
+        snap.forEach(doc => {
+            const d = doc.data();
+            if (d.isActive !== false) {
+                locs.push({ ...d, id: doc.id });
+            }
+        });
+        liveEditLocationsCache = locs;
+    } catch (e) {
+        console.warn("Could not load locations for live shift editor:", e);
+        liveEditLocationsCache = [];
+    }
+    return liveEditLocationsCache;
+}
+
+function getLiveEquivAvailKeys(availKey, locationsList) {
+    const baseKeySet = new Set([availKey]);
+    if (!availKey || !Array.isArray(locationsList) || locationsList.length === 0) {
+        return Array.from(baseKeySet);
+    }
+    const parts = availKey.split('_');
+    if (parts.length < 3) return Array.from(baseKeySet);
+    const locId = parts[0];
+    const dayName = parts[1];
+    const startTime = parts.slice(2).join('_');
+    const targetLoc = locationsList.find(l => l.id === locId);
+    if (!targetLoc || !targetLoc.name) return Array.from(baseKeySet);
+
+    const normalizeBase = (n) => (n || '').trim().replace(/[\s\-_#()]*\d+\)?\s*$/, '').trim().toLowerCase();
+    const targetBase = normalizeBase(targetLoc.name);
+
+    locationsList.forEach(loc => {
+        if (normalizeBase(loc.name) === targetBase) {
+            baseKeySet.add(`${loc.id}_${dayName}_${startTime}`);
+        }
+    });
+    return Array.from(baseKeySet);
+}
+
+function isPubAvailableForLiveShift(pub, shift) {
+    if (!pub || !Array.isArray(pub.availability) || !shift || !shift.date || !shift.time) return false;
+    const [y, m, d] = shift.date.split('-').map(Number);
+    const dateObj = new Date(y, m - 1, d);
+    const dayName = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'][dateObj.getDay()];
+    const startTime = shift.time.split('-')[0].trim();
+    const availKey = `${shift.locationId}_${dayName}_${startTime}`;
+    const equivKeys = getLiveEquivAvailKeys(availKey, liveEditLocationsCache || []);
+    return equivKeys.some(k => pub.availability.includes(k));
+}
+
+function isPubAbsentOnDate(pub, dateStr) {
+    if (!pub || !Array.isArray(pub.absences) || !dateStr) return false;
+    return pub.absences.some(abs => abs && abs.start && abs.end && dateStr >= abs.start && dateStr <= abs.end);
+}
+
+function computeLiveMonthStats(monthPrefix) {
+    const counts = {};
+    const datesByPub = {};
+    (allShiftsData || []).forEach(s => {
+        if (!s || !s.date) return;
+        const realIds = (s.participants || []).filter(id => id && id !== 'Disponible');
+        realIds.forEach(id => {
+            if (!datesByPub[id]) datesByPub[id] = new Set();
+            datesByPub[id].add(s.date);
+            if (monthPrefix && s.date.startsWith(monthPrefix)) {
+                counts[id] = (counts[id] || 0) + 1;
+            }
+        });
+    });
+    return { counts, datesByPub };
+}
+
+function getAdjacentDates(dateStr) {
+    if (!dateStr) return [];
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const prev = new Date(y, m - 1, d - 1);
+    const next = new Date(y, m - 1, d + 1);
+    const fmt = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    return [fmt(prev), fmt(next)];
+}
+
+async function openQuickLiveShiftEditModal(shiftId) {
+    if (!isCurrentUserAdmin) {
+        showToast("Solo los administradores pueden editar turnos.", "error");
+        return;
+    }
+    const modal = document.getElementById('quick-live-shift-modal');
+    if (!modal) return;
+
+    syncPublisherCacheFromAdmin();
+    await ensureLiveEditLocationsLoaded();
+
+    const idInput = document.getElementById('quick-edit-shift-id');
+    if (idInput) idInput.value = shiftId;
+    const searchInput = document.getElementById('quick-edit-pub-search');
+    if (searchInput) searchInput.value = '';
+
+    let shiftData = allShiftsData.find(s => s.id === shiftId);
+    try {
+        const docSnap = await db.collection('shifts').doc(shiftId).get();
+        if (docSnap.exists) {
+            shiftData = { id: docSnap.id, ...docSnap.data() };
+        }
+    } catch (e) {
+        console.error("Error fetching shift for quick edit:", e);
+    }
+
+    if (!shiftData) {
+        showToast("No se encontró el turno seleccionado.", "error");
+        return;
+    }
+
+    if (shiftData.requiresManager === undefined && Array.isArray(liveEditLocationsCache)) {
+        const locObj = liveEditLocationsCache.find(l => l.id === shiftData.locationId || l.name === shiftData.location);
+        if (locObj) shiftData.requiresManager = Boolean(locObj.requiresManager);
+    }
+
+    currentQuickEditShift = shiftData;
+    renderQuickLiveShiftModalContent();
+    modal.style.display = 'flex';
+}
+
+function closeQuickLiveShiftEditModal() {
+    const modal = document.getElementById('quick-live-shift-modal');
+    if (modal) modal.style.display = 'none';
+    currentQuickEditShift = null;
+}
+
+function renderQuickLiveShiftModalContent() {
+    if (!currentQuickEditShift) return;
+    const shift = currentQuickEditShift;
+    const capacity = shift.capacity || 2;
+    const participants = (shift.participants || []).filter(id => id && id !== 'Disponible');
+
+    const hasAssignedManager = participants.some(id => publisherCache[id]?.isShiftManager === true);
+    const managerWarningHtml = (shift.requiresManager && !hasAssignedManager)
+        ? `<div style="margin-top:6px; background:#fff3cd; color:#856404; border:1px solid #ffeeba; padding:5px 10px; border-radius:6px; font-size:0.84em; font-weight:600; display:inline-flex; align-items:center; gap:5px;">
+             <span class="material-symbols-outlined" style="font-size:16px;">warning</span> Este punto requiere un Encargado de Turno físico
+           </div>`
+        : '';
+
+    const subtitleEl = document.getElementById('quick-edit-shift-summary');
+    if (subtitleEl) {
+        subtitleEl.innerHTML = `<div><strong>📍 ${shift.location}</strong></div><div>📅 ${formatSpanishDate(shift.date)} • ⏰ ${shift.time}</div>${managerWarningHtml}`;
+    }
+
+    const countEl = document.getElementById('quick-edit-shift-count');
+    if (countEl) {
+        countEl.innerText = `${participants.length}/${capacity}`;
+    }
+
+    const listEl = document.getElementById('quick-edit-shift-assigned');
+    if (listEl) {
+        if (participants.length === 0) {
+            listEl.innerHTML = '<div style="padding:12px; background:#f8f9fa; border:1px dashed #ccc; border-radius:8px; text-align:center; color:#777; font-size:0.9em;">Ningún publicador asignado todavía.</div>';
+        } else {
+            listEl.innerHTML = participants.map(pubId => {
+                const pub = publisherCache[pubId] || {};
+                const name = pub.name || 'Desconocido';
+                const badges = [];
+                if (pub.isShiftManager) {
+                    badges.push('<span style="background:#eef4ff; color:#2c5282; border:1px solid #cdddf7; font-size:0.75em; padding:1px 6px; border-radius:10px; font-weight:600; margin-left:6px;">👮 Encargado</span>');
+                }
+                if (pub.status === 'Entrenamiento') {
+                    badges.push('<span style="background:#fff3cd; color:#856404; border:1px solid #ffeeba; font-size:0.75em; padding:1px 6px; border-radius:10px; font-weight:600; margin-left:6px;">⚠️ Entrenamiento</span>');
+                }
+                if (pub.hardPair && pub.partner) {
+                    const partnerInShift = participants.includes(pub.partner);
+                    badges.push(`<span style="background:${partnerInShift ? '#e6f4ea' : '#fff5f5'}; color:${partnerInShift ? '#155724' : '#dc3545'}; border:1px solid ${partnerInShift ? '#c3e6cb' : '#f5c6cb'}; font-size:0.75em; padding:1px 6px; border-radius:10px; font-weight:600; margin-left:6px;">💑 Pareja Estricta</span>`);
+                }
+                return `
+                    <div style="display:flex; justify-content:space-between; align-items:center; padding:9px 12px; background:#f8fafd; border:1px solid #e2e8f0; border-radius:8px; gap:8px;">
+                        <span style="font-weight:600; color:#2d3748; font-size:0.94em; display:flex; align-items:center; flex-wrap:wrap;">
+                            <span class="material-symbols-outlined" style="font-size:18px; color:#5d7aa9; margin-right:6px;">person</span>
+                            ${name}${badges.join('')}
+                        </span>
+                        <button type="button" onclick="quickRemovePublisherFromLiveShift('${pubId}')" style="background:#fff5f5; color:#dc3545; border:1px solid #f5c6cb; border-radius:6px; padding:5px 9px; cursor:pointer; font-size:0.82em; font-weight:600; display:inline-flex; align-items:center; gap:3px; flex-shrink:0;">
+                            <span class="material-symbols-outlined" style="font-size:16px;">person_remove</span> Quitar
+                        </button>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+
+    filterQuickLiveShiftPublisherOptions();
+}
+
+function filterQuickLiveShiftPublisherOptions() {
+    const select = document.getElementById('quick-edit-pub-select');
+    if (!select || !currentQuickEditShift) return;
+
+    const shift = currentQuickEditShift;
+    const monthPrefix = (shift.date || '').substring(0, 7);
+    const { counts, datesByPub } = computeLiveMonthStats(monthPrefix);
+    const [prevDateStr, nextDateStr] = getAdjacentDates(shift.date);
+
+    const query = (document.getElementById('quick-edit-pub-search')?.value || '').trim().toLowerCase();
+    const assignedList = (shift.participants || []).filter(id => id && id !== 'Disponible');
+    const assignedSet = new Set(assignedList);
+
+    // Deduplicate by normalized name+id and ignore any numeric index keys
+    const seenIds = new Set();
+    const allPubEntries = Object.entries(publisherCache)
+        .filter(([id, pub]) => {
+            if (!id || /^\d+$/.test(id) || seenIds.has(id)) return false;
+            if (assignedSet.has(id) || !pub || !pub.name) return false;
+            if (query && !pub.name.toLowerCase().includes(query)) return false;
+            seenIds.add(id);
+            return true;
+        });
+
+    if (allPubEntries.length === 0) {
+        select.innerHTML = '<option value="">-- No se encontraron publicadores --</option>';
+        return;
+    }
+
+    const availableApproved = [];
+    const trainees = [];
+    const others = [];
+
+    allPubEntries.forEach(([id, pub]) => {
+        const monthCount = counts[id] || 0;
+        const maxShifts = pub.maxShifts || 5;
+        const pubDates = datesByPub[id] || new Set();
+        const sameDay = pubDates.has(shift.date);
+        const adjacentDay = !sameDay && ((prevDateStr && pubDates.has(prevDateStr)) || (nextDateStr && pubDates.has(nextDateStr)));
+        const isAway = isPubAbsentOnDate(pub, shift.date);
+        const isAvailSlot = isPubAvailableForLiveShift(pub, shift);
+        const isPreferredOfAssigned = assignedList.some(aId => {
+            const aPub = publisherCache[aId];
+            return (aPub && aPub.partner === id) || pub.partner === aId;
+        });
+
+        const item = {
+            id,
+            pub,
+            monthCount,
+            maxShifts,
+            sameDay,
+            adjacentDay,
+            isAway,
+            isAvailSlot,
+            isPreferredOfAssigned
+        };
+
+        if (pub.isInactive) {
+            others.push(item);
+        } else if (isAway) {
+            others.push(item);
+        } else if (pub.status === 'Entrenamiento') {
+            trainees.push(item);
+        } else if (isAvailSlot) {
+            availableApproved.push(item);
+        } else {
+            others.push(item);
+        }
+    });
+
+    // Sort Available Approved: preferred partner of assigned first, then fewest monthly shifts, then alphabetical
+    availableApproved.sort((a, b) => {
+        if (a.isPreferredOfAssigned !== b.isPreferredOfAssigned) return a.isPreferredOfAssigned ? -1 : 1;
+        if (a.sameDay !== b.sameDay) return a.sameDay ? 1 : -1;
+        if (a.monthCount !== b.monthCount) return a.monthCount - b.monthCount;
+        return a.pub.name.localeCompare(b.pub.name);
+    });
+
+    trainees.sort((a, b) => {
+        if (a.isAvailSlot !== b.isAvailSlot) return a.isAvailSlot ? -1 : 1;
+        if (a.monthCount !== b.monthCount) return a.monthCount - b.monthCount;
+        return a.pub.name.localeCompare(b.pub.name);
+    });
+
+    others.sort((a, b) => {
+        if (!!a.pub.isInactive !== !!b.pub.isInactive) return a.pub.isInactive ? 1 : -1;
+        if (a.isAway !== b.isAway) return a.isAway ? 1 : -1;
+        return a.pub.name.localeCompare(b.pub.name);
+    });
+
+    const formatOptionLabel = (item, category) => {
+        const { pub, monthCount, maxShifts, sameDay, adjacentDay, isAway, isAvailSlot, isPreferredOfAssigned } = item;
+        const shiftCounter = `(${monthCount}/${maxShifts}t)`;
+        const tags = [];
+        if (isPreferredOfAssigned) tags.push('💑 Compañero en turno');
+        else if (pub.hardPair && pub.partnerName) tags.push(`💑 Pareja estricta: ${pub.partnerName}`);
+        if (pub.isShiftManager) tags.push('👮 Encargado');
+        if (sameDay) tags.push('📅 Ya tiene turno hoy');
+        else if (adjacentDay) tags.push('📅 Día consecutivo');
+
+        if (category === 'available') {
+            const suffix = tags.length > 0 ? ` • ${tags.join(' • ')}` : '';
+            return `<option value="${item.id}">✅ ${pub.name} ${shiftCounter}${suffix}</option>`;
+        }
+        if (category === 'trainee') {
+            const availTag = isAvailSlot ? 'Disponible en horario' : 'Otro horario';
+            const suffix = tags.length > 0 ? ` • ${tags.join(' • ')}` : '';
+            return `<option value="${item.id}">⚠️ ${pub.name} ${shiftCounter} [${availTag}]${suffix}</option>`;
+        }
+        // others
+        let reason = '❌ Otro horario';
+        if (pub.isInactive) reason = '⏸️ Inactivo';
+        else if (isAway) reason = '✈️ Vacaciones';
+        const suffix = tags.length > 0 ? ` • ${tags.join(' • ')}` : '';
+        return `<option value="${item.id}">${reason} — ${pub.name} ${shiftCounter}${suffix}</option>`;
+    };
+
+    let html = `<option value="">-- Seleccionar publicador (${allPubEntries.length}) --</option>`;
+    if (availableApproved.length > 0) {
+        html += `<optgroup label="✅ Disponibles en este horario (${availableApproved.length})">` +
+            availableApproved.map(it => formatOptionLabel(it, 'available')).join('') +
+            `</optgroup>`;
+    }
+    if (trainees.length > 0) {
+        html += `<optgroup label="⚠️ En Entrenamiento (${trainees.length})">` +
+            trainees.map(it => formatOptionLabel(it, 'trainee')).join('') +
+            `</optgroup>`;
+    }
+    if (others.length > 0) {
+        html += `<optgroup label="❌ Otros horarios / Ausentes / Inactivos (${others.length})">` +
+            others.map(it => formatOptionLabel(it, 'other')).join('') +
+            `</optgroup>`;
+    }
+
+    select.innerHTML = html;
+}
+
+async function quickAddPublisherToLiveShift() {
+    if (!isCurrentUserAdmin || !currentQuickEditShift) return;
+    const select = document.getElementById('quick-edit-pub-select');
+    const pubIdToAdd = select ? select.value : '';
+    if (!pubIdToAdd) {
+        showToast("Selecciona un publicador para agregar.", "error");
+        return;
+    }
+
+    const shift = currentQuickEditShift;
+    const shiftId = shift.id;
+    const capacity = shift.capacity || 2;
+    const currentRealParticipants = (shift.participants || []).filter(id => id && id !== 'Disponible');
+    const pub = publisherCache[pubIdToAdd] || {};
+
+    if (currentRealParticipants.length >= capacity) {
+        const forceCap = await showConfirm(`⚠️ Este turno ya alcanzó su capacidad máxima (${capacity}/${capacity}). ¿Deseas agregar a ${pub.name || 'este publicador'} de todos modos?`, "Forzar Adición", "#d97706");
+        if (!forceCap) return;
+    }
+
+    // Evaluate smart scheduling warnings just like the draft workbench
+    const monthPrefix = (shift.date || '').substring(0, 7);
+    const { counts, datesByPub } = computeLiveMonthStats(monthPrefix);
+    const [prevDateStr, nextDateStr] = getAdjacentDates(shift.date);
+    const pubDates = datesByPub[pubIdToAdd] || new Set();
+    const monthCount = counts[pubIdToAdd] || 0;
+    const limit = pub.maxShifts || 5;
+
+    const warnings = [];
+    if (pub.isInactive) {
+        warnings.push("⏸️ Está marcado como INACTIVO (En pausa de asignaciones).");
+    }
+    if (isPubAbsentOnDate(pub, shift.date)) {
+        warnings.push("✈️ Está marcado como AUSENTE (Vacaciones) en esta fecha.");
+    }
+    if (pub.status === 'Entrenamiento') {
+        warnings.push("⚠️ Está En Entrenamiento. Asegúrate de asignarlo junto con un capacitador.");
+    }
+    if (monthCount >= limit) {
+        warnings.push(`📊 Ya alcanzó su límite mensual (${monthCount}/${limit} turnos en este mes).`);
+    }
+    if (pubDates.has(shift.date)) {
+        warnings.push("📅 Ya tiene otro turno asignado en este mismo día.");
+    } else if ((prevDateStr && pubDates.has(prevDateStr)) || (nextDateStr && pubDates.has(nextDateStr))) {
+        warnings.push("📅 Trabajará en días consecutivos (tiene turno el día anterior o siguiente).");
+    }
+    if (pub.hardPair && pub.partner && !currentRealParticipants.includes(pub.partner)) {
+        warnings.push(`💑 Tiene Pareja Estricta con ${pub.partnerName || 'su compañero(a)'}, quien aún no está en este turno.`);
+    }
+
+    if (warnings.length > 0) {
+        const confirmWarn = await showConfirm(
+            `⚠️ ADVERTENCIA al asignar a ${pub.name}:\n\n` + warnings.map(w => "• " + w).join("\n") + `\n\n¿Deseas asignarlo de todos modos?`,
+            "Asignar de todos modos",
+            "#d97706"
+        );
+        if (!confirmWarn) return;
+    }
+
+    try {
+        const shiftRef = db.collection('shifts').doc(shiftId);
+        const docSnap = await shiftRef.get();
+        if (!docSnap.exists) {
+            showToast("El turno ya no existe.", "error");
+            return;
+        }
+        const data = docSnap.data() || {};
+        const shiftCap = data.capacity || capacity;
+        const realList = (data.participants || []).filter(id => id && id !== 'Disponible');
+        if (realList.includes(pubIdToAdd)) {
+            showToast("Este publicador ya está asignado al turno.", "info");
+            return;
+        }
+        realList.push(pubIdToAdd);
+        const paddedList = [...realList];
+        while (paddedList.length < shiftCap) {
+            paddedList.push("Disponible");
+        }
+        await shiftRef.update({ participants: paddedList });
+
+        currentQuickEditShift.participants = paddedList;
+        const idx = allShiftsData.findIndex(s => s.id === shiftId);
+        if (idx !== -1) allShiftsData[idx].participants = paddedList;
+
+        renderQuickLiveShiftModalContent();
+        filterAllShifts();
+        if (currentUserPublisherId) loadMyShifts();
+        loadAvailableShifts();
+        showToast(`Se agregó a ${pub.name || 'publicador'} al turno.`);
+    } catch (e) {
+        console.error("Error adding publisher to shift:", e);
+        showToast("Error al agregar al turno: " + e.message, "error");
+    }
+}
+
+async function quickRemovePublisherFromLiveShift(pubIdToRemove) {
+    if (!isCurrentUserAdmin || !currentQuickEditShift) return;
+    const pub = publisherCache[pubIdToRemove] || {};
+    const pubName = pub.name || 'este publicador';
+    const shift = currentQuickEditShift;
+    const shiftId = shift.id;
+    const currentReal = (shift.participants || []).filter(id => id && id !== 'Disponible');
+
+    // Warn if separating a strict pair (Pareja Estricta)
+    if (pub.hardPair && pub.partner && currentReal.includes(pub.partner)) {
+        const ok1 = await showConfirm(`⚠️ ${pubName} forma una Pareja Estricta con ${pub.partnerName || 'su compañero(a)'} en este turno.\n\n¿Estás seguro de quitarlo y separar la pareja?`, "Separar y Quitar", "#dc3545");
+        if (!ok1) return;
+    } else {
+        const strictPartnerOnShift = currentReal
+            .filter(id => id !== pubIdToRemove)
+            .map(id => publisherCache[id])
+            .find(p => p && p.hardPair && p.partner === pubIdToRemove);
+        if (strictPartnerOnShift) {
+            const ok2 = await showConfirm(`⚠️ Estás quitando al compañero estricto de ${strictPartnerOnShift.name}.\n\n¿Deseas continuar?`, "Quitar de todos modos", "#dc3545");
+            if (!ok2) return;
+        }
+    }
+
+    try {
+        const shiftRef = db.collection('shifts').doc(shiftId);
+        const docSnap = await shiftRef.get();
+        if (!docSnap.exists) {
+            showToast("El turno ya no existe.", "error");
+            return;
+        }
+        const data = docSnap.data() || {};
+        const shiftCap = data.capacity || shift.capacity || 2;
+        const realList = (data.participants || []).filter(id => id && id !== 'Disponible' && id !== pubIdToRemove);
+        const paddedList = [...realList];
+        while (paddedList.length < shiftCap) {
+            paddedList.push("Disponible");
+        }
+        await shiftRef.update({ participants: paddedList });
+
+        currentQuickEditShift.participants = paddedList;
+        const idx = allShiftsData.findIndex(s => s.id === shiftId);
+        if (idx !== -1) allShiftsData[idx].participants = paddedList;
+
+        renderQuickLiveShiftModalContent();
+        filterAllShifts();
+        if (currentUserPublisherId) loadMyShifts();
+        loadAvailableShifts();
+        showToast(`Se quitó a ${pubName} del turno.`);
+    } catch (e) {
+        console.error("Error removing publisher from shift:", e);
+        showToast("Error al quitar del turno: " + e.message, "error");
+    }
+}
+
+async function quickDeleteLiveShift() {
+    if (!isCurrentUserAdmin || !currentQuickEditShift) return;
+    const shift = currentQuickEditShift;
+    const confirmDelete = await showConfirm(
+        `🗑️ ¿Estás seguro de ELIMINAR por completo este turno del calendario en vivo?\n\n📍 ${shift.location}\n📅 ${formatSpanishDate(shift.date)} • ${shift.time}\n\nEsta acción quitará el turno para todos los publicadores.`,
+        "Eliminar Turno",
+        "#dc3545"
+    );
+    if (!confirmDelete) return;
+
+    try {
+        await db.collection('shifts').doc(shift.id).delete();
+        allShiftsData = allShiftsData.filter(s => s.id !== shift.id);
+        closeQuickLiveShiftEditModal();
+        filterAllShifts();
+        if (currentUserPublisherId) loadMyShifts();
+        loadAvailableShifts();
+        if (typeof checkMonthStatus === 'function' && adminDashboardInitialized) {
+            checkMonthStatus();
+        }
+        showToast("Turno eliminado del calendario en vivo.");
+    } catch (e) {
+        console.error("Error deleting live shift:", e);
+        showToast("Error al eliminar el turno: " + e.message, "error");
+    }
+}
+
 window.openLocationInfoModal = openLocationInfoModal;
 window.closeLocationInfoModal = closeLocationInfoModal;
+window.switchAppMode = switchAppMode;
+window.syncPublisherCacheFromAdmin = syncPublisherCacheFromAdmin;
+window.refreshPublisherLiveShiftsFromAdmin = refreshPublisherLiveShiftsFromAdmin;
+window.openQuickLiveShiftEditModal = openQuickLiveShiftEditModal;
+window.closeQuickLiveShiftEditModal = closeQuickLiveShiftEditModal;
+window.filterQuickLiveShiftPublisherOptions = filterQuickLiveShiftPublisherOptions;
+window.quickAddPublisherToLiveShift = quickAddPublisherToLiveShift;
+window.quickRemovePublisherFromLiveShift = quickRemovePublisherFromLiveShift;
+window.quickDeleteLiveShift = quickDeleteLiveShift;
+
+

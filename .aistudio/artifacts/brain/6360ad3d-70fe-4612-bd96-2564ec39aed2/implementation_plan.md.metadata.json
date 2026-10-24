@@ -1,6 +1,6 @@
 {
-  "summary":  "Plan de implementación para cuentas inactivas (pausa indefinida de asignaciones para usuarios y admin), edición/eliminación y filtro por ubicación en Informes de Turno del Admin, y mejoras de acceso (eliminación de cambio obligatorio de contraseña inicial, botón de mostrar/ocultar contraseña y guardado automático en celulares).",
-  "updatedAt":  "2026-10-22T14:37:46.148897477Z",
+  "summary":  "Plan de implementacion para unificar la experiencia de Publicador y Panel de Administracion en una sola vista con alternancia instantanea y edicion rapida de turnos desde el Programa General y Turnos Libres.",
+  "updatedAt":  "2026-10-24T11:30:35.397087344Z",
   "requestFeedback":  true,
   "userFacing":  true
 }

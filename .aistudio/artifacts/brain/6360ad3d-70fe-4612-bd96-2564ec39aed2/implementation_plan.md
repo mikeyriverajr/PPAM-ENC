@@ -1,96 +1,77 @@
-# Cuentas Inactivas, Gestión de Informes en Admin y Mejoras de Contraseña
+# Plan de Unificación de Vistas (Publicador y Administración) y Herramientas Rápidas de Gestión
 
-Este plan incorpora tres mejoras clave para la administración y el uso diario de PPAM Encarnación: la posibilidad de pausar o marcar cuentas como **Inactivas** sin perder las preferencias de horario, herramientas completas para el administrador en **Informes de Turno** (filtro por ubicación, edición y eliminación), y un inicio de sesión simplificado para evitar el olvido frecuente de contraseñas.
-
-## Revisión del Usuario y Decisiones Confirmadas
+Unificación completa de la experiencia de Publicador y el Panel de Administración dentro del mismo enlace principal, permitiendo a los administradores alternar entre su vista personal y el panel administrativo sin recargar la página, además de editar participantes de cualquier turno directamente desde el Programa General y la pestaña de Turnos Libres.
 
 > [!IMPORTANT]
-> **Decisiones confirmadas por el usuario:**
-> - **Acceso y Reactivación de Cuenta Inactiva**: Cuando un publicador marca su cuenta como inactiva en **Mi Perfil**, conserva acceso completo a la aplicación para consultar el programa y puede volver a activar su cuenta por sí mismo en cualquier momento (además de que el administrador también puede activarla o desactivarla desde el Directorio).
-> - **Simplificación de Contraseñas**:
->   1. **Eliminar la obligación de cambiar contraseña en el primer inicio de sesión**, permitiendo que los publicadores utilicen directamente la clave asignada por el administrador.
->   2. **Botón para ver/ocultar contraseña (icono de ojo) y guardado automático en el celular** (`autocomplete="username"` y `autocomplete="current-password"`) en las pantallas de ingreso.
+> **Decisiones Clave Acordadas**
+> - **Acceso Unificado en un Mismo Enlace**: Al iniciar sesión, la aplicación detectará automáticamente si el usuario tiene permisos de administrador (`role === 'admin'` en su documento de usuario o correo maestro). Si es administrador, aparecerá en la barra superior un selector rápido (**"Vista Publicador" / "Panel Admin"**) para alternar entre ambas vistas al instante sin recargar la página ni volver a iniciar sesión.
+> - **Edición Rápida de Participantes desde la Vista General**: Cuando un administrador esté navegando en el **Programa General** o en la pestaña de **Turnos Libres**, cada turno mostrará un botón rápido de edición (`✏️ Editar`) que abrirá un selector táctil para agregar, reemplazar o quitar publicadores en ese turno desde el celular sin tener que buscar el turno en la tabla del Panel Admin.
+> - **Compatibilidad con el Enlace Anterior**: Si algún administrador entra por costumbre a la ruta anterior de administración, será redirigido automáticamente a la aplicación unificada abriendo directamente el modo de Panel Admin.
 
 ---
 
-## 1. Resumen y Concepto Principal
+## 1. Overview & Core Concept
 
-- **Qué hace**:
-  1. **Modo Inactivo (Pausa Indefinida)**: Permite que tanto el publicador (desde *Mi Perfil*) como el administrador (desde el *Directorio*) marquen una cuenta como **Inactiva**. Mientras esté inactiva, el generador automático ignora al publicador sin borrar sus casillas de disponibilidad semanal.
-  2. **Gestión Avanzada de Informes (Admin)**: Añade un filtro por **Ubicación** en la pestaña *Informes* (que recalcula también los totales de interacciones y reportes) y botones en cada informe para **Editar** o **Eliminar** el registro.
-  3. **Inicio de Sesión Sin Fricción**: Desactiva el bloqueo de cambio forzoso de contraseña al entrar por primera vez, añade el botón de mostrar/ocultar contraseña y habilita el autocompletado nativo de Android/iOS.
-- **Valor Principal**: Ahorra tiempo administrativo al evitar restablecimientos constantes de contraseñas, facilita pausar temporalmente a publicadores sin que pierdan su configuración horaria y permite corregir informes duplicados o erróneos.
+Históricamente, los administradores que también son publicadores han tenido que usar dos enlaces distintos, iniciar sesión por separado y cambiar de estructura mental para realizar ajustes cotidianos (como cubrir una vacante de último minuto o revisar sus propios turnos).
 
----
-
-## 2. Experiencia de Usuario y Diseño Visual
-
-### Flujos de Usuario Clave
-
-1. **Pausar / Reactivar Cuenta (Vista del Publicador y Admin)**:
-   - **En la App del Publicador (*Mi Perfil* y *Mis Turnos*)**:
-     - En *Mi Perfil*, una tarjeta destacada **"Estado de mi Cuenta"** muestra si la cuenta está **Activa (Recibiendo turnos)** o **Inactiva (En pausa indefinida)** con un botón claro para pausar o reactivar en un toque.
-     - Si la cuenta está inactiva, aparece un aviso informativo en *Mis Turnos* recordándole al publicador que no recibirá nuevas asignaciones automáticas hasta que reactive su cuenta, con un botón directo de **"Reactivar mi cuenta"**.
-   - **En el Panel de Admin (*Directorio*, *Generador* y *Disponibilidad*)**:
-     - En el formulario de creación/edición del publicador y en la ficha de detalles, el administrador puede cambiar el estado a **Inactivo (En pausa)**.
-     - Las tarjetas del directorio muestran una etiqueta clara `Inactivo` para identificarlos rápidamente.
-     - El **Generador Automático**, el **Calculador de Estadísticas del Borrador** y la pestaña **Consultar Disponibilidad** excluyen automáticamente a los publicadores inactivos (en la adición manual de un turno aparecen identificados al final bajo *No Disponibles / Ausentes / Inactivos*).
-
-2. **Filtrar, Editar y Eliminar Informes de Turno (Panel de Admin)**:
-   - **Filtro por Ubicación**: En la barra de filtros de la pestaña *Informes*, junto al selector de mes y de estado, se añade un selector desplegable **Todas las ubicaciones**. Al elegir una ubicación, tanto la lista de informes (enviados o pendientes) como los 3 contadores superiores (*Informes Recibidos*, *Total de Interacciones*, *Experiencias / Comentarios*) se actualizan al instante para esa ubicación.
-   - **Editar Informe**: Cada tarjeta de informe recibido incluye un botón **Editar** que abre un modal donde el administrador puede modificar el estado (*Turno realizado*, *Compañero(a) lo reporta*, *Turno cancelado*), la cantidad de interacciones y el comentario/experiencia.
-   - **Eliminar Informe**: Cada tarjeta incluye un botón **Eliminar** con confirmación que borra el informe del registro del publicador y actualiza los totales inmediatamente.
-
-3. **Inicio de Sesión Simplificado y Visibilidad de Contraseña**:
-   - En la pantalla de login de publicadores, en la sección *Seguridad* de *Mi Perfil* y en el login de *Admin*, cada campo de contraseña cuenta con un botón de **ojo (`visibility` / `visibility_off`)** para verificar lo escrito antes de presionar Ingresar.
-   - Los formularios de login utilizan etiquetas semánticas `<form>` y atributos `autocomplete` estándar para que Chrome (Android) y Safari (iPhone) ofrezcan guardar la contraseña automáticamente.
-   - Las cuentas nuevas o existentes ya no muestran el modal bloqueante de *Cambio Obligatorio* al iniciar sesión.
+Con esta mejora:
+1. **Un solo inicio de sesión y una sola aplicación**: Todos entran por el mismo enlace. Los publicadores regulares ven únicamente su interfaz habitual (sin ningún elemento administrativo visible). Los administradores ven en el encabezado un botón de cambio instantáneo entre **Mi Vista de Publicador** y **Panel de Administración**, con un indicador de notificaciones pendientes.
+2. **Acciones administrativas en contexto (In-Context Admin Tools)**: Desde el celular, suele ser mucho más cómodo revisar el **Programa General** o la lista de **Turnos Libres**. Ahora los administradores podrán tocar un botón de edición rápida en cualquier tarjeta de turno dentro de esas vistas para asignar o quitar publicadores al instante, respetando el filtro de cuentas inactivas y enviando o registrando el cambio directamente en Firestore.
 
 ---
 
-## 3. Decisiones de Producto y Arquitectura
+## 2. User Experience & Visual Design
 
-- **Decisión 1: Campo `isInactive` independiente del horario (`availability`)**
-  - *Enfoque elegido*: Guardar un indicador booleano `isInactive` (sincronizado también con soporte cuando `status === 'Inactivo'`) manteniendo intacto el arreglo `availability` del publicador.
-  - *Por qué*: Cuando el publicador vuelve a estar activo semanas o meses después, todos sus turnos habituales siguen marcados tal como los dejó. Además, incluimos respaldo automático en `absences` (`_metaType: 'inactive'`) y actualizamos `firestore.rules` añadiendo `'isInactive'`.
-
-- **Decisión 2: Sincronización limpia al editar o eliminar informes desde Admin**
-  - *Enfoque elegido*: Al editar o borrar un informe como administrador, se actualiza tanto el mapa `shiftReports` del documento del publicador como cualquier entrada de respaldo en `_metaAbsences` (y `shift.reports` si existiera).
-  - *Por qué*: Garantiza que un informe editado o eliminado no reaparezca por datos residuales y que el publicador vea el cambio reflejado también en su propio historial.
+- **Barra Superior con Selector de Modo (Solo Administradores)**:
+  - En el encabezado superior, junto al botón de "Programa General", los administradores verán un botón destacado con ícono de escudo/ajuste (`⚙️ Panel Admin` cuando están en vista publicador, o `👤 Vista Publicador` cuando están en el panel de administración), acompañado de un contador rojo si existen notificaciones o solicitudes pendientes por revisar.
+  - Si un administrador maestro inicia sesión con una cuenta que no está vinculada a un perfil de publicador, la aplicación abrirá directamente el **Panel de Administración** sin mostrar error de perfil faltante, permitiéndole igualmente consultar el Programa General en cualquier momento.
+- **Modal de Edición Rápida de Turno (Optimizado para Móvil)**:
+  - En las tarjetas de **Turnos Libres** y en las celdas del **Programa General**, los administradores verán un botón compacto `✏️ Editar turno` con área táctil mínima de `44x44px`.
+  - Al tocarlo, se abrirá una ventana modal ágil que muestra:
+    - Información del turno (Ubicación, Fecha y Horario).
+    - Lista de los espacios del turno (`Slot 1`, `Slot 2`, `Slot 3`, etc.) con buscador/selector de publicadores activos (indicando con estrella `⭐` quiénes tienen disponibilidad declarada para ese horario) o la opción de dejar el espacio como `"Disponible"`.
+    - Botón de guardado rápido que actualiza Firestore en tiempo real y refresca inmediatamente tanto la tarjeta del turno como el Programa General.
 
 ---
 
-## 4. Arquitectura Técnica y Flujo de Datos
+## 3. Key Product Decisions & Trade-Offs
+
+- **Carga Dinámica del Panel Administrativo vs. Carga Inicial Única**:
+  - *Decisión*: Integrar las vistas y modales administrativos dentro de la estructura principal manteniendo ocultos los contenedores de administración hasta que el usuario autenticado sea verificado como administrador.
+  - *Justificación*: Permite que el cambio entre "Vista Publicador" y "Panel Admin" sea instantáneo (0 ms de espera, sin recargas de página ni reconexiones a Firebase Auth), manteniendo intacta la velocidad y ligereza para los publicadores regulares.
+- **Sincronización de Estado en Tiempo Real**:
+  - *Decisión*: Compartir la misma sesión de autenticación y caché de datos (ubicaciones, publicadores y turnos) entre ambas vistas.
+  - *Justificación*: Cuando un administrador edita un turno en el Panel Admin o mediante el botón rápido en Turnos Libres / Programa General, los cambios se reflejan inmediatamente al cambiar de vista sin necesidad de refrescar el navegador.
+
+---
+
+## 4. Technical Architecture & Data Strategy
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                        FIRESTORE: publishers/{pubId}                    │
-│  • availability: [...] (se conserva intacto al pausar la cuenta)        │
-│  • isInactive: boolean (true = en pausa indefinida, false = activo)     │
-│  • shiftReports: { [shiftId]: { reportStatus, interactions, comments } }│
-└───────────────────┬─────────────────────────────────┬───────────────────┘
-                    │                                 │
-                    ▼                                 ▼
-┌───────────────────────────────────────┐ ┌───────────────────────────────┐
-│        APP PUBLICADOR (index/app)     │ │    PANEL ADMIN (admin/admin)  │
-│ • Login con <form>, autocomplete y 👁️ │ │ • Directorio: Badge y selector│
-│ • Sin bloqueo de cambio obligatorio   │ │   de estado Activo / Inactivo │
-│ • Mi Perfil / Mis Turnos: Interruptor │ │ • Generador y Disponibilidad: │
-│   para pausar o reactivar su cuenta   │ │   excluye cuentas inactivas   │
-│                                       │ │ • Pestaña Informes:           │
-│                                       │ │   - Filtro por Ubicación      │
-│                                       │ │   - Modal Editar Informe      │
-│                                       │ │   - Botón Eliminar Informe    │
-└───────────────────────────────────────┘ └───────────────────────────────┘
++-----------------------------------------------------------------------+
+|                     APLICACIÓN UNIFICADA (Mismo URL)                  |
+|                                                                       |
+|  1. Login Único (Correo o Usuario + Contraseña)                       |
+|                         |                                             |
+|                         v                                             |
+|  2. Verificación de Rol en Firestore (`users/{uid}`)                  |
+|     +-- Publicador Regular --> Muestra Vista Publicador               |
+|     +-- Administrador      --> Muestra Barra de Alternancia Instantánea|
+|                                                                       |
+|  +---------------------------------+--------------------------------+ |
+|  |        VISTA PUBLICADOR         |          PANEL ADMIN           | |
+|  | - Mis Turnos / Informes         | - Generador y Tabla de Turnos  | |
+|  | - Turnos Libres [+ ✏️ Editar*]  | - Directorio de Publicadores   | |
+|  | - Programa Gral [+ ✏️ Editar*]  | - Informes de Turno y Alertas  | |
+|  | - Mi Perfil                     | - Ubicaciones y Configuración  | |
+|  +---------------------------------+--------------------------------+ |
+|  (* Herramienta rápida visible únicamente para usuarios con isAdmin)  |
++-----------------------------------------------------------------------+
 ```
 
-### Mapa de Componentes e Interacciones
-- **Autenticación y Contraseñas**:
-  - `togglePasswordVisibility(inputId, btnEl)`: Alterna el atributo `type` entre `password` y `text` y actualiza el icono Material Symbols (`visibility` / `visibility_off`).
-  - `savePublisher()` y `onAuthStateChanged`: Establecen `requirePasswordChange: false` por defecto e ingresan directamente al panel principal sin mostrar `#force-password-modal`.
-- **Estado Inactivo de Cuenta**:
-  - `toggleMyAccountActiveStatus()` en la vista del publicador: Permite pausar o reactivar la cuenta con confirmación clara y actualiza la interfaz al instante.
-  - Filtros en `generateDraft()`, `openDraftStatsModal()` y `checkAvailability()`: Verifican `!isPublisherInactive(pub)` antes de incluir al publicador en el sorteo o conteo de disponibilidad.
-- **Gestión de Informes en Admin**:
-  - `rep-location-filter`: Se puebla dinámicamente con las ubicaciones presentes en los turnos y filtra tanto las tarjetas como los KPIs.
-  - `openAdminEditReportModal(shiftId, pubId)`, `saveAdminEditedReport()` y `deleteAdminShiftReport(shiftId, pubId)`: Permiten editar cualquier campo del informe o eliminarlo por completo con actualización inmediata en pantalla.
+1. **Detección de Permisos (`isAdmin`)**:
+   - Al completarse `auth.onAuthStateChanged`, se evalúa simultáneamente el perfil de publicador (`publisherId`) y el rol administrativo (`userData.role === 'admin' || !user.email.endsWith('@ppam.app')`).
+   - El estado `isCurrentUserAdmin` habilita el botón de alternancia en la cabecera y activa los controles de edición rápida en el renderizado de **Turnos Libres** y **Programa General**.
+2. **Edición Rápida de Participantes en Turnos (`shifts/{shiftId}`)**:
+   - El modal rápido de edición lee el arreglo `participants` actual del turno seleccionado y presenta selectores poblados con los publicadores activos (`!isInactive`), destacando primero a los publicadores disponibles en ese bloque horario.
+   - Al guardar, ejecuta `db.collection('shifts').doc(shiftId).update({ participants: updatedList })`, operación ya permitida para administradores en las reglas de seguridad (`allow update: if isAdmin()`), por lo que **no requiere volver a modificar las reglas de Firestore**.
